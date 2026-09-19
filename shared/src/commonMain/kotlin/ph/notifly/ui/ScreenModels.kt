@@ -50,8 +50,10 @@ data class EditorState(
     val original: Transaction? = null, val title: String = "", val amount: String = "",
     val category: String = "Other", val type: TransactionType = TransactionType.EXPENSE,
     val error: String? = null, val ready: Boolean = false, val saving: Boolean = false,
+    val sourceText: String? = null, val sourceApp: String? = null, val captureId: Long? = null,
 )
-class EditorModel(private val repository: TransactionRepository, id: Long) : ScreenModel() {
+class EditorModel(private val repository: TransactionRepository, id: Long,
+                  captures: CaptureRepository? = null, captureId: Long? = null) : ScreenModel() {
     private val mutableState = MutableStateFlow(EditorState())
     val state = mutableState.asStateFlow()
     init { work {
@@ -59,6 +61,10 @@ class EditorModel(private val repository: TransactionRepository, id: Long) : Scr
         mutableState.value = if (id != 0L && t == null) EditorState(error = "Transaction no longer exists.")
         else EditorState(t, t?.title.orEmpty(), t?.let { amountText(it.amountMinor) }.orEmpty(),
             t?.category ?: "Other", t?.type ?: TransactionType.EXPENSE, ready = true)
+        if (captureId != null) {
+            val capture = captures?.observeLog()?.first()?.find { it.id == captureId }
+            mutableState.value = state.value.copy(sourceText = capture?.body, sourceApp = capture?.sourceApp, captureId = capture?.id)
+        }
     } }
     fun edit(title: String = state.value.title, amount: String = state.value.amount,
              category: String = state.value.category, type: TransactionType = state.value.type) {
@@ -79,7 +85,7 @@ class EditorModel(private val repository: TransactionRepository, id: Long) : Scr
                     category = s.category, type = s.type, status = TransactionStatus.CONFIRMED)
                     ?: Transaction(title = s.title.trim(), amountMinor = amount, type = s.type,
                         status = TransactionStatus.CONFIRMED, category = s.category,
-                        occurredAt = Clock.System.now(), sourceApp = null, captureId = null))
+                        occurredAt = Clock.System.now(), sourceApp = s.sourceApp, captureId = s.captureId))
                 mutableEvents.emit(UiEvent.Navigate("transactions"))
             } finally { mutableState.value = state.value.copy(saving = false) }
         }

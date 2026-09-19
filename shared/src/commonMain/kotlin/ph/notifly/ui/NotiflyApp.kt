@@ -25,6 +25,8 @@ fun NotiflyApp(demo: Boolean = true, permissionAvailable: Boolean = false, reque
     val preferences = koinInject<AppPreferences>()
     val realTransactions = koinInject<TransactionRepository>()
     val realApps = koinInject<AllowListRepository>()
+    val realCaptures = koinInject<CaptureRepository>()
+    val captures = remember(demo) { if (demo) DemoCaptures() else realCaptures }
     val transactions = remember(demo) { if (demo) DemoTransactions() else realTransactions }
     val apps = remember(demo) { if (demo) DemoAllowList() else realApps }
     val palette by preferences.palette.collectAsState(NotiflyPalette.Evergreen)
@@ -77,7 +79,10 @@ fun NotiflyApp(demo: Boolean = true, permissionAvailable: Boolean = false, reque
                     val m = viewModel { EditorModel(transactions, it.arguments?.getLong("id") ?: 0L) }; Events(m, handle); EditorScreen(m)
                 }
                 composable("themes") { ThemeGallery(preferences) }
-                composable("log") { Text("Notification log is the next implementation phase.") }
+                composable("log") { val m = viewModel { LogModel(captures, preferences) }; Events(m, handle); LogScreen(m) }
+                composable("from-log/{captureId}", arguments = listOf(navArgument("captureId") { type = NavType.LongType })) {
+                    val m = viewModel { EditorModel(transactions, 0L, captures, it.arguments?.getLong("captureId")) }; Events(m, handle); EditorScreen(m)
+                }
             }
         }
     }

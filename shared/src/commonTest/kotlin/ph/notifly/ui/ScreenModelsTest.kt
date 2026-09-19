@@ -9,6 +9,24 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ScreenModelsTest {
+    @Test fun manualEntryFromLogDoesNotCopyRawTextIntoTransaction() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val transactions = DemoTransactions()
+            val captures = DemoCaptures()
+            val editor = EditorModel(transactions, 0, captures, 3)
+            runCurrent()
+            assertNotNull(editor.state.value.sourceText)
+            editor.edit(title = "Manual payment", amount = "25")
+            editor.save()
+            runCurrent()
+            val saved = transactions.observeAll().first().first { it.title == "Manual payment" }
+            assertEquals("", saved.note)
+            assertEquals("GCash", saved.sourceApp)
+            captures.redactBodies()
+            assertTrue(captures.observeLog().first().all { it.body == null })
+        } finally { Dispatchers.resetMain() }
+    }
     @Test fun reviewDoesNotMoveBalanceAndInvalidEditsDoNotWrite() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {

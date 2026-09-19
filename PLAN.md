@@ -52,13 +52,13 @@ for navigation and snackbars. Never put navigation in `UiState`.
 Build this before wiring the real listener. It's the only debugging surface once
 captures start arriving, and you'll want it working first.
 
-- [ ] Log screen listing captures newest-first
-- [ ] Four result states, colour-coded (Parsed / Needs review / Not recognised / Ignored)
-- [ ] Raw body with the matched amount and direction keyword highlighted
-- [ ] Expand shows amount, direction, merchant, source, plain-language reason
-- [ ] "Create transaction manually" on unrecognised entries, prefilled with the source text
-- [ ] "Keep raw text on device" switch → calls `redactBodies()` when turned off
-- [ ] Clear log action
+- [x] Log screen listing captures newest-first
+- [x] Four result states, colour-coded (Parsed / Needs review / Not recognised / Ignored)
+- [x] Raw body with the matched amount and direction keyword highlighted
+- [x] Expand shows amount, direction, merchant, source, plain-language reason
+- [x] "Create transaction manually" on unrecognised entries, prefilled with the source text
+- [x] "Keep raw text on device" switch → calls `redactBodies()` when turned off
+- [x] Clear log action
 
 **Done when:** you can seed a fake capture and see it rendered correctly.
 

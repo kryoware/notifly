@@ -80,6 +80,7 @@ fun EditorScreen(model: EditorModel) {
     val s by model.state.collectAsState()
     var delete by remember { mutableStateOf(false) }
     LazyColumn(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        s.sourceText?.let { text -> item { Text("Source notification (device only): $text") } }
         if (s.original?.status == TransactionStatus.NEEDS_REVIEW) item { Text("Parsed on your device. Check the details before confirming.") }
         item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TransactionType.entries.forEach { type -> FilterChip(s.type == type, { model.edit(type = type) }, label = { Text(type.name.lowercase().replaceFirstChar { it.uppercase() }) }) }
@@ -87,7 +88,7 @@ fun EditorScreen(model: EditorModel) {
         item { OutlinedTextField(s.title, { model.edit(title = it) }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
         item { OutlinedTextField(s.amount, { model.edit(amount = it) }, label = { Text("Amount (PHP)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)) }
         item { OutlinedTextField(s.category, { model.edit(category = it) }, label = { Text("Category") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-        item { Text("Source: ${s.original?.sourceApp ?: "Manual"}") }
+        item { Text("Source: ${s.original?.sourceApp ?: s.sourceApp ?: "Manual"}") }
         if (s.original != null) item { Text("Date: ${s.original!!.occurredAt}") }
         s.error?.let { error -> item { Text(error, color = MaterialTheme.colorScheme.error) } }
         item { Button(onClick = model::save, enabled = s.ready && !s.saving, modifier = Modifier.fillMaxWidth()) {

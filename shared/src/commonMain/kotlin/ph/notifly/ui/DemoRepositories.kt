@@ -46,3 +46,21 @@ class DemoAllowList : AllowListRepository {
         rows.value = rows.value.map { if (it.packageName == packageName) it.copy(capturedCount = it.capturedCount + 1) else it }
     }
 }
+
+class DemoCaptures : CaptureRepository {
+    private val rows = MutableStateFlow(listOf(
+        RawCapture(1, "GCash", Clock.System.now(), "You received PHP 480.00 from ACME CORP.", CaptureResult.PARSED, "PHP 480.00", "received", "Matched an amount and an income keyword. Still requires your confirmation."),
+        RawCapture(2, "Maya", Clock.System.now(), "PHP 500.00 hold placed by SHELL.", CaptureResult.NEEDS_REVIEW, "PHP 500.00", "hold", "Possible pre-authorisation. Check the final amount before confirming."),
+        RawCapture(3, "GCash", Clock.System.now(), "Your balance is PHP 9120.40.", CaptureResult.UNRECOGNIZED, reason = "Balance notice without a transaction verb. No transaction created."),
+        RawCapture(4, "Shopee", Clock.System.now(), null, CaptureResult.IGNORED, reason = "App is not on your allow-list. Its body was not read."),
+    ))
+    override fun observeLog(filter: CaptureResult?) = rows.map { list -> list.filter { filter == null || it.result == filter }.sortedByDescending { it.capturedAt } }
+    override suspend fun record(capture: RawCapture): Long {
+        val id = (rows.value.maxOfOrNull { it.id } ?: 0) + 1
+        rows.value = rows.value + capture.copy(id = id)
+        return id
+    }
+    override suspend fun clearLog() { rows.value = emptyList() }
+    override suspend fun redactBodies() { rows.value = rows.value.map { it.copy(body = null) } }
+    override suspend fun purgeExpired() { rows.value = rows.value.filter { it.capturedAt >= Clock.System.now() - kotlin.time.Duration.parse("24h") } }
+}
