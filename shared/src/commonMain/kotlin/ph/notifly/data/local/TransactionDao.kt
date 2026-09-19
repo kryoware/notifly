@@ -29,7 +29,7 @@ interface TransactionDao {
                                   WHEN type = 'EXPENSE' THEN -amountMinor
                                   ELSE 0 END), 0)
         FROM transactions
-        WHERE status = 'CONFIRMED'
+        WHERE status = 'CONFIRMED' AND currency = 'PHP'
         """
     )
     fun observeConfirmedNetMinor(): Flow<Long>

@@ -23,10 +23,10 @@ import ph.notifly.ui.theme.*
 @Composable
 fun NotiflyApp(demo: Boolean = true, permissionAvailable: Boolean = false, requestPermission: () -> Unit = {}) {
     val preferences = koinInject<AppPreferences>()
-    val realTransactions = koinInject<TransactionRepository>()
-    val realApps = koinInject<AllowListRepository>()
-    val transactions = remember(demo) { if (demo) DemoTransactions() else realTransactions }
-    val apps = remember(demo) { if (demo) DemoAllowList() else realApps }
+    val transactions: TransactionRepository =
+        if (demo) remember { DemoTransactions() } else koinInject()
+    val apps: AllowListRepository =
+        if (demo) remember { DemoAllowList() } else koinInject()
     val palette by preferences.palette.collectAsState(NotiflyPalette.Evergreen)
     val onboarded by preferences.onboardingComplete.collectAsState(null)
     val nav = rememberNavController()
@@ -76,7 +76,7 @@ fun NotiflyApp(demo: Boolean = true, permissionAvailable: Boolean = false, reque
                 composable("edit/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val m = viewModel { EditorModel(transactions, it.arguments?.getLong("id") ?: 0L) }; Events(m, handle); EditorScreen(m)
                 }
-                composable("themes") { ThemeGallery(preferences) }
+                composable("themes") { val m = viewModel { SettingsModel(preferences) }; Events(m, handle); ThemeGallery(m) }
                 composable("log") { Text("Notification log is the next implementation phase.") }
             }
         }

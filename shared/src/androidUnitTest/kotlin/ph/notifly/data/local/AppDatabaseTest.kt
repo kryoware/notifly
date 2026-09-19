@@ -11,9 +11,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.robolectric.RobolectricTestRunner
 import org.junit.runner.RunWith
+import ph.notifly.data.repository.TransactionRepositoryImpl
 import ph.notifly.domain.model.Transaction
 import ph.notifly.domain.model.TransactionStatus
 import ph.notifly.domain.model.TransactionType
+import kotlin.test.assertFailsWith
 
 @RunWith(RobolectricTestRunner::class)
 class AppDatabaseTest {
@@ -85,5 +87,45 @@ class AppDatabaseTest {
         db.transactionDao().delete(id)
 
         assertNull(db.transactionDao().byId(id))
+    }
+
+    @Test
+    fun `repository rejects non-PHP transactions`() = runTest {
+        val db = buildDatabase()
+        val repository = TransactionRepositoryImpl(db.transactionDao())
+        val transaction = Transaction(
+            title = "Dollar transaction",
+            amountMinor = 500,
+            currency = "USD",
+            type = TransactionType.EXPENSE,
+            status = TransactionStatus.CONFIRMED,
+            category = "Misc",
+            occurredAt = Instant.fromEpochMilliseconds(0),
+            sourceApp = null,
+            captureId = null,
+        )
+
+        assertFailsWith<IllegalArgumentException> { repository.upsert(transaction) }
+        assertEquals(emptyList(), db.transactionDao().observeAll().first())
+    }
+
+    @Test
+    fun `confirmed net excludes legacy non-PHP rows`() = runTest {
+        val db = buildDatabase()
+        val dao = db.transactionDao()
+        val base = Transaction(
+            title = "Income",
+            amountMinor = 10_000,
+            type = TransactionType.INCOME,
+            status = TransactionStatus.CONFIRMED,
+            category = "Misc",
+            occurredAt = Instant.fromEpochMilliseconds(0),
+            sourceApp = null,
+            captureId = null,
+        )
+        dao.upsert(base.toEntity())
+        dao.upsert(base.copy(title = "Legacy dollar income", amountMinor = 99_000, currency = "USD").toEntity())
+
+        assertEquals(10_000, TransactionRepositoryImpl(dao).observeConfirmedNetMinor().first())
     }
 }
