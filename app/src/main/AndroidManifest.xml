@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Needed to list installed apps for the allow-list picker. Play Store
+         requires a declared justification for this one. -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <application
+        android:name=".NotiflyApplication"
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Notifly">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          Special access, not a runtime permission. The user must enable this in
+          system Settings; there is no dialog you can show. The system holds
+          BIND_NOTIFICATION_LISTENER_SERVICE, so android:permission is required.
+        -->
+        <service
+            android:name=".service.NotificationCaptureService"
+            android:exported="false"
+            android:label="@string/notification_service_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Notifly</string>
+    <string name="notification_service_label">Notifly transaction capture</string>
+</resources>

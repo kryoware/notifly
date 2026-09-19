@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notifly — MD3 Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- stage chrome (adapts to viewer light/dark) ---------- */
+:root{
+  --stage-bg:#eceef0; --stage-fg:#1b1d1f; --stage-dim:#5c6166; --stage-line:#d3d7db; --stage-card:#ffffff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --stage-bg:#141617; --stage-fg:#e6e9ea; --stage-dim:#9aa1a6; --stage-line:#2c3033; --stage-card:#1d2022;
+  }
+}
+:root[data-theme="dark"]{
+  --stage-bg:#141617; --stage-fg:#e6e9ea; --stage-dim:#9aa1a6; --stage-line:#2c3033; --stage-card:#1d2022;
+}
+
+/* ---------- MD3 palettes ---------- */
+.phone[data-palette="evergreen"]{
+  --primary:#22684B; --on-primary:#FFFFFF; --primary-container:#A8F2C8; --on-primary-container:#00210F;
+  --secondary:#4E6355; --on-secondary:#FFFFFF; --secondary-container:#D0E8D6; --on-secondary-container:#0B1F14;
+  --tertiary:#3B6470; --on-tertiary:#FFFFFF; --tertiary-container:#BFEAF8; --on-tertiary-container:#001F27;
+  --error:#BA1A1A; --on-error:#FFFFFF; --error-container:#FFDAD6; --on-error-container:#410002;
+  --income:#1E6B45; --income-container:#A4F2C4; --on-income-container:#002110;
+  --expense:#BA1A1A; --expense-container:#FFDAD6; --on-expense-container:#410002;
+  --surface:#F6FBF5; --on-surface:#181D19; --surface-variant:#DCE5DC; --on-surface-variant:#414942;
+  --surf-lowest:#FFFFFF; --surf-low:#F0F5EF; --surf:#EBF0E9; --surf-high:#E5EAE4; --surf-highest:#DFE4DE;
+  --outline:#717972; --outline-variant:#C0C9C0; --inverse-surface:#2D322D; --inverse-on-surface:#EEF2EC;
+}
+.phone[data-palette="indigo"]{
+  --primary:#6750A4; --on-primary:#FFFFFF; --primary-container:#EADDFF; --on-primary-container:#21005D;
+  --secondary:#625B71; --on-secondary:#FFFFFF; --secondary-container:#E8DEF8; --on-secondary-container:#1D192B;
+  --tertiary:#7D5260; --on-tertiary:#FFFFFF; --tertiary-container:#FFD8E4; --on-tertiary-container:#31111D;
+  --error:#B3261E; --on-error:#FFFFFF; --error-container:#F9DEDC; --on-error-container:#410E0B;
+  --income:#2E6B4F; --income-container:#B7EFD0; --on-income-container:#00210F;
+  --expense:#B3261E; --expense-container:#F9DEDC; --on-expense-container:#410E0B;
+  --surface:#FEF7FF; --on-surface:#1D1B20; --surface-variant:#E7E0EC; --on-surface-variant:#49454F;
+  --surf-lowest:#FFFFFF; --surf-low:#F7F2FA; --surf:#F3EDF7; --surf-high:#ECE6F0; --surf-highest:#E6E0E9;
+  --outline:#79747E; --outline-variant:#CAC4D0; --inverse-surface:#322F35; --inverse-on-surface:#F5EFF7;
+}
+.phone[data-palette="slate"]{
+  --primary:#35566E; --on-primary:#FFFFFF; --primary-container:#CDE5FF; --on-primary-container:#001D32;
+  --secondary:#51606F; --on-secondary:#FFFFFF; --secondary-container:#D4E4F6; --on-secondary-container:#0D1D2A;
+  --tertiary:#67587A; --on-tertiary:#FFFFFF; --tertiary-container:#EDDCFF; --on-tertiary-container:#221533;
+  --error:#BA1A1A; --on-error:#FFFFFF; --error-container:#FFDAD6; --on-error-container:#410002;
+  --income:#2A6A47; --income-container:#ACF2C8; --on-income-container:#002110;
+  --expense:#BA1A1A; --expense-container:#FFDAD6; --on-expense-container:#410002;
+  --surface:#F8F9FC; --on-surface:#191C1E; --surface-variant:#DEE3EB; --on-surface-variant:#42474E;
+  --surf-lowest:#FFFFFF; --surf-low:#F2F4F8; --surf:#ECEEF2; --surf-high:#E6E9ED; --surf-highest:#E0E3E8;
+  --outline:#72777F; --outline-variant:#C2C7CF; --inverse-surface:#2E3133; --inverse-on-surface:#EFF1F4;
+}
+.phone[data-palette="clay"]{
+  --primary:#8F4C38; --on-primary:#FFFFFF; --primary-container:#FFDBD1; --on-primary-container:#3A0B01;
+  --secondary:#77574E; --on-secondary:#FFFFFF; --secondary-container:#FFDBD1; --on-secondary-container:#2C150F;
+  --tertiary:#6C5D2F; --on-tertiary:#FFFFFF; --tertiary-container:#F5E1A7; --on-tertiary-container:#231B00;
+  --error:#BA1A1A; --on-error:#FFFFFF; --error-container:#FFDAD6; --on-error-container:#410002;
+  --income:#3C6B45; --income-container:#BEF0C4; --on-income-container:#00210B;
+  --expense:#BA1A1A; --expense-container:#FFDAD6; --on-expense-container:#410002;
+  --surface:#FFF8F6; --on-surface:#231917; --surface-variant:#F5DED8; --on-surface-variant:#53433F;
+  --surf-lowest:#FFFFFF; --surf-low:#FFF1ED; --surf:#FFE9E4; --surf-high:#FFE2DB; --surf-highest:#F8D9D2;
+  --outline:#85736E; --outline-variant:#D8C2BC; --inverse-surface:#392E2B; --inverse-on-surface:#FFEDE8;
+}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--stage-bg); color:var(--stage-fg);
+  font-family:Roboto,"Helvetica Neue",Arial,sans-serif;
+  display:flex; flex-direction:column; align-items:center; gap:20px;
+  padding:28px 16px 48px; min-height:100vh;
+}
+
+/* ---------- stage controls ---------- */
+.controls{width:100%;max-width:760px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.brandline{display:flex;flex-direction:column;gap:2px}
+.brandline b{font-size:17px;font-weight:700;letter-spacing:-.2px}
+.brandline span{font-size:12.5px;color:var(--stage-dim)}
+.swatches{display:flex;gap:8px;flex-wrap:wrap}
+.sw{display:flex;align-items:center;gap:7px;border:1px solid var(--stage-line);background:var(--stage-card);
+  border-radius:999px;padding:6px 13px 6px 7px;cursor:pointer;font:500 12.5px Roboto,sans-serif;color:var(--stage-fg)}
+.sw:focus-visible{outline:2px solid var(--stage-fg);outline-offset:2px}
+.sw i{width:17px;height:17px;border-radius:50%;display:block;border:1px solid rgba(0,0,0,.14)}
+.sw[aria-pressed="true"]{border-color:var(--stage-fg);box-shadow:inset 0 0 0 1px var(--stage-fg)}
+
+/* ---------- device ---------- */
+.phone{
+  width:360px;max-width:100%;height:800px;background:var(--surface);color:var(--on-surface);
+  border-radius:34px;overflow:hidden;position:relative;display:flex;flex-direction:column;
+  box-shadow:0 22px 50px rgba(0,0,0,.20),0 0 0 9px #101314,0 0 0 10px #303537;
+}
+@media (max-width:520px){
+  .phone{height:78vh;min-height:600px;border-radius:26px;box-shadow:0 10px 26px rgba(0,0,0,.18),0 0 0 5px #101314}
+}
+#app{flex:1;display:flex;flex-direction:column;min-height:0}
+
+/* ---------- MD3 type ---------- */
+.t-headline{font:400 28px/36px Roboto;letter-spacing:0;margin:0}
+.t-headline-s{font:400 24px/32px Roboto;margin:0}
+.t-title-l{font:400 22px/28px Roboto;margin:0}
+.t-title-m{font:500 16px/24px Roboto;letter-spacing:.15px;margin:0}
+.t-body-l{font:400 16px/24px Roboto;letter-spacing:.5px;margin:0}
+.t-body-m{font:400 14px/20px Roboto;letter-spacing:.25px;margin:0}
+.t-body-s{font:400 12px/16px Roboto;letter-spacing:.4px;margin:0}
+.t-label-l{font:500 14px/20px Roboto;letter-spacing:.1px;margin:0}
+.t-label-m{font:500 12px/16px Roboto;letter-spacing:.5px;margin:0}
+.t-label-s{font:500 11px/16px Roboto;letter-spacing:.5px;margin:0}
+.dim{color:var(--on-surface-variant)}
+
+/* ---------- structure ---------- */
+.statusbar{height:28px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex:0 0 auto;
+  font:500 12px/16px Roboto;letter-spacing:.5px}
+.statusbar span:last-child{color:var(--on-surface-variant);letter-spacing:1px}
+.appbar{height:64px;display:flex;align-items:center;gap:8px;padding:0 4px 0 16px;flex:0 0 auto;background:var(--surface)}
+.appbar.back{padding-left:4px}
+.appbar .ttl{flex:1;font:400 22px/28px Roboto}
+.scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;min-height:0}
+.pad{padding:0 24px}
+.stack{display:flex;flex-direction:column}
+.grow{flex:1}
+.row{display:flex;align-items:center}
+
+/* ---------- controls ---------- */
+.iconbtn{width:48px;height:48px;border:0;background:none;display:grid;place-items:center;border-radius:50%;
+  cursor:pointer;color:var(--on-surface-variant);flex:0 0 auto}
+.iconbtn:hover{background:color-mix(in srgb,var(--on-surface) 8%,transparent)}
+.iconbtn:focus-visible{outline:2px solid var(--primary);outline-offset:-3px}
+.btn{height:40px;border-radius:20px;border:0;display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:0 24px;font:500 14px/20px Roboto;letter-spacing:.1px;cursor:pointer;width:100%}
+.btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.btn.filled{background:var(--primary);color:var(--on-primary)}
+.btn.tonal{background:var(--secondary-container);color:var(--on-secondary-container)}
+.btn.outlined{background:transparent;color:var(--primary);border:1px solid var(--outline)}
+.btn.text{background:transparent;color:var(--primary)}
+.btn.danger{background:var(--error);color:var(--on-error)}
+.btn[disabled]{background:var(--surf-highest);color:var(--on-surface-variant);opacity:.6;cursor:not-allowed}
+.btn.auto{width:auto}
+
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
+.field .box{min-height:56px;border:1px solid var(--outline);border-radius:8px;background:var(--surface);
+  padding:7px 16px;display:flex;flex-direction:column;justify-content:center;transition:border-color .12s}
+.field .box:focus-within{border-color:var(--primary);border-width:2px;padding:6px 15px}
+.field label{font:400 12px/16px Roboto;letter-spacing:.4px;color:var(--on-surface-variant)}
+.field .box:focus-within label{color:var(--primary)}
+.field input,.field select,.field textarea{border:0;background:none;outline:0;padding:0;color:var(--on-surface);
+  font:400 16px/24px Roboto;letter-spacing:.5px;width:100%;font-family:Roboto,sans-serif}
+.field .help{font:400 12px/16px Roboto;padding-left:16px;color:var(--on-surface-variant)}
+.field.err .box{border-color:var(--error);border-width:2px;padding:6px 15px}
+.field.err .help,.field.err label{color:var(--error)}
+
+.sw-track{width:52px;height:32px;border-radius:16px;border:2px solid var(--outline);background:var(--surf-highest);
+  display:flex;align-items:center;padding:0 4px;cursor:pointer;flex:0 0 auto;transition:background .15s,border-color .15s}
+.sw-track .knob{width:16px;height:16px;border-radius:50%;background:var(--outline);transition:all .15s}
+.sw-track[aria-checked="true"]{background:var(--primary);border-color:var(--primary);justify-content:flex-end;padding:0 4px 0 0}
+.sw-track[aria-checked="true"] .knob{width:24px;height:24px;background:var(--on-primary)}
+.sw-track:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+
+.chips{display:flex;gap:8px;padding:4px 24px 12px;overflow-x:auto;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{height:32px;border-radius:8px;border:1px solid var(--outline-variant);background:transparent;
+  color:var(--on-surface-variant);padding:0 16px;font:500 14px/20px Roboto;letter-spacing:.1px;cursor:pointer;
+  white-space:nowrap;display:inline-flex;align-items:center;gap:8px;flex:0 0 auto}
+.chip[aria-pressed="true"]{background:var(--secondary-container);color:var(--on-secondary-container);border-color:transparent;padding-left:8px}
+.chip:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+
+/* ---------- list rows ---------- */
+.txn{display:flex;align-items:center;gap:16px;padding:12px 16px;width:100%;background:none;border:0;
+  text-align:left;cursor:pointer;color:inherit;font-family:inherit}
+.txn:hover{background:color-mix(in srgb,var(--on-surface) 5%,transparent)}
+.txn:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
+.avatar{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto}
+.avatar.sq{border-radius:12px;background:var(--surf-highest)}
+.txn .mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.txn .mid b{font:400 16px/24px Roboto;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.txn .end{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:0 0 auto}
+.amt{font:500 16px/24px Roboto}
+.badge{background:var(--tertiary-container);color:var(--on-tertiary-container);border-radius:8px;
+  padding:2px 8px;font:500 11px/16px Roboto;letter-spacing:.5px}
+.sectionhdr{padding:16px 24px 6px;color:var(--on-surface-variant);font:500 12px/16px Roboto;letter-spacing:.5px}
+
+.card{background:var(--surf-low);border-radius:20px;padding:20px;margin:0 24px}
+.balance{background:var(--primary-container);color:var(--on-primary-container);border-radius:20px;padding:20px;margin:8px 24px 4px}
+.balance .big{font:700 36px/44px Roboto;margin:2px 0 0}
+.split{display:flex;gap:20px;padding-top:12px}
+.split div{display:flex;align-items:center;gap:6px;font:500 14px/20px Roboto}
+
+.banner{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--tertiary-container);
+  color:var(--on-tertiary-container);font:400 14px/20px Roboto;letter-spacing:.25px}
+
+/* ---------- bottom nav + fab ---------- */
+.nav{height:80px;background:var(--surf);display:flex;padding:12px 0 16px;flex:0 0 auto}
+.nav button{flex:1;background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;
+  color:var(--on-surface-variant);font-family:inherit}
+.nav button:focus-visible{outline:2px solid var(--primary);outline-offset:-4px;border-radius:12px}
+.nav .ind{width:64px;height:32px;border-radius:16px;display:grid;place-items:center;transition:background .15s}
+.nav button[aria-current="page"] .ind{background:var(--secondary-container);color:var(--on-secondary-container)}
+.nav button[aria-current="page"] .lbl{color:var(--on-surface)}
+.nav .lbl{font:500 12px/16px Roboto;letter-spacing:.5px}
+.fab{position:absolute;right:16px;bottom:96px;height:56px;min-width:56px;border-radius:16px;border:0;
+  background:var(--primary-container);color:var(--on-primary-container);display:flex;align-items:center;gap:12px;
+  padding:0 16px;cursor:pointer;box-shadow:0 4px 8px rgba(0,0,0,.15),0 1px 3px rgba(0,0,0,.3);
+  font:500 14px/20px Roboto;letter-spacing:.1px}
+.fab:focus-visible{outline:2px solid var(--primary);outline-offset:3px}
+
+/* ---------- overlays ---------- */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.4);display:grid;place-items:center;padding:24px;z-index:20}
+.dialog{background:var(--surf-high);color:var(--on-surface);border-radius:28px;padding:24px;width:100%;max-width:312px}
+.dialog h3{font:400 24px/32px Roboto;margin:0 0 16px}
+.dialog p{font:400 14px/20px Roboto;letter-spacing:.25px;color:var(--on-surface-variant);margin:0 0 24px}
+.dialog .acts{display:flex;justify-content:flex-end;gap:8px}
+.snack{position:absolute;left:16px;right:16px;bottom:96px;background:var(--inverse-surface);color:var(--inverse-on-surface);
+  border-radius:8px;padding:14px 16px;font:400 14px/20px Roboto;letter-spacing:.25px;z-index:30;
+  box-shadow:0 4px 8px rgba(0,0,0,.3);display:flex;align-items:center;gap:12px}
+.snack b{color:var(--primary-container);font-weight:500;cursor:pointer;margin-left:auto}
+
+.dots{display:flex;gap:8px;justify-content:center;padding:8px 0}
+.dots i{width:8px;height:8px;border-radius:4px;background:var(--outline-variant);display:block}
+.dots i.on{width:24px;background:var(--primary)}
+
+.steps{display:flex;flex-direction:column;gap:20px;padding-top:16px}
+.step{display:flex;gap:16px}
+.step .bdg{width:44px;height:44px;border-radius:14px;background:var(--secondary-container);color:var(--on-secondary-container);
+  display:grid;place-items:center;flex:0 0 auto}
+.hero{width:160px;height:160px;border-radius:48px;background:var(--primary-container);color:var(--on-primary-container);
+  display:grid;place-items:center;margin:40px auto 44px}
+.notifmock{background:var(--surf-high);border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.notifmock .hd{display:flex;align-items:center;gap:8px}
+.notifmock .hd i{width:20px;height:20px;border-radius:6px;background:var(--primary);display:block}
+.resultcard{background:var(--surf-low);border-radius:16px;overflow:hidden}
+.settingrow{display:flex;align-items:center;gap:16px;padding:14px 24px;width:100%;background:none;border:0;
+  text-align:left;color:inherit;font-family:inherit;cursor:pointer}
+.settingrow:hover{background:color-mix(in srgb,var(--on-surface) 5%,transparent)}
+.settingrow:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
+.settingrow .mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.divider{height:1px;background:var(--outline-variant);margin:8px 24px}
+.bars{display:flex;flex-direction:column;gap:14px;padding-top:8px}
+.bar-row{display:flex;flex-direction:column;gap:6px}
+.bar-top{display:flex;justify-content:space-between;font:400 14px/20px Roboto}
+.bar-track{height:10px;border-radius:5px;background:var(--surf-highest);overflow:hidden}
+.bar-fill{height:100%;border-radius:5px;background:var(--primary)}
+.empty{display:flex;flex-direction:column;align-items:center;gap:10px;padding:64px 32px;text-align:center}
+.seg{display:flex;border:1px solid var(--outline);border-radius:20px;overflow:hidden;margin-bottom:14px}
+.seg button{flex:1;height:40px;border:0;background:none;cursor:pointer;color:var(--on-surface);
+  font:500 14px/20px Roboto;display:flex;align-items:center;justify-content:center;gap:8px;font-family:inherit}
+.seg button+button{border-left:1px solid var(--outline)}
+.seg button[aria-pressed="true"]{background:var(--secondary-container);color:var(--on-secondary-container)}
+.tools{width:100%;max-width:760px;display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.tool{border:1px solid var(--stage-line);background:var(--stage-card);color:var(--stage-fg);border-radius:999px;
+  padding:9px 16px;font:500 12.5px Roboto;cursor:pointer}
+.tool:focus-visible{outline:2px solid var(--stage-fg);outline-offset:2px}
+.hint{font:400 12px/17px Roboto;color:var(--stage-dim);text-align:center;max-width:560px}
+/* ---------- background sync ring ---------- */
+.acct{position:relative}
+.acct .ring{position:absolute;left:4px;top:4px;width:40px;height:40px;transform:rotate(-90deg);
+  opacity:0;transition:opacity .25s;pointer-events:none}
+.acct.syncing .ring{opacity:1}
+.acct .ring circle{fill:none;stroke-width:2.5;stroke-linecap:round}
+.acct .ring .bg{stroke:var(--surf-highest)}
+.acct .ring .fg{stroke:var(--primary);transition:stroke .25s}
+.acct.syncing{color:var(--primary)}
+.acct.done .ring .fg{stroke:var(--income)}
+.acct.done{color:var(--income)}
+.acct.done .glyph{animation:pop .32s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes pop{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+.banner.done{background:var(--income-container);color:var(--on-income-container)}
+.acct .pending{position:absolute;top:5px;right:5px;min-width:10px;height:16px;border-radius:9px;
+  background:var(--tertiary);color:var(--on-tertiary);font:500 10px/16px Roboto;letter-spacing:0;
+  padding:0 4px;border:2px solid var(--surface);text-align:center}
+.banner.sync{background:var(--secondary-container);color:var(--on-secondary-container)}
+.spin{display:grid;place-items:center;animation:spin 1.1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* ---------- debug / notification log ---------- */
+.logcard{margin:0 16px 8px;background:var(--surf-low);border-radius:16px;overflow:hidden}
+.loghead{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;width:100%;background:none;
+  border:0;text-align:left;color:inherit;font-family:inherit;cursor:pointer}
+.loghead:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
+.loghead .mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.raw{font:400 12.5px/19px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--on-surface);
+  background:var(--surf-highest);border-radius:10px;padding:10px 12px;white-space:pre-wrap;word-break:break-word}
+.raw mark{background:var(--primary-container);color:var(--on-primary-container);border-radius:3px;
+  padding:0 3px;font-weight:600}
+.raw mark.dir{background:var(--tertiary-container);color:var(--on-tertiary-container)}
+.tag{border-radius:8px;padding:2px 8px;font:500 11px/16px Roboto;letter-spacing:.5px;white-space:nowrap;flex:0 0 auto}
+.tag.ok{background:var(--income-container);color:var(--on-income-container)}
+.tag.rev{background:var(--tertiary-container);color:var(--on-tertiary-container)}
+.tag.bad{background:var(--error-container);color:var(--on-error-container)}
+.tag.skip{background:var(--surf-highest);color:var(--on-surface-variant)}
+.logdetail{padding:0 16px 14px;display:flex;flex-direction:column;gap:10px}
+.kv{display:flex;justify-content:space-between;gap:16px;font:400 13px/19px Roboto}
+.kv>span:first-child{color:var(--on-surface-variant)}
+.kv>span:last-child{text-align:right}
+.why{font:400 12px/17px Roboto;color:var(--on-surface-variant)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <div class="brandline">
+    <b>Notifly</b>
+    <span>Notification-parsed finance tracker · Material Design 3</span>
+  </div>
+  <div class="swatches" id="swatches"></div>
+</div>
+
+<div class="phone" id="phone" data-palette="evergreen">
+  <div id="app"></div>
+</div>
+
+<div class="tools">
+  <button class="tool" data-tool="simulate">Simulate an incoming notification</button>
+  <button class="tool" data-tool="offline">Toggle offline mode</button>
+  <button class="tool" data-tool="reset">Reset prototype data</button>
+</div>
+<p class="hint">Tap a transaction to edit it. Parsed items arrive as “Needs review” until you confirm them. Everything works with offline mode on — edits queue locally and the banner shows what's pending.</p>
+
+<script>
+/* ============ icons ============ */
+const P = {
+  home:"M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
+  list:"M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z",
+  chart:"M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z",
+  settings:"M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z",
+  add:"M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z",
+  close:"M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z",
+  check:"M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
+  back:"M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z",
+  chevron:"M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z",
+  edit:"M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
+  del:"M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z",
+  bell:"M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z",
+  cloudoff:"M19.35 10.04C18.67 6.59 15.64 4 12 4c-1.48 0-2.85.43-4.01 1.17l1.46 1.46C10.21 6.23 11.08 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3 0 1.13-.64 2.11-1.56 2.62l1.45 1.45C23.16 18.16 24 16.68 24 15c0-2.64-2.05-4.78-4.65-4.96zM3 5.27l2.75 2.74C2.56 8.15 0 10.77 0 14c0 3.31 2.69 6 6 6h11.73l2 2L21 20.73 4.27 4 3 5.27zM7.73 10l8 8H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h1.73z",
+  apps:"M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z",
+  down:"M20 12l-1.41-1.41L13 16.17V4h-2v12.17l-5.58-5.59L4 12l8 8 8-8z",
+  up:"M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z",
+  person:"M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z",
+  lock:"M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z",
+  wallet:"M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z",
+  tune:"M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z",
+  more:"M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z",
+  cal:"M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"
+};
+const ic = (n, s = 24, c = "currentColor") =>
+  `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${c}" aria-hidden="true"><path d="${P[n]}"/></svg>`;
+const esc = s => String(s).replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+
+/* ============ state ============ */
+const PALETTES = [
+  ["evergreen","Evergreen","#22684B"],["indigo","Indigo","#6750A4"],
+  ["slate","Slate","#35566E"],["clay","Clay","#8F4C38"]
+];
+const CATS = ["Income","Food","Transport","Bills","Shopping","Other"];
+const seed = () => ({
+  screen:"welcome", palette:"evergreen", offline:false, queued:0, filter:"all",
+  sync:{ active:false, p:0, total:0, done:false },
+  editing:null, dialog:null, snack:null, authMode:"login",
+  user:{ name:"Bij Sumatra", email:"bij@example.com" },
+  txns:[
+    {id:1,title:"ACME Corp payroll",app:"GCash",amount:48000,type:"income",status:"review",cat:"Income",when:"Today · 9:12 AM",note:"Auto-parsed: “You received PHP 48,000.00 from ACME CORP.”"},
+    {id:2,title:"Jollibee Matina",app:"GCash",amount:285,type:"expense",status:"confirmed",cat:"Food",when:"Today · 12:40 PM",note:""},
+    {id:3,title:"Grab ride",app:"Maya",amount:189,type:"expense",status:"review",cat:"Transport",when:"Today · 8:05 AM",note:"Auto-parsed: “Payment of PHP 189.00 to GRAB PH.”"},
+    {id:4,title:"Meralco bill",app:"BPI Mobile",amount:2340,type:"expense",status:"confirmed",cat:"Bills",when:"Yesterday",note:""},
+    {id:5,title:"Shopee order",app:"GCash",amount:1249,type:"expense",status:"confirmed",cat:"Shopping",when:"Yesterday",note:""},
+    {id:6,title:"Kite Studio invoice",app:"Maya",amount:15000,type:"income",status:"confirmed",cat:"Income",when:"12 Mar",note:""},
+    {id:7,title:"SM Supermarket",app:"BPI Mobile",amount:3120,type:"expense",status:"confirmed",cat:"Food",when:"11 Mar",note:""},
+    {id:8,title:"Angkas",app:"GCash",amount:95,type:"expense",status:"review",cat:"Transport",when:"11 Mar",note:"Auto-parsed: “PHP 95.00 paid to ANGKAS.”"}
+  ],
+  logFilter:"all", logOpen:null, keepLog:true,
+  log:[
+    {id:101,app:"GCash",when:"Today · 9:12 AM",result:"review",
+     raw:"You received PHP 48,000.00 from ACME CORP. Ref 8812 4410.",
+     amt:"PHP 48,000.00", dir:"received", type:"income", merchant:"ACME CORP",
+     why:"Amount and direction are unambiguous. Merchant guessed from the text after “from”, so it needs a look."},
+    {id:102,app:"Maya",when:"Today · 8:05 AM",result:"review",
+     raw:"Payment of PHP 189.00 to GRAB PH.",
+     amt:"PHP 189.00", dir:"Payment", type:"expense", merchant:"GRAB PH",
+     why:"Clean match. Flagged only because Maya has fewer than 50 confirmed samples."},
+    {id:103,app:"BPI Mobile",when:"Yesterday · 6:41 PM",result:"parsed",
+     raw:"Your BPI account ending 4417 has been debited PHP 2,340.00 for MERALCO BILL PAYMENT.",
+     amt:"PHP 2,340.00", dir:"debited", type:"expense", merchant:"MERALCO",
+     why:"Matched a known BPI template. Account digits ignored as a reference number, not an amount."},
+    {id:104,app:"BPI Mobile",when:"Yesterday · 2:18 PM",result:"review",
+     raw:"You sent PHP 1,000.00 to your BPI Savings ending 9921.",
+     amt:"PHP 1,000.00", dir:"sent", type:"transfer", merchant:"BPI Savings",
+     why:"Destination looks like another account of yours. Probably a transfer, not an expense — counting it would double your spending."},
+    {id:105,app:"Maya",when:"Yesterday · 11:02 AM",result:"review",
+     raw:"PHP 500.00 hold placed by SHELL STATION 12. Final amount may differ.",
+     amt:"PHP 500.00", dir:"hold", type:"expense", merchant:"SHELL STATION 12",
+     why:"Pre-authorisation hold. The real amount posts later, so confirming now may need editing after."},
+    {id:106,app:"GCash",when:"Yesterday · 3:00 PM",result:"unrecognized",
+     raw:"Your GCash balance is PHP 12,904.55 as of 3:00 PM.",
+     amt:null, dir:null, type:null, merchant:null,
+     why:"Found an amount but no transaction verb. Reads as a balance notice, so nothing was created."},
+    {id:107,app:"GCash",when:"Yesterday · 9:30 AM",result:"unrecognized",
+     raw:"Paalala: I-verify ang iyong account bago mag-expire sa Dis 31.",
+     amt:null, dir:null, type:null, merchant:null,
+     why:"No amount found. Language not covered by the current rules."},
+    {id:108,app:"Shopee",when:"Yesterday · 8:15 AM",result:"ignored",
+     raw:"[not captured]",
+     amt:null, dir:null, type:null, merchant:null,
+     why:"Shopee is not on your allow-list, so the notification body was never read."}
+  ],
+  apps:[
+    {name:"GCash",kind:"Wallet",on:true,count:142},{name:"Maya",kind:"Wallet",on:true,count:38},
+    {name:"BPI Mobile",kind:"Bank",on:true,count:61},{name:"BDO Online",kind:"Bank",on:false,count:0},
+    {name:"Grab",kind:"Rides & food",on:false,count:0},{name:"Shopee",kind:"Shopping",on:false,count:0},
+    {name:"Lazada",kind:"Shopping",on:false,count:0},{name:"PayPal",kind:"Wallet",on:false,count:0}
+  ]
+});
+let S = seed();
+const KEY = "notifly.v1";
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+function load(){
+  try{ const r = localStorage.getItem(KEY); if(r){ S = Object.assign(seed(), JSON.parse(r)); } }catch(e){}
+  S.sync = { active:false, p:0, total:0, done:false };
+}
+
+const money = n => "₱" + Number(n).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
+const signed = t => (t.type === "income" ? "+" : "−") + money(t.amount);
+const totals = () => {
+  let i = 0, e = 0;
+  for (const t of S.txns){ if(t.type==="income") i += +t.amount; else e += +t.amount; }
+  return { i, e, net: i - e };
+};
+const reviewCount = () => S.txns.filter(t => t.status === "review").length;
+function toast(msg, action){ S.snack = { msg, action: action || null }; render();
+  clearTimeout(toast._t); toast._t = setTimeout(() => { S.snack = null; render(); }, 3200); }
+function go(s){ S.screen = s; S.dialog = null; render(); }
+function touch(){ if(S.offline){ S.queued++; } }
+
+/* ---- background sync ---- */
+let syncTimer = null;
+function paintRing(){
+  document.querySelectorAll("[data-ring]").forEach(c => {
+    c.style.strokeDashoffset = String(RING * (1 - S.sync.p));
+  });
+  document.querySelectorAll("[data-queued]").forEach(n => { n.textContent = S.queued; });
+}
+function startSync(){
+  const total = S.queued;
+  S.offline = false;
+  S.sync = { active:true, p:0, total, done:false };
+  render();
+  const DUR = 3800, t0 = Date.now();
+  clearInterval(syncTimer);
+  syncTimer = setInterval(() => {
+    const p = Math.min(1, (Date.now() - t0) / DUR);
+    S.sync.p = p;
+    S.queued = Math.ceil(total * (1 - p));
+    paintRing();
+    if(p >= 1){
+      clearInterval(syncTimer);
+      S.queued = 0;
+      S.sync.done = true;
+      render();
+      toast(`Synced ${total} change${total === 1 ? "" : "s"}`);
+      setTimeout(() => {
+        S.sync = { active:false, p:0, total:0, done:false };
+        render();
+      }, 1400);
+    }
+  }, 50);
+}
+function setOffline(v){
+  if(S.sync.active) return;
+  if(v === S.offline) return;
+  if(v){ S.offline = true; toast("Offline mode on — edits will queue"); render(); return; }
+  if(S.queued > 0) startSync();
+  else { S.offline = false; toast("Back online — nothing was pending"); render(); }
+}
+
+/* ============ shared partials ============ */
+const statusbar = () => `<div class="statusbar"><span>9:41</span><span>▪ ▪ ▮</span></div>`;
+const appbar = (title, back, trail) => `
+  <div class="appbar ${back ? "back" : ""}">
+    ${back ? `<button class="iconbtn" data-go="${back}" aria-label="Back">${ic("back")}</button>` : ""}
+    <div class="ttl">${esc(title)}</div>
+    ${trail || `<button class="iconbtn" aria-label="More options">${ic("more")}</button>`}
+  </div>`;
+const dots = (n, total) =>
+  `<div class="dots">${Array.from({length:total},(_,i)=>`<i class="${i===n?"on":""}"></i>`).join("")}</div>`;
+const RING = 2 * Math.PI * 17;
+const spinner = `<span class="spin"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg></span>`;
+
+const accountBtn = () => `
+  <button class="iconbtn acct ${S.sync.active ? "syncing" : ""} ${S.sync.done ? "done" : ""}" data-go="account"
+    aria-label="Account${S.sync.done ? " — all changes synced"
+      : S.sync.active ? " — syncing " + S.queued + " remaining"
+      : (S.offline && S.queued ? " — " + S.queued + " pending" : "")}">
+    <svg class="ring" viewBox="0 0 40 40" aria-hidden="true">
+      <circle class="bg" cx="20" cy="20" r="17"></circle>
+      <circle class="fg" cx="20" cy="20" r="17" data-ring
+        style="stroke-dasharray:${RING};stroke-dashoffset:${RING * (1 - S.sync.p)}"></circle>
+    </svg>
+    <span class="glyph">${ic(S.sync.done ? "check" : "person")}</span>
+    ${(!S.sync.active && S.offline && S.queued) ? `<span class="pending" data-queued>${S.queued}</span>` : ""}
+  </button>`;
+
+const banner = () => {
+  if(S.offline) return `<div class="banner">${ic("cloudoff",20)}
+    <span>Offline — <span data-queued>${S.queued}</span> change(s) will sync later</span></div>`;
+  if(S.sync.done) return `<div class="banner done">${ic("check",20)}
+    <span>All changes synced</span></div>`;
+  if(S.sync.active) return `<div class="banner sync">${spinner}
+    <span>Syncing — <span data-queued>${S.queued}</span> left</span></div>`;
+  return "";
+};
+const nav = active => `
+  <div class="nav">
+    ${[["home","Home","home"],["transactions","Transactions","list"],["insights","Insights","chart"],["settings","Settings","settings"]]
+      .map(([id,label,icon])=>`
+      <button data-go="${id}" ${active===id?'aria-current="page"':""}>
+        <span class="ind">${ic(icon,24)}</span><span class="lbl">${label}</span>
+      </button>`).join("")}
+  </div>`;
+const txnRow = t => {
+  const inc = t.type === "income";
+  return `<button class="txn" data-open="${t.id}">
+    <span class="avatar" style="background:var(--${inc?"income":"expense"}-container);color:var(--on-${inc?"income":"expense"}-container)">${ic(inc?"down":"up",20)}</span>
+    <span class="mid">
+      <b>${esc(t.title)}</b>
+      <span class="t-body-s" style="color:var(--${t.status==="review"?"tertiary":"on-surface-variant"})">
+        ${t.status==="review" ? `Parsed from ${esc(t.app)} · unconfirmed` : `${esc(t.app)} · ${esc(t.when)}`}
+      </span>
+    </span>
+    <span class="end">
+      <span class="amt" style="color:var(--${inc?"income":"on-surface"})">${signed(t)}</span>
+      ${t.status==="review" ? `<span class="badge">Review</span>` : ""}
+    </span>
+  </button>`;
+};
+
+/* ============ screens ============ */
+const V = {};
+
+V.welcome = () => `${statusbar()}
+  <div class="scroll"><div class="pad stack" style="min-height:100%;padding-bottom:32px">
+    <div class="hero">${ic("wallet",72)}</div>
+    <h1 class="t-headline">Stop typing in<br>your expenses</h1>
+    <p class="t-body-l dim" style="margin-top:12px">Notifly reads payment notifications from the apps you choose and files them as income or expenses — automatically.</p>
+    <div class="grow"></div>
+    ${dots(0,3)}
+    <div style="padding-top:20px;display:flex;flex-direction:column;gap:4px">
+      <button class="btn filled" data-go="how">Get started</button>
+      <button class="btn text" data-go="auth-login">I already have an account</button>
+    </div>
+  </div></div>`;
+
+V.how = () => `${statusbar()}${appbar("","welcome",'<span style="width:48px"></span>')}
+  <div class="scroll"><div class="pad stack" style="min-height:100%;padding-bottom:32px">
+    <h1 class="t-headline">How it works</h1>
+    <div class="steps">
+      ${[["bell","You pick the apps","Choose which banking and wallet apps Notifly may listen to. Nothing else is read."],
+         ["tune","We parse the text","Amount, merchant and direction are extracted from the notification body, on-device."],
+         ["wallet","You stay in control","Every parsed transaction lands as “Needs review” until you confirm or edit it."]]
+        .map(([i,t,b])=>`<div class="step"><span class="bdg">${ic(i,22)}</span>
+          <span class="stack" style="gap:2px"><b class="t-title-m">${t}</b><span class="t-body-m dim">${b}</span></span></div>`).join("")}
+    </div>
+    <div class="grow"></div>
+    ${dots(1,3)}
+    <div style="padding-top:20px"><button class="btn filled" data-go="permission">Next</button></div>
+  </div></div>`;
+
+V.permission = () => `${statusbar()}${appbar("","how",'<span style="width:48px"></span>')}
+  <div class="scroll"><div class="pad stack" style="min-height:100%;padding-bottom:32px">
+    <h1 class="t-headline">One permission<br>to grant</h1>
+    <p class="t-body-m dim" style="margin-top:12px">Notifly needs notification access to see incoming payment alerts. Here is exactly what happens:</p>
+    <div class="stack" style="gap:8px;padding:16px 0 8px">
+      <div class="notifmock">
+        <div class="hd"><i></i><span class="t-label-m dim">GCash · now</span></div>
+        <span class="t-body-m">You received PHP 48,000.00 from ACME CORP. Ref 8812 4410.</span>
+      </div>
+      <div style="display:grid;place-items:center;color:var(--primary)">${ic("down",24)}</div>
+      <div class="resultcard">${txnRow({id:"demo",title:"ACME CORP",app:"GCash",amount:48000,type:"income",status:"review",when:""})}</div>
+    </div>
+    <div class="row" style="gap:10px;align-items:flex-start;padding-top:4px;color:var(--on-surface-variant)">
+      ${ic("lock",18)}<span class="t-body-s">Parsing runs on-device. Notification text is never uploaded — only transactions you confirm are synced.</span>
+    </div>
+    <div class="grow"></div>
+    ${dots(2,3)}
+    <div style="padding-top:20px;display:flex;flex-direction:column;gap:4px">
+      <button class="btn filled" data-action="grant">Grant notification access</button>
+      <button class="btn text" data-go="chooseapps">Skip — I'll add manually</button>
+    </div>
+  </div></div>`;
+
+V.chooseapps = () => `${statusbar()}${appbar("Choose apps","permission",'<span style="width:48px"></span>')}
+  <div class="scroll"><div class="stack" style="min-height:100%;padding-bottom:24px">
+    <p class="t-body-m dim pad" style="padding-bottom:8px">Notifly only reads notifications from the apps you switch on here. You can change this any time.</p>
+    ${S.apps.map((a,i)=>appRow(a,i)).join("")}
+    <div class="grow"></div>
+    <div class="pad" style="padding-top:12px">
+      <button class="btn filled" data-go="auth-signup">Continue with ${S.apps.filter(a=>a.on).length} apps</button>
+    </div>
+  </div></div>`;
+
+const appRow = (a,i) => `<div class="txn" style="cursor:default">
+    <span class="avatar sq" style="color:var(--${a.on?"primary":"on-surface-variant"})">${ic("apps",22)}</span>
+    <span class="mid"><b>${esc(a.name)}</b>
+      <span class="t-body-s dim">${esc(a.kind)} · ${a.on ? a.count + " notifications parsed" : "not listening"}</span></span>
+    <span class="sw-track" role="switch" tabindex="0" aria-checked="${a.on}" data-toggleapp="${i}" aria-label="Listen to ${esc(a.name)}"><span class="knob"></span></span>
+  </div>`;
+
+V["auth-login"] = () => `${statusbar()}${appbar("","welcome",'<span style="width:48px"></span>')}
+  <div class="scroll"><div class="pad stack" style="min-height:100%;padding-bottom:32px">
+    <h1 class="t-headline">Welcome back</h1>
+    <p class="t-body-m dim" style="margin:8px 0 24px">Your transactions sync across devices. Parsing always runs locally.</p>
+    <div class="field"><div class="box"><label for="em">Email</label><input id="em" type="email" value="${esc(S.user.email)}" autocomplete="email"></div></div>
+    <div class="field"><div class="box"><label for="pw">Password</label><input id="pw" type="password" value="••••••••" autocomplete="current-password"></div>
+      <span class="help">At least 8 characters</span></div>
+    <button class="btn text auto" style="align-self:flex-start;padding-left:0">Forgot password?</button>
+    <div class="grow"></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn filled" data-action="signin">Sign in</button>
+      <button class="btn outlined" data-go="auth-signup">Create an account</button>
+      <button class="btn text" data-action="offline-start">Continue offline</button>
+    </div>
+  </div></div>`;
+
+V["auth-signup"] = () => `${statusbar()}${appbar("","auth-login",'<span style="width:48px"></span>')}
+  <div class="scroll"><div class="pad stack" style="min-height:100%;padding-bottom:32px">
+    <h1 class="t-headline">Create account</h1>
+    <p class="t-body-m dim" style="margin:8px 0 24px">One account keeps your confirmed transactions backed up.</p>
+    <div class="field"><div class="box"><label for="nm">Full name</label><input id="nm" value="${esc(S.user.name)}" autocomplete="name"></div></div>
+    <div class="field"><div class="box"><label for="em2">Email</label><input id="em2" type="email" value="${esc(S.user.email)}" autocomplete="email"></div></div>
+    <div class="field err"><div class="box"><label for="pw2">Password</label><input id="pw2" type="password" value="1234" autocomplete="new-password"></div>
+      <span class="help">Use at least 8 characters</span></div>
+    <div class="grow"></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn filled" data-action="signin">Create account</button>
+      <button class="btn text" data-go="auth-login">I already have an account</button>
+    </div>
+  </div></div>`;
+
+V.home = () => {
+  const t = totals(), rc = reviewCount();
+  const recent = S.txns.slice(0,5);
+  return `${statusbar()}
+  <div class="appbar"><div class="ttl">Hello, ${esc(S.user.name.split(" ")[0])}</div>
+    ${accountBtn()}</div>
+  ${banner()}
+  <div class="scroll"><div class="stack" style="padding-bottom:110px">
+    <div class="balance">
+      <div class="t-label-l">Net this month</div>
+      <div class="big">${money(t.net)}</div>
+      <div class="split">
+        <div>${ic("down",16)} ${money(t.i)}</div>
+        <div>${ic("up",16)} ${money(t.e)}</div>
+      </div>
+    </div>
+    ${rc ? `<button class="settingrow" data-go="transactions" style="margin-top:8px">
+        <span class="avatar sq" style="background:var(--tertiary-container);color:var(--on-tertiary-container)">${ic("bell",22)}</span>
+        <span class="mid"><b class="t-body-l">${rc} transaction${rc===1?"":"s"} need review</b>
+          <span class="t-body-s dim">Parsed automatically — confirm or edit them</span></span>
+        ${ic("chevron",24)}
+      </button>` : ""}
+    <div class="sectionhdr">Recent</div>
+    ${recent.map(txnRow).join("")}
+    <div class="pad" style="padding-top:12px"><button class="btn text" data-go="transactions">See all transactions</button></div>
+  </div></div>
+  <button class="fab" data-go="add">${ic("add")}</button>
+  ${nav("home")}`;
+};
+
+V.transactions = () => {
+  const f = S.filter;
+  const list = S.txns.filter(t =>
+    f==="all" ? true : f==="review" ? t.status==="review" : t.type===f);
+  return `${statusbar()}
+  <div class="appbar"><div class="ttl">Transactions</div>
+    <button class="iconbtn" aria-label="Filter">${ic("tune")}</button>${accountBtn()}</div>
+  ${banner()}
+  <div class="chips">
+    ${[["all","All"],["review","Needs review"],["income","Income"],["expense","Expense"]]
+      .map(([id,l])=>`<button class="chip" data-filter="${id}" aria-pressed="${f===id}">${f===id?ic("check",18):""}${l}</button>`).join("")}
+  </div>
+  <div class="scroll"><div class="stack" style="padding-bottom:110px">
+    ${list.length ? list.map(txnRow).join("")
+      : `<div class="empty"><span class="dim">${ic("list",40)}</span>
+          <b class="t-title-m">Nothing here yet</b>
+          <span class="t-body-m dim">Transactions parsed from your allowed apps will show up here.</span>
+          <button class="btn tonal auto" style="margin-top:8px" data-go="add">Add one manually</button></div>`}
+  </div></div>
+  <button class="fab" data-go="add">${ic("add")}</button>
+  ${nav("transactions")}`;
+};
+
+V.insights = () => {
+  const t = totals();
+  const by = {};
+  for (const x of S.txns){ if(x.type==="expense") by[x.cat] = (by[x.cat]||0) + +x.amount; }
+  const rows = Object.entries(by).sort((a,b)=>b[1]-a[1]);
+  const max = rows.length ? rows[0][1] : 1;
+  return `${statusbar()}
+  <div class="appbar"><div class="ttl">Insights</div>${accountBtn()}</div>
+  <div class="scroll"><div class="stack" style="padding-bottom:100px">
+    <div class="card" style="margin-top:8px">
+      <div class="t-label-l dim">Spending by category</div>
+      <div class="bars">
+        ${rows.length ? rows.map(([c,v])=>`
+          <div class="bar-row">
+            <div class="bar-top"><span>${esc(c)}</span><span class="dim">${money(v)}</span></div>
+            <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v/max*100)}%"></div></div>
+          </div>`).join("")
+          : `<span class="t-body-m dim">No expenses recorded yet.</span>`}
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px;background:var(--secondary-container);color:var(--on-secondary-container)">
+      <div class="t-label-l">Parsed vs manual</div>
+      <p class="t-body-m" style="margin-top:6px">${S.txns.filter(t=>t.app!=="Manual").length} of ${S.txns.length} transactions were created from notifications.</p>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="t-label-l dim">Totals</div>
+      <div style="display:flex;justify-content:space-between;padding-top:10px" class="t-body-l">
+        <span>Income</span><b style="color:var(--income)">${money(t.i)}</b></div>
+      <div style="display:flex;justify-content:space-between;padding-top:6px" class="t-body-l">
+        <span>Expenses</span><b>${money(t.e)}</b></div>
+    </div>
+  </div></div>
+  ${nav("insights")}`;
+};
+
+V.add = () => editor(null);
+V.detail = () => editor(S.txns.find(t => t.id === S.editing));
+
+function editor(t){
+  const isNew = !t;
+  const pf = isNew ? prefillFromLog : null;
+  const d = t || { title:"", amount:"", type:"expense", cat:"Other",
+    app: pf ? pf.app : "Manual", when: pf ? pf.when : "Today",
+    note: pf ? "From notification: “" + pf.raw + "”" : "", status:"confirmed" };
+  return `${statusbar()}
+  ${appbar(isNew ? "Add transaction" : "Edit transaction", isNew ? "transactions" : "transactions",
+    isNew ? '<span style="width:48px"></span>'
+          : `<button class="iconbtn" data-action="askdelete" aria-label="Delete transaction">${ic("del")}</button>`)}
+  <div class="scroll"><div class="pad stack" style="min-height:100%;padding-bottom:28px;padding-top:4px">
+    ${!isNew && d.status==="review" ? `
+      <div class="banner" style="border-radius:12px;margin-bottom:16px">
+        ${ic("bell",20)}<span>Parsed automatically. Check the details, then confirm.</span></div>` : ""}
+    ${d.note ? `<p class="t-body-s dim" style="margin-bottom:14px">${esc(d.note)}</p>` : ""}
+
+    <div class="seg" role="group" aria-label="Transaction type">
+      <button data-type="expense" aria-pressed="${d.type==="expense"}">${d.type==="expense"?ic("check",18):""}Expense</button>
+      <button data-type="income" aria-pressed="${d.type==="income"}">${d.type==="income"?ic("check",18):""}Income</button>
+    </div>
+
+    <div class="field"><div class="box"><label for="f-title">Description</label>
+      <input id="f-title" value="${esc(d.title)}" placeholder="e.g. SM Supermarket"></div></div>
+    <div class="field"><div class="box"><label for="f-amount">Amount (PHP)</label>
+      <input id="f-amount" type="number" inputmode="decimal" min="0" step="0.01" value="${d.amount}" placeholder="0.00"></div></div>
+    <div class="field"><div class="box"><label for="f-cat">Category</label>
+      <select id="f-cat">${CATS.map(c=>`<option ${c===d.cat?"selected":""}>${c}</option>`).join("")}</select></div></div>
+    <div class="field"><div class="box"><label for="f-when">Date</label>
+      <input id="f-when" value="${esc(d.when)}"></div></div>
+    <div class="field"><div class="box"><label for="f-src">Source</label>
+      <input id="f-src" value="${esc(d.app)}" ${isNew?"":"readonly"}></div>
+      <span class="help">${isNew ? "Manual entries are always yours to edit." : "Set from the notification that created this."}</span></div>
+
+    <div class="grow"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;padding-top:8px">
+      <button class="btn filled" data-action="save" data-id="${isNew ? "" : d.id}">
+        ${isNew ? "Add transaction" : (d.status==="review" ? "Confirm transaction" : "Save changes")}</button>
+      <button class="btn text" data-go="transactions">Cancel</button>
+    </div>
+  </div></div>`;
+}
+
+const TAGS = { parsed:["ok","Parsed"], review:["rev","Needs review"], unrecognized:["bad","Not recognised"], ignored:["skip","Ignored"] };
+
+function highlight(e){
+  let out = esc(e.raw);
+  if(e.amt) out = out.replace(esc(e.amt), `<mark>${esc(e.amt)}</mark>`);
+  if(e.dir) out = out.replace(new RegExp("(^|\\\\s)(" + esc(e.dir) + ")"), `$1<mark class="dir">$2</mark>`);
+  return out;
+}
+
+V.debug = () => {
+  const f = S.logFilter;
+  const list = S.log.filter(e =>
+    f === "all" ? true :
+    f === "skipped" ? (e.result === "unrecognized" || e.result === "ignored") : e.result === f);
+  const bad = S.log.filter(e => e.result === "unrecognized").length;
+  return `${statusbar()}${appbar("Notification log","settings",
+    `<button class="iconbtn" data-action="clearlog" aria-label="Clear log">${ic("del")}</button>`)}
+  <div class="scroll"><div class="stack" style="padding-bottom:24px">
+    <p class="t-body-s dim pad" style="padding-bottom:4px">
+      Every notification Notifly saw from your allow-listed apps, and what the parser made of it.
+      ${bad ? `<b style="color:var(--error)">${bad} couldn't be read.</b>` : ""}
+    </p>
+    <div class="chips">
+      ${[["all","All"],["parsed","Parsed"],["review","Needs review"],["skipped","Skipped"]]
+        .map(([id,l])=>`<button class="chip" data-logfilter="${id}" aria-pressed="${f===id}">${f===id?ic("check",18):""}${l}</button>`).join("")}
+    </div>
+    ${list.length ? list.map(e => {
+      const [cls,label] = TAGS[e.result];
+      const open = S.logOpen === e.id;
+      return `<div class="logcard">
+        <button class="loghead" data-logopen="${e.id}" aria-expanded="${open}">
+          <span class="avatar sq" style="width:32px;height:32px;color:var(--on-surface-variant)">${ic("apps",18)}</span>
+          <span class="mid">
+            <span class="t-title-m">${esc(e.app)}</span>
+            <span class="t-body-s dim">${esc(e.when)}</span>
+          </span>
+          <span class="tag ${cls}">${label}</span>
+        </button>
+        ${open ? `<div class="logdetail">
+          <div class="raw">${e.result === "ignored" ? `<span style="opacity:.6">Body not captured — app is off the allow-list.</span>` : highlight(e)}</div>
+          ${e.amt ? `<div class="kv"><span>Amount</span><span>${esc(e.amt)}</span></div>` : ""}
+          ${e.dir ? `<div class="kv"><span>Direction keyword</span><span>${esc(e.dir)} → ${esc(e.type)}</span></div>` : ""}
+          ${e.merchant ? `<div class="kv"><span>Merchant</span><span>${esc(e.merchant)}</span></div>` : ""}
+          <div class="kv"><span>Source app</span><span>${esc(e.app)}</span></div>
+          <p class="why">${esc(e.why)}</p>
+          ${(e.result === "unrecognized") ? `<button class="btn tonal" data-fromlog="${e.id}">Create transaction manually</button>` : ""}
+          ${(e.result === "ignored") ? `<button class="btn outlined" data-go="allowlist">Open allow-list</button>` : ""}
+        </div>` : ""}
+      </div>`;
+    }).join("")
+      : `<div class="empty"><span class="dim">${ic("bell",40)}</span>
+          <b class="t-title-m">Nothing logged yet</b>
+          <span class="t-body-m dim">Simulate a notification to see what the parser does with it.</span>
+          <button class="btn tonal auto" style="margin-top:8px" data-action="simulate">Simulate one</button></div>`}
+    <div class="divider"></div>
+    <div class="settingrow" style="cursor:default">
+      <span class="avatar sq" style="color:var(--on-surface-variant)">${ic("lock",22)}</span>
+      <span class="mid"><b class="t-body-l">Keep raw text on device</b>
+        <span class="t-body-s dim">Needed for debugging. Never leaves the phone; cleared after 24 hours.</span></span>
+      <span class="sw-track" role="switch" tabindex="0" aria-checked="${S.keepLog}" data-action="keeplog" aria-label="Keep raw notification text"><span class="knob"></span></span>
+    </div>
+  </div></div>`;
+};
+
+V.settings = () => `${statusbar()}
+  <div class="appbar"><div class="ttl">Settings</div>${accountBtn()}</div>
+  <div class="scroll"><div class="stack" style="padding-bottom:100px">
+    <div class="sectionhdr">Parsing</div>
+    <button class="settingrow" data-go="allowlist">
+      <span class="avatar sq" style="color:var(--primary)">${ic("apps",22)}</span>
+      <span class="mid"><b class="t-body-l">Listening to ${S.apps.filter(a=>a.on).length} apps</b>
+        <span class="t-body-s dim">Choose which notifications Notifly reads</span></span>${ic("chevron",24)}</button>
+    <div class="settingrow" style="cursor:default">
+      <span class="avatar sq" style="color:var(--on-surface-variant)">${ic("cloudoff",22)}</span>
+      <span class="mid"><b class="t-body-l">Offline mode</b>
+        <span class="t-body-s dim">${S.offline ? S.queued + " change(s) queued to sync"
+          : S.sync.active ? "Syncing in the background…" : "Syncing normally"}</span></span>
+      <span class="sw-track" role="switch" tabindex="0" aria-checked="${S.offline}" data-action="offline" aria-label="Offline mode"><span class="knob"></span></span>
+    </div>
+    <div class="divider"></div>
+    <div class="sectionhdr">Appearance</div>
+    <div class="settingrow" style="cursor:default;flex-direction:column;align-items:stretch;gap:12px">
+      <span class="mid"><b class="t-body-l">Theme</b>
+        <span class="t-body-s dim">Applies across every screen</span></span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${PALETTES.map(([id,label,c])=>`
+          <button class="chip" data-palette="${id}" aria-pressed="${S.palette===id}">
+            <span style="width:14px;height:14px;border-radius:50%;background:${c};display:inline-block;border:1px solid rgba(0,0,0,.15)"></span>${label}
+          </button>`).join("")}
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="sectionhdr">Account</div>
+    <button class="settingrow" data-go="account">
+      <span class="avatar sq" style="color:var(--on-surface-variant)">${ic("person",22)}</span>
+      <span class="mid"><b class="t-body-l">${esc(S.user.name)}</b>
+        <span class="t-body-s dim">${esc(S.user.email)}</span></span>${ic("chevron",24)}</button>
+    <div class="divider"></div>
+    <div class="sectionhdr">Troubleshooting</div>
+    <button class="settingrow" data-go="debug">
+      <span class="avatar sq" style="color:var(--${S.log.filter(e=>e.result==="unrecognized").length ? "error" : "on-surface-variant"})">${ic("tune",22)}</span>
+      <span class="mid"><b class="t-body-l">Notification log</b>
+        <span class="t-body-s dim">${S.log.length} captured · ${S.log.filter(e=>e.result==="unrecognized").length} couldn't be read</span></span>
+      ${ic("chevron",24)}</button>
+    <button class="settingrow" data-action="simulate">
+      <span class="avatar sq" style="color:var(--tertiary)">${ic("bell",22)}</span>
+      <span class="mid"><b class="t-body-l">Simulate a notification</b>
+        <span class="t-body-s dim">Demo the parsing loop end to end</span></span>${ic("chevron",24)}</button>
+  </div></div>
+  ${nav("settings")}`;
+
+V.allowlist = () => `${statusbar()}${appbar("Allowed apps","settings",'<button class="iconbtn" aria-label="Search">'+ic("tune")+'</button>')}
+  <div class="scroll"><div class="stack" style="padding-bottom:24px">
+    <p class="t-body-m dim pad" style="padding-bottom:8px">Notifly reads notifications only from apps switched on here. Turning one off stops parsing immediately; existing transactions stay.</p>
+    ${S.apps.map((a,i)=>appRow(a,i)).join("")}
+    <div class="pad" style="padding-top:16px">
+      <p class="t-body-s dim">Don't see an app? It must have sent a notification at least once while Notifly had access.</p>
+    </div>
+  </div></div>`;
+
+V.account = () => `${statusbar()}${appbar("Account","settings",'<span style="width:48px"></span>')}
+  <div class="scroll"><div class="pad stack" style="padding-bottom:28px;padding-top:8px">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px 0 24px">
+      <span class="avatar" style="width:88px;height:88px;background:var(--primary-container);color:var(--on-primary-container)">${ic("person",44)}</span>
+      <b class="t-title-l">${esc(S.user.name)}</b>
+      <span class="t-body-m dim">${esc(S.user.email)}</span>
+    </div>
+    <div class="field"><div class="box"><label for="a-name">Full name</label><input id="a-name" value="${esc(S.user.name)}"></div></div>
+    <div class="field"><div class="box"><label for="a-email">Email</label><input id="a-email" type="email" value="${esc(S.user.email)}"></div></div>
+    <div class="divider" style="margin:8px 0 16px"></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn filled" data-action="saveaccount">Save changes</button>
+      <button class="btn outlined" data-action="signout">Sign out</button>
+    </div>
+    <p class="t-body-s dim" style="padding-top:20px">Signing out keeps transactions on this device. Parsing continues while offline.</p>
+  </div></div>`;
+
+/* ============ dialogs ============ */
+const dialogs = {
+  delete: () => `<div class="scrim" data-dismiss><div class="dialog" role="alertdialog" aria-modal="true">
+      <h3>Delete this transaction?</h3>
+      <p>It will be removed from your history and totals. This can't be undone.</p>
+      <div class="acts"><button class="btn text auto" data-action="closedialog">Cancel</button>
+        <button class="btn danger auto" data-action="confirmdelete">Delete</button></div></div></div>`,
+  permission: () => `<div class="scrim"><div class="dialog" role="alertdialog" aria-modal="true">
+      <h3>Allow Notifly to read notifications?</h3>
+      <p>This lets Notifly see notification content from apps on your allow-list. You can revoke access in Android settings at any time.</p>
+      <div class="acts"><button class="btn text auto" data-action="denyperm">Don't allow</button>
+        <button class="btn filled auto" data-action="allowperm">Allow</button></div></div></div>`
+};
+
+/* ============ render ============ */
+function render(){
+  document.getElementById("phone").dataset.palette = S.palette;
+  const view = V[S.screen] || V.welcome;
+  document.getElementById("app").innerHTML =
+    view() +
+    (S.dialog ? dialogs[S.dialog]() : "") +
+    (S.snack ? `<div class="snack" role="status">${esc(S.snack.msg)}${S.snack.action?`<b data-action="snackaction">${esc(S.snack.action)}</b>`:""}</div>` : "");
+  document.querySelectorAll("#swatches .sw").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.dataset.p === S.palette)));
+  save();
+}
+
+/* ============ events ============ */
+document.getElementById("swatches").innerHTML = PALETTES
+  .map(([id,label,c]) => `<button class="sw" data-p="${id}" aria-pressed="${id==="evergreen"}"><i style="background:${c}"></i>${label}</button>`).join("");
+
+document.addEventListener("click", e => {
+  const el = t => e.target.closest(t);
+
+  const sw = el(".sw"); if(sw){ S.palette = sw.dataset.p; render(); return; }
+  const pal = el("[data-palette]"); if(pal && pal.tagName === "BUTTON"){ S.palette = pal.dataset.palette; render(); return; }
+  const tool = el("[data-tool]");
+  if(tool){
+    const k = tool.dataset.tool;
+    if(k==="simulate") simulate();
+    else if(k==="offline"){ setOffline(!S.offline); }
+    else if(k==="reset"){ clearInterval(syncTimer); S = seed(); toast("Prototype data reset"); render(); }
+    return;
+  }
+  const g = el("[data-go]"); if(g){ go(g.dataset.go); return; }
+  const f = el("[data-filter]"); if(f){ S.filter = f.dataset.filter; render(); return; }
+  const open = el("[data-open]");
+  if(open){ const id = open.dataset.open; if(id !== "demo"){ S.editing = +id; go("detail"); } return; }
+  const ta = el("[data-toggleapp]");
+  if(ta){ const i = +ta.dataset.toggleapp; S.apps[i].on = !S.apps[i].on; touch();
+    toast(`${S.apps[i].name} ${S.apps[i].on ? "added to" : "removed from"} the allow-list`); render(); return; }
+  const ty = el("[data-type]");
+  if(ty){ const t = S.txns.find(x=>x.id===S.editing);
+    if(S.screen==="detail" && t){ t.type = ty.dataset.type; } else { editorType = ty.dataset.type; }
+    render(); return; }
+  const lf = el("[data-logfilter]"); if(lf){ S.logFilter = lf.dataset.logfilter; S.logOpen = null; render(); return; }
+  const lo = el("[data-logopen]");
+  if(lo){ const id = +lo.dataset.logopen; S.logOpen = S.logOpen === id ? null : id; render(); return; }
+  const fl = el("[data-fromlog]");
+  if(fl){
+    const e = S.log.find(x => x.id === +fl.dataset.fromlog);
+    if(e){ S.editing = null; editorType = "expense"; prefillFromLog = e; go("add"); }
+    return;
+  }
+  const act = el("[data-action]"); if(act){ handle(act.dataset.action, act); return; }
+  if(el("[data-dismiss]") && e.target.classList.contains("scrim")){ S.dialog = null; render(); }
+});
+
+document.addEventListener("keydown", e => {
+  if((e.key===" "||e.key==="Enter") && e.target.classList && e.target.classList.contains("sw-track")){
+    e.preventDefault(); e.target.click();
+  }
+});
+
+let editorType = "expense";
+
+function handle(a, el){
+  const t = S.txns.find(x => x.id === S.editing);
+  if(a==="grant"){ S.dialog = "permission"; render(); }
+  else if(a==="allowperm"){ S.dialog = null; toast("Notification access granted"); go("chooseapps"); }
+  else if(a==="denyperm"){ S.dialog = null; toast("Without access, add transactions manually"); go("chooseapps"); }
+  else if(a==="signin"){ S.offline = false; S.queued = 0; toast("Signed in"); go("home"); }
+  else if(a==="offline-start"){ S.offline = true; toast("Working offline — nothing will sync yet"); go("home"); }
+  else if(a==="offline"){ setOffline(!S.offline); }
+  else if(a==="askdelete"){ S.dialog = "delete"; render(); }
+  else if(a==="closedialog"){ S.dialog = null; render(); }
+  else if(a==="confirmdelete"){
+    const gone = S.txns.find(x=>x.id===S.editing);
+    S.txns = S.txns.filter(x => x.id !== S.editing);
+    S.dialog = null; S.editing = null; touch();
+    toast(`Deleted “${gone ? gone.title : "transaction"}”`, "Undo");
+    undoBuffer = gone; go("transactions");
+  }
+  else if(a==="snackaction"){
+    if(pendingLogJump){ pendingLogJump = false; S.snack = null; go("debug"); return; }
+    if(undoBuffer){ S.txns.unshift(undoBuffer); undoBuffer = null; S.snack = null; toast("Restored"); render(); }
+  }
+  else if(a==="save"){ saveEditor(el.dataset.id); }
+  else if(a==="saveaccount"){
+    const n = document.getElementById("a-name"), em = document.getElementById("a-email");
+    if(n) S.user.name = n.value.trim() || S.user.name;
+    if(em) S.user.email = em.value.trim() || S.user.email;
+    touch(); toast("Account updated"); render();
+  }
+  else if(a==="signout"){ S = seed(); toast("Signed out"); render(); }
+  else if(a==="clearlog"){ S.log = []; S.logOpen = null; toast("Notification log cleared"); render(); }
+  else if(a==="keeplog"){ S.keepLog = !S.keepLog;
+    if(!S.keepLog){ S.log = S.log.map(e => Object.assign({}, e, { raw:"[not retained]", amt:null, dir:null })); }
+    toast(S.keepLog ? "Raw text kept on device" : "Raw text no longer retained"); render(); }
+  else if(a==="simulate"){ simulate(); }
+}
+
+let undoBuffer = null;
+let pendingLogJump = false;
+
+function saveEditor(id){
+  const val = i => { const n = document.getElementById(i); return n ? n.value.trim() : ""; };
+  const title = val("f-title"), amount = parseFloat(val("f-amount"));
+  const amtField = document.getElementById("f-amount");
+  if(!title || !(amount > 0)){
+    if(amtField) amtField.closest(".field").classList.add("err");
+    toast("Add a description and an amount above zero");
+    return;
+  }
+  const payload = { title, amount, cat: val("f-cat") || "Other", when: val("f-when") || "Today", app: val("f-src") || "Manual" };
+  if(id){
+    const t = S.txns.find(x => x.id === +id);
+    Object.assign(t, payload); t.status = "confirmed";
+    touch(); toast("Transaction saved");
+  } else {
+    S.txns.unshift(Object.assign({ id: Date.now(), type: editorType, status:"confirmed",
+      note: prefillFromLog ? "From notification: “" + prefillFromLog.raw + "”" : "" }, payload));
+    touch(); toast("Transaction added");
+  }
+  prefillFromLog = null;
+  S.editing = null; editorType = "expense";
+  go("transactions");
+}
+
+const TEMPLATES = [
+  { title:"7-Eleven Bajada", amount:158, type:"expense", cat:"Food",
+    raw:"PHP 158.00 paid to 7-ELEVEN BAJADA.", amt:"PHP 158.00", dir:"paid" },
+  { title:"Cebu Pacific", amount:4270, type:"expense", cat:"Other",
+    raw:"Payment of PHP 4,270.00 to CEBU PACIFIC AIR.", amt:"PHP 4,270.00", dir:"Payment" },
+  { title:"Refund — Lazada", amount:899, type:"income", cat:"Income",
+    raw:"You received PHP 899.00 refund from LAZADA.", amt:"PHP 899.00", dir:"received" },
+  { title:"Globe postpaid", amount:1599, type:"expense", cat:"Bills",
+    raw:"PHP 1,599.00 paid to GLOBE TELECOM.", amt:"PHP 1,599.00", dir:"paid" },
+  { title:"Foodpanda", amount:412, type:"expense", cat:"Food",
+    raw:"PHP 412.00 paid to FOODPANDA PH.", amt:"PHP 412.00", dir:"paid" }
+];
+let prefillFromLog = null;
+
+const UNPARSEABLE = [
+  "Your balance is PHP 9,120.40 as of 6:00 PM.",
+  "Reminder: verify your account before Dec 31 to keep sending money.",
+  "Maintenance advisory: services will be unavailable 1:00–3:00 AM."
+];
+
+function logPush(entry){
+  S.log.unshift(entry);
+  if(!S.keepLog){ entry.raw = "[not retained]"; entry.amt = null; entry.dir = null; }
+  if(S.log.length > 40) S.log.pop();
+}
+
+function simulate(){
+  const on = S.apps.filter(a => a.on);
+  if(!on.length){ toast("No apps are on the allow-list yet"); return; }
+  const app = on[Math.floor(Math.random()*on.length)];
+  app.count++;
+  touch();
+
+  // roughly one in four captures is something the parser can't use
+  if(Math.random() < 0.25){
+    logPush({ id: Date.now(), app: app.name, when: "Today · just now", result: "unrecognized",
+      raw: UNPARSEABLE[Math.floor(Math.random()*UNPARSEABLE.length)],
+      amt:null, dir:null, type:null, merchant:null,
+      why:"No transaction verb alongside the amount, so nothing was created. Check the log if you expected one." });
+    if(S.screen !== "debug") toast(`${app.name} notification couldn't be read`, "View log");
+    else toast(`${app.name} notification couldn't be read`);
+    pendingLogJump = true;
+    render();
+    return;
+  }
+
+  const tpl = TEMPLATES[Math.floor(Math.random()*TEMPLATES.length)];
+  S.txns.unshift({ id: Date.now(), title: tpl.title, app: app.name, amount: tpl.amount, type: tpl.type,
+    status: "review", cat: tpl.cat, when: "Today · just now", note: "Auto-parsed: “" + tpl.raw + "”" });
+  logPush({ id: Date.now()+1, app: app.name, when: "Today · just now", result: "review",
+    raw: tpl.raw, amt: tpl.amt, dir: tpl.dir, type: tpl.type, merchant: tpl.title.toUpperCase(),
+    why:"Amount and direction matched. Held for review until you confirm it." });
+
+  if(["welcome","how","permission","chooseapps","auth-login","auth-signup"].includes(S.screen)) S.screen = "transactions";
+  toast(`Parsed from ${app.name} — needs review`);
+  render();
+}
+
+load();
+render();
+</script>
+</body>
+</html>
