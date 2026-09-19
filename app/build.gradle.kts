@@ -3,6 +3,8 @@ plugins {
     alias(libs.plugins.kotlinAndroid)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+
+    id("io.sentry.android.gradle") version "6.22.0"
 }
 
 android {
@@ -54,4 +56,14 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.kotlinx.datetime)
     implementation(libs.koin.android)
+}
+
+
+sentry {
+    org.set("kryoware")
+    projectName.set("fundflow-android")
+
+    // this will upload your source code to Sentry to show it as part of the stack traces
+    // disable if you don't want to expose your sources
+    includeSourceContext.set(true)
 }
