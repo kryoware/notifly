@@ -49,6 +49,11 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.koin.android)
         }
+        androidUnitTest.dependencies {
+            implementation(libs.robolectric)
+            implementation(libs.androidx.test.core)
+            implementation(libs.sqlite.framework)
+        }
     }
 }
 

@@ -84,4 +84,20 @@ class NotificationParserTest {
         assertEquals(10L, parser.toMinorUnits("0.10"))
         assertEquals(100L, parser.toMinorUnits("1"))
     }
+
+    @Test
+    fun `thousands separator without decimals still parses`() {
+        val r = parser.parse("Paid PHP 1,200 to LANDBANK.")
+        val p = assertIs<ParseOutcome.Parsed>(r)
+        assertEquals(120_000L, p.draft.amountMinor)
+        assertEquals(TransactionType.EXPENSE, p.draft.type)
+    }
+
+    @Test
+    fun `two amounts picks the transaction not the trailing balance`() {
+        val r = parser.parse("You paid PHP 250.00 to JOLLIBEE. Available balance: PHP 15,000.00.")
+        val p = assertIs<ParseOutcome.Parsed>(r)
+        assertEquals(25_000L, p.draft.amountMinor)
+        assertEquals(TransactionType.EXPENSE, p.draft.type)
+    }
 }

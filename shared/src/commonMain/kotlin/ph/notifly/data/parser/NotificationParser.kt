@@ -35,8 +35,9 @@ class NotificationParser {
         val lower = text.lowercase()
         val inWord = inbound.firstOrNull { lower.contains(it) }
         val outWord = outbound.firstOrNull { lower.contains(it) }
+        val isHold = holdWords.any { lower.contains(it) }
 
-        if (inWord == null && outWord == null) {
+        if (inWord == null && outWord == null && !isHold) {
             val why = if (balanceWords.any { lower.contains(it) }) {
                 "Found an amount but no transaction verb. Reads as a balance notice, so nothing was created."
             } else {
@@ -45,7 +46,6 @@ class NotificationParser {
             return ParseOutcome.Unrecognized(why)
         }
 
-        val isHold = holdWords.any { lower.contains(it) }
         val isSelfTransfer = selfTransferHints.any { lower.contains(it) }
 
         // Both directions present is genuinely ambiguous — do not silently pick one.
@@ -78,9 +78,13 @@ class NotificationParser {
             type = type,
             merchant = merchant,
             matchedAmount = match.value,
-            matchedDirection = inWord ?: outWord.orEmpty(),
+            matchedDirection = inWord ?: outWord ?: holdWords.first { lower.contains(it) },
             amountConfidence = if (isHold) Confidence.LOW else Confidence.HIGH,
-            directionConfidence = if (ambiguousDirection) Confidence.LOW else Confidence.HIGH,
+            directionConfidence = if (ambiguousDirection || (inWord == null && outWord == null)) {
+                Confidence.LOW
+            } else {
+                Confidence.HIGH
+            },
             merchantConfidence = if (merchant == null) Confidence.LOW else Confidence.HIGH,
         )
         return ParseOutcome.Parsed(draft, reason)
@@ -99,6 +103,7 @@ class NotificationParser {
     private fun extractMerchant(text: String): String? {
         val m = Regex("""\b(?:to|from|by)\s+([A-Z0-9][A-Za-z0-9&'.\- ]{2,40})""").find(text)
         return m?.groupValues?.get(1)
+            ?.substringBefore(". ")
             ?.trim()
             ?.trimEnd('.', ',')
             ?.takeIf { it.isNotBlank() }
