@@ -22,8 +22,10 @@ class TransactionRepositoryImpl(
     override suspend fun byId(id: Long): Transaction? =
         dao.byId(id)?.toDomain()
 
-    override suspend fun upsert(transaction: Transaction): Long =
-        dao.saveLocally(transaction.toEntity())
+    override suspend fun upsert(transaction: Transaction): Long {
+        require(transaction.currency == "PHP") { "Only PHP transactions are supported" }
+        return dao.saveLocally(transaction.toEntity())
+    }
 
     override suspend fun delete(id: Long) =
         dao.deleteLocally(id)

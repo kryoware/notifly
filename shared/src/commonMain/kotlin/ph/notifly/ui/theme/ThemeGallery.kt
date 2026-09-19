@@ -7,16 +7,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
-import ph.notifly.data.local.AppPreferences
+import ph.notifly.ui.SettingsModel
 
 /** Side-by-side inspection of generated Figma roles; horizontally scroll on phones. */
 @Composable
-fun ThemeGallery(preferences: AppPreferences) {
-    val scope = rememberCoroutineScope()
+fun ThemeGallery(model: SettingsModel) {
     Row(Modifier.fillMaxSize().horizontalScroll(rememberScrollState()).padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         NotiflyPalette.entries.forEach { palette ->
@@ -57,7 +54,7 @@ fun ThemeGallery(preferences: AppPreferences) {
                 Surface(Modifier.width(280.dp)) {
                     Column(Modifier.verticalScroll(rememberScrollState()).padding(12.dp)) {
                         Text(palette.name, style = MaterialTheme.typography.headlineSmall)
-                        Button(onClick = { scope.launch { preferences.setPalette(palette) } }) { Text("Use ${palette.name}") }
+                        Button(onClick = { model.palette(palette) }) { Text("Use ${palette.name}") }
                         roles.forEach { (name, color) ->
                             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Surface(Modifier.size(32.dp), color = color, border = BorderStroke(1.dp, c.outline)) {}

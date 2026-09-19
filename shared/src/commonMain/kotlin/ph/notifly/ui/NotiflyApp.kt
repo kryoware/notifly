@@ -82,7 +82,7 @@ fun NotiflyApp(demo: Boolean = false, permissionAvailable: Boolean = false, requ
                 composable("edit/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val m = viewModel { EditorModel(transactions, it.arguments?.getLong("id") ?: 0L) }; Events(m, handle); EditorScreen(m)
                 }
-                composable("themes") { ThemeGallery(preferences) }
+                composable("themes") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle); ThemeGallery(m) }
                 composable("log") { val m = viewModel { LogModel(captures, preferences) }; Events(m, handle); LogScreen(m) }
                 composable("from-log/{captureId}", arguments = listOf(navArgument("captureId") { type = NavType.LongType })) {
                     val m = viewModel { EditorModel(transactions, 0L, captures, it.arguments?.getLong("captureId")) }; Events(m, handle); EditorScreen(m)
