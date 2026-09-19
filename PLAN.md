@@ -7,19 +7,6 @@ Behavioural spec for every screen: `docs/prototype.html`. Open it in a browser
 and use it, don't just read it. When this plan says "match the prototype", it
 means the interaction, not a pixel copy.
 
-## Phase 3 — Repositories + DI
-
-- [ ] Implement the three repository interfaces in `data/repository`
-- [ ] `observeConfirmedNetMinor()` excludes `NEEDS_REVIEW` — assert this in a test
-- [ ] `CaptureRepository.redactBodies()` blanks bodies in place
-- [ ] `purgeExpired()` drops captures older than `RawCapture.RETENTION_HOURS`
-- [ ] Wire all of it into `sharedModule`
-- [ ] Fakes for each repository in `commonTest`
-
-**Done when:** Koin starts without unresolved dependencies and fakes exist for testing.
-
----
-
 ## Phase 4 — Theme check
 
 Cheap, and catches token mistakes before they're baked into twenty screens.

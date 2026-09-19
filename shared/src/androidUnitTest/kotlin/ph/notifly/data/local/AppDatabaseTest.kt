@@ -79,7 +79,7 @@ class AppDatabaseTest {
                 occurredAt = Instant.fromEpochMilliseconds(0),
                 sourceApp = null,
                 captureId = null,
-            ).toEntity()
+            ).toEntity(),
         )
 
         db.transactionDao().delete(id)
