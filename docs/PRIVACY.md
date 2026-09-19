@@ -6,7 +6,8 @@ add a contact address and effective date and publish this document at a public U
 Notifly tracks financial transactions locally. Notification access is optional;
 manual entry works without it. You choose which installed apps Notifly may read.
 The installed-app list is used on your device for this selection and is not uploaded.
-For other apps, Notifly records only the app identifier, time, and ignored result;
+For other apps, Notifly records only the app identifier, time, ignored result,
+reason, and non-reversible fingerprint;
 it does not read their notification text.
 
 Payment notifications are parsed on your device. Parsed transactions always need

@@ -14,7 +14,7 @@ import kotlin.test.assertEquals
 
 @RunWith(RobolectricTestRunner::class)
 class MigrationTest {
-    @Test fun upgradeFromOriginalDatabasePreservesLedgerAndSeedsOnlyConfirmedQueue() = runTest {
+    @Test fun upgradeFromOriginalDatabasePreservesLedgerAndSeedsOnlyConfirmedPhpQueue() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val name = "migration-${System.nanoTime()}.db"
         val schema = JSONObject(java.io.File("schemas/ph.notifly.data.local.AppDatabase/1.json").readText()).getJSONObject("database")
@@ -26,12 +26,13 @@ class MigrationTest {
             }
             sqlite.execSQL("INSERT INTO transactions VALUES (1, 'Confirmed', 100, 'PHP', 'INCOME', 'CONFIRMED', 'Other', 0, NULL, NULL, '')")
             sqlite.execSQL("INSERT INTO transactions VALUES (2, 'Review', 999, 'PHP', 'EXPENSE', 'NEEDS_REVIEW', 'Other', 0, NULL, NULL, '')")
+            sqlite.execSQL("INSERT INTO transactions VALUES (3, 'Legacy dollar', 500, 'USD', 'INCOME', 'CONFIRMED', 'Other', 0, NULL, NULL, '')")
             sqlite.version = 1
         }
         val db = Room.databaseBuilder<AppDatabase>(context, name).setDriver(AndroidSQLiteDriver())
             .addMigrations(*databaseMigrations).build()
         try {
-            assertEquals(2, db.transactionDao().observeAll().first().size)
+            assertEquals(3, db.transactionDao().observeAll().first().size)
             assertEquals(100L, db.transactionDao().observeConfirmedNetMinor().first())
             assertEquals(1L, db.transactionDao().pendingChanges().single().transactionId)
         } finally { db.close(); context.deleteDatabase(name) }

@@ -42,6 +42,7 @@ class SyncQueueTest {
             assertEquals(0, dao.observePendingCount().first())
             assertFailsWith<IllegalArgumentException> { draft.toSyncTransaction() }
             val confirmed = draft.copy(id = id, status = TransactionStatus.CONFIRMED)
+            assertFailsWith<IllegalArgumentException> { confirmed.copy(currency = "USD").toSyncTransaction() }
             repository.upsert(confirmed)
             val first = dao.pendingChanges().single()
             repository.upsert(confirmed.copy(amountMinor = 200))
