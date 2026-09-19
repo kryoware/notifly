@@ -11,10 +11,10 @@ means the interaction, not a pixel copy.
 
 Cheap, and catches token mistakes before they're baked into twenty screens.
 
-- [ ] A debug screen or `@Preview` rendering all four palettes side by side
-- [ ] Swatches for every role plus `accents.income` / `accents.expense`
+- [x] A debug screen or `@Preview` rendering all four palettes side by side
+- [x] Swatches for every role plus `accents.income` / `accents.expense`
 - [ ] Compare against the Theming page in the Figma file
-- [ ] Palette choice persists via DataStore
+- [x] Palette choice persists via DataStore
 
 **Done when:** all four palettes render and match Figma.
 

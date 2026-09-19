@@ -9,6 +9,7 @@ import ph.notifly.domain.source.IosTransactionSource
 import ph.notifly.domain.source.TransactionSource
 
 actual val androidModule: Module = module {
+    single { ph.notifly.data.local.appPreferences() }
     single<TransactionSource> { IosTransactionSource() }
     single<AppDatabase> { getRoomDatabase(getDatabaseBuilder()) }
 }

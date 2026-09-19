@@ -7,6 +7,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,18 +23,10 @@ import ph.notifly.ui.theme.NotiflyTheme
  */
 @Composable
 fun NotiflyApp() {
-    var palette by remember { mutableStateOf(NotiflyPalette.Evergreen) }
+    val preferences = org.koin.compose.koinInject<ph.notifly.data.local.AppPreferences>()
+    val palette by preferences.palette.collectAsState(NotiflyPalette.Evergreen)
 
     NotiflyTheme(palette = palette) {
-        Scaffold(modifier = Modifier.fillMaxSize()) { inner ->
-            Column(Modifier.padding(inner).padding(24.dp)) {
-                Text("Notifly", style = MaterialTheme.typography.headlineMedium)
-                Text(
-                    "Scaffold is wired. Build screens here.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        ph.notifly.ui.theme.ThemeGallery(preferences)
     }
 }
