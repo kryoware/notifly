@@ -27,15 +27,18 @@ to debug a service that only fires when a real notification arrives.
 
 Navigation first, then screens in this order:
 
-- [ ] Nav graph: onboarding → auth → main (bottom nav) → detail/edit → log
-- [ ] Home — balance card, review prompt, recent list
-- [ ] Transactions — filter chips (All / Needs review / Income / Expense)
-- [ ] Add / Edit — validation rejects empty description and non-positive amount
-- [ ] Delete — confirmation dialog, undo via snackbar
-- [ ] Settings — allow-list entry, offline switch, theme picker
-- [ ] Allow-list — per-app toggles
-- [ ] Onboarding + permission slides
-- [ ] Auth — login / signup, plus "continue offline"
+- [x] Nav graph: onboarding → auth → main (bottom nav) → detail/edit → log
+- [x] Home — balance card, review prompt, recent list
+- [x] Transactions — filter chips (All / Needs review / Income / Expense)
+- [x] Add / Edit — validation rejects empty description and non-positive amount
+- [x] Delete — confirmation dialog, undo via snackbar
+- [x] Settings — allow-list entry, offline switch, theme picker
+- [x] Allow-list — per-app toggles
+- [x] Onboarding + permission slides
+- [x] Auth — login / signup, plus "continue offline"
+
+Implementation checks pass for seeded demo flows. Cloud auth is not yet configured;
+production sign-in reports this explicitly. Full device interaction review remains pending.
 
 One ViewModel per screen. `StateFlow<UiState>` for state, `SharedFlow<Event>`
 for navigation and snackbars. Never put navigation in `UiState`.
