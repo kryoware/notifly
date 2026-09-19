@@ -15,6 +15,20 @@ import kotlin.time.Clock
 
 @RunWith(RobolectricTestRunner::class)
 class SyncQueueTest {
+    @Test fun transfersAndUnreviewedCapturesNeverChangeSpendingBalance() = runTest {
+        val db = Room.inMemoryDatabaseBuilder<AppDatabase>(ApplicationProvider.getApplicationContext())
+            .setDriver(AndroidSQLiteDriver()).build()
+        try {
+            val repository = TransactionRepositoryImpl(db.transactionDao())
+            val base = Transaction(title = "Payment", amountMinor = 1000, type = TransactionType.INCOME,
+                status = TransactionStatus.CONFIRMED, category = "Other", occurredAt = Clock.System.now(), sourceApp = null, captureId = null)
+            repository.upsert(base)
+            repository.upsert(base.copy(amountMinor = 200, type = TransactionType.EXPENSE))
+            repository.upsert(base.copy(amountMinor = 500000, type = TransactionType.TRANSFER))
+            repository.upsert(base.copy(amountMinor = 100000, status = TransactionStatus.NEEDS_REVIEW))
+            assertEquals(800L, repository.observeConfirmedNetMinor().first())
+        } finally { db.close() }
+    }
     @Test fun onlyConfirmedRowsQueueAndStaleAckCannotLoseEdits() = runTest {
         val db = Room.inMemoryDatabaseBuilder<AppDatabase>(ApplicationProvider.getApplicationContext())
             .setDriver(AndroidSQLiteDriver()).build()

@@ -110,7 +110,11 @@ Deferred deliberately; needs real capture data from Phase 7 to tune.
 
 - [ ] Duplicate detection: same amount + near-same timestamp across two apps
 - [ ] "Merge or keep both?" prompt
-- [ ] Transfer handling excluded from spending totals
+- [x] Transfer handling excluded from spending totals
+
+Verified existing SQL exclusion with a real Room regression. Other confidence-tier
+items remain deferred as specified above: there are no real GCash/Maya samples yet
+to validate duplicate windows, hold/final-payment reconciliation, or learned rules.
 - [ ] Pre-auth holds reconciled when the final amount posts
 - [ ] Per-app learned rules, inspectable and deletable from the allow-list
 
