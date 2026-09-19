@@ -16,6 +16,9 @@ interface AllowedAppDao {
     @Upsert
     suspend fun upsert(entity: AllowedAppEntity)
 
+    @androidx.room.Insert(onConflict = androidx.room.OnConflictStrategy.IGNORE)
+    suspend fun addInstalled(entities: List<AllowedAppEntity>)
+
     @Query("UPDATE allowed_apps SET listening = :listening WHERE packageName = :packageName")
     suspend fun setListening(packageName: String, listening: Boolean)
 

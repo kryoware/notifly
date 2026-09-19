@@ -10,7 +10,7 @@ import kotlinx.coroutines.IO
 
 @Database(
     entities = [TransactionEntity::class, RawCaptureEntity::class, AllowedAppEntity::class],
-    version = 1,
+    version = 2,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -27,6 +27,12 @@ expect object AppDatabaseConstructor : RoomDatabaseConstructor<AppDatabase> {
 
 fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase =
     builder
+        .addMigrations(object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(connection: androidx.sqlite.SQLiteConnection) {
+                connection.prepare("ALTER TABLE raw_captures ADD COLUMN fingerprint TEXT").use { it.step() }
+                connection.prepare("CREATE UNIQUE INDEX index_raw_captures_fingerprint ON raw_captures(fingerprint)").use { it.step() }
+            }
+        })
         .setDriver(BundledSQLiteDriver())
         .setQueryCoroutineContext(Dispatchers.IO)
         .build()

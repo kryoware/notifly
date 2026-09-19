@@ -106,9 +106,12 @@ fun EditorScreen(model: EditorModel) {
 @Composable
 fun SettingsScreen(model: SettingsModel, permissionAvailable: Boolean, requestPermission: () -> Unit) {
     val s by model.state.collectAsState()
+    val source = org.koin.compose.koinInject<ph.notifly.domain.source.TransactionSource>()
+    val connection by source.connection.collectAsState()
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("On-device capture", style = MaterialTheme.typography.titleLarge) }
         item { Text(if (permissionAvailable) "Notification access enabled" else "Notification access disabled — manual entry still works") }
+        item { Text("Listener: $connection") }
         item { OutlinedButton(onClick = requestPermission) { Text("Manage notification access") } }
         item { TextButton(onClick = { model.navigate("allow-list") }) { Text("Allowed apps") } }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Offline mode"); Switch(s.offline, model::offline) } }

@@ -2,6 +2,11 @@ package ph.notifly.data.repository
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import ph.notifly.data.local.AppPreferences
+import ph.notifly.domain.model.Transaction
 import ph.notifly.data.local.RawCaptureDao
 import ph.notifly.data.local.toDomain
 import ph.notifly.data.local.toEntity
@@ -14,19 +19,28 @@ import kotlin.time.Duration.Companion.hours
 class CaptureRepositoryImpl(
     private val dao: RawCaptureDao,
     private val clock: Clock = Clock.System,
+    private val preferences: AppPreferences? = null,
 ) : CaptureRepository {
+    private val writeLock = Mutex()
 
     override fun observeLog(filter: CaptureResult?): Flow<List<RawCapture>> =
         dao.observeLog(filter?.name).map { entities -> entities.map { it.toDomain() } }
 
-    override suspend fun record(capture: RawCapture): Long =
-        dao.record(capture.toEntity())
+    override suspend fun record(capture: RawCapture): Long = writeLock.withLock {
+        dao.record(retained(capture).toEntity())
+    }
+
+    override suspend fun recordParsed(capture: RawCapture, transaction: Transaction): Long = writeLock.withLock {
+        dao.recordParsed(retained(capture).toEntity(), transaction.toEntity())
+    }
+
+    private suspend fun retained(capture: RawCapture) =
+        if (preferences?.keepRawText?.first() == true) capture else capture.copy(body = null)
 
     override suspend fun clearLog() =
         dao.clearLog()
 
-    override suspend fun redactBodies() =
-        dao.redactBodies()
+    override suspend fun redactBodies() = writeLock.withLock { dao.redactBodies() }
 
     override suspend fun purgeExpired() {
         val cutoff = clock.now().minus(RawCapture.RETENTION_HOURS.hours)

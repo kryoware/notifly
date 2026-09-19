@@ -66,15 +66,18 @@ captures start arriving, and you'll want it working first.
 
 ## Phase 7 — Real capture
 
-- [ ] `NotificationCaptureService` writes through `CaptureRepository`
-- [ ] Parsed drafts become transactions with `NEEDS_REVIEW` — never auto-confirm
-- [ ] Permission flow: `Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS`, then verify
+- [x] `NotificationCaptureService` writes through `CaptureRepository`
+- [x] Parsed drafts become transactions with `NEEDS_REVIEW` — never auto-confirm
+- [x] Permission flow: `Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS`, then verify
       on resume via `NotificationTransactionSource.isAvailable()`
-- [ ] Handle the user returning with it still disabled
-- [ ] `requestRebind()` on reconnect; show real connection state in Settings
-- [ ] Allow-list populated from installed apps (`QUERY_ALL_PACKAGES`)
+- [x] Handle the user returning with it still disabled
+- [x] `requestRebind()` on reconnect; show real connection state in Settings
+- [x] Allow-list populated from installed apps (`QUERY_ALL_PACKAGES`)
 - [ ] Verify dedupe against an app that updates one notification repeatedly
-- [ ] Grep the codebase for any log statement that could carry notification text
+- [x] Grep the codebase for any log statement that could carry notification text
+
+Room regression verifies duplicate delivery creates one unconfirmed transaction and
+defaults to no retained body. Device delivery/reconnect checks remain pending (no device attached).
 
 Test with GCash and Maya on a real device. Emulators won't give you real
 notification traffic.

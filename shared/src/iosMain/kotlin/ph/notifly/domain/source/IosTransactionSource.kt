@@ -14,6 +14,7 @@ import ph.notifly.domain.model.RawCapture
  * behaviour, not a stub to be "fixed" by faking captures.
  */
 class IosTransactionSource : TransactionSource {
+    override val connection = kotlinx.coroutines.flow.MutableStateFlow("Unavailable on iOS")
     override val id: String = "ios.unavailable"
     override fun isAvailable(): Boolean = false
     override fun observe(): Flow<RawCapture> = emptyFlow()

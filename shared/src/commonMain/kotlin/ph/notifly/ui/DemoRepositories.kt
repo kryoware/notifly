@@ -48,6 +48,12 @@ class DemoAllowList : AllowListRepository {
 }
 
 class DemoCaptures : CaptureRepository {
+    private val transactions = DemoTransactions()
+    override suspend fun recordParsed(capture: RawCapture, transaction: Transaction): Long {
+        val id = record(capture)
+        transactions.upsert(transaction.copy(captureId = id))
+        return id
+    }
     private val rows = MutableStateFlow(listOf(
         RawCapture(1, "GCash", Clock.System.now(), "You received PHP 480.00 from ACME CORP.", CaptureResult.PARSED, "PHP 480.00", "received", "Matched an amount and an income keyword. Still requires your confirmation."),
         RawCapture(2, "Maya", Clock.System.now(), "PHP 500.00 hold placed by SHELL.", CaptureResult.NEEDS_REVIEW, "PHP 500.00", "hold", "Possible pre-authorisation. Check the final amount before confirming."),

@@ -14,6 +14,7 @@ import ph.notifly.domain.model.RawCapture
  * and must not know which implementation produced a capture.
  */
 interface TransactionSource {
+    val connection: kotlinx.coroutines.flow.StateFlow<String>
     val id: String
     fun isAvailable(): Boolean
     fun observe(): Flow<RawCapture>

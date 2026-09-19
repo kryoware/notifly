@@ -21,6 +21,7 @@ data class RawCapture(
     val matchedAmount: String? = null,
     val matchedDirection: String? = null,
     val reason: String,             // plain language, shown to the user
+    val fingerprint: String? = null,
 ) {
     companion object { const val RETENTION_HOURS = 24 }
 }

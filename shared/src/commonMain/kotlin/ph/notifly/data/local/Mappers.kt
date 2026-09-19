@@ -37,6 +37,7 @@ fun Transaction.toEntity() = TransactionEntity(
 )
 
 fun RawCaptureEntity.toDomain() = RawCapture(
+    fingerprint = fingerprint,
     id = id,
     sourceApp = sourceApp,
     capturedAt = Instant.fromEpochMilliseconds(capturedAtMillis),
@@ -48,6 +49,7 @@ fun RawCaptureEntity.toDomain() = RawCapture(
 )
 
 fun RawCapture.toEntity() = RawCaptureEntity(
+    fingerprint = fingerprint,
     id = id,
     sourceApp = sourceApp,
     capturedAtMillis = capturedAt.toEpochMilliseconds(),

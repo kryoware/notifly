@@ -21,7 +21,7 @@ import ph.notifly.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotiflyApp(demo: Boolean = true, permissionAvailable: Boolean = false, requestPermission: () -> Unit = {}) {
+fun NotiflyApp(demo: Boolean = false, permissionAvailable: Boolean = false, requestPermission: () -> Unit = {}) {
     val preferences = koinInject<AppPreferences>()
     val realTransactions = koinInject<TransactionRepository>()
     val realApps = koinInject<AllowListRepository>()
