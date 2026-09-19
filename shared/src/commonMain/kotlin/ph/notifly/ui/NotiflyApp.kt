@@ -23,6 +23,7 @@ import ph.notifly.ui.theme.*
 @Composable
 fun NotiflyApp(demo: Boolean = false, permissionAvailable: Boolean = false, requestPermission: () -> Unit = {}) {
     val preferences = koinInject<AppPreferences>()
+    val database = koinInject<ph.notifly.data.local.AppDatabase>()
     val realTransactions = koinInject<TransactionRepository>()
     val realApps = koinInject<AllowListRepository>()
     val realCaptures = koinInject<CaptureRepository>()
@@ -72,7 +73,7 @@ fun NotiflyApp(demo: Boolean = false, permissionAvailable: Boolean = false, requ
                 composable("auth") { val m = viewModel { AuthModel(preferences, demo) }; Events(m, handle); AuthScreen(m, demo) }
                 composable("home") { val m = viewModel { HomeModel(transactions) }; Events(m, handle); HomeScreen(m) }
                 composable("transactions") { val m = viewModel { TransactionsModel(transactions) }; Events(m, handle); TransactionsScreen(m) }
-                composable("settings") { val m = viewModel { SettingsModel(preferences) }; Events(m, handle); SettingsScreen(m, permissionAvailable, requestPermission) }
+                composable("settings") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle); SettingsScreen(m, permissionAvailable, requestPermission) }
                 composable("allow-list") { val m = viewModel { AllowListModel(apps) }; Events(m, handle); AllowListScreen(m) }
                 composable("choose-apps") { val m = viewModel { AllowListModel(apps) }; Events(m, handle); AllowListScreen(m, onboarding = true) }
                 composable("edit/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {

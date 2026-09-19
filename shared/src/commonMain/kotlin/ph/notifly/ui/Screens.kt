@@ -116,6 +116,7 @@ fun SettingsScreen(model: SettingsModel, permissionAvailable: Boolean, requestPe
         item { TextButton(onClick = { model.navigate("allow-list") }) { Text("Allowed apps") } }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Offline mode"); Switch(s.offline, model::offline) } }
         item { Text("Theme", style = MaterialTheme.typography.titleLarge) }
+        item { Text("${s.pending} changes waiting to sync. Cloud sync is not configured.") }
         items(NotiflyPalette.entries) { p -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(p.name); RadioButton(s.palette == p, { model.palette(p) })
         } }

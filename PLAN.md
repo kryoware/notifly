@@ -88,12 +88,17 @@ notification traffic.
 
 ## Phase 8 — Offline and sync
 
-- [ ] Every write goes to Room first; no network in the write path
-- [ ] Pending-change queue with a count
+Local queue and confirmed-only payload boundary implemented and tested. Recommended
+backend: Supabase. Authentication, WorkManager delivery, and progress/completion rings
+remain pending a configured backend and authenticated delivery contract. No changes
+are acknowledged or shown as synced without a successful server response.
+
+- [x] Every write goes to Room first; no network in the write path
+- [x] Pending-change queue with a count
 - [ ] WorkManager sync worker on Android, constrained to connectivity
 - [ ] Progress ring on the account avatar, driven by the queue draining
 - [ ] Green ring + check on completion (match the prototype)
-- [ ] Confirmed transactions only in the sync payload — assert this in a test
+- [x] Confirmed transactions only in the sync payload — assert this in a test
 
 **Done when:** airplane mode → edits → reconnect drains the queue visibly.
 

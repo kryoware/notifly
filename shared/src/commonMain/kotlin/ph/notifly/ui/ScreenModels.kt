@@ -97,12 +97,15 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
     }
 }
 
-data class SettingsState(val palette: NotiflyPalette = NotiflyPalette.Evergreen, val offline: Boolean = true)
-class SettingsModel(private val preferences: AppPreferences) : ScreenModel() {
-    val state = combine(preferences.palette, preferences.offline, ::SettingsState)
+data class SettingsState(val palette: NotiflyPalette = NotiflyPalette.Evergreen, val offline: Boolean = true, val pending: Int = 0)
+class SettingsModel(private val preferences: AppPreferences, pending: Flow<Int>) : ScreenModel() {
+    val state = combine(preferences.palette, preferences.offline, pending, ::SettingsState)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsState())
     fun palette(value: NotiflyPalette) = work { preferences.setPalette(value) }
-    fun offline(value: Boolean) = work { preferences.setOffline(value) }
+    fun offline(value: Boolean) = work {
+        if (!value) mutableEvents.emit(UiEvent.Message("Cloud sync is not configured yet. Changes remain saved on this device."))
+        else preferences.setOffline(true)
+    }
 }
 data class AllowListState(val apps: List<AllowedApp> = emptyList())
 class AllowListModel(private val repository: AllowListRepository) : ScreenModel() {

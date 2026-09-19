@@ -9,8 +9,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 
 @Database(
-    entities = [TransactionEntity::class, RawCaptureEntity::class, AllowedAppEntity::class],
-    version = 2,
+    entities = [TransactionEntity::class, RawCaptureEntity::class, AllowedAppEntity::class, PendingChangeEntity::class],
+    version = 3,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -31,6 +31,13 @@ fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase =
             override fun migrate(connection: androidx.sqlite.SQLiteConnection) {
                 connection.prepare("ALTER TABLE raw_captures ADD COLUMN fingerprint TEXT").use { it.step() }
                 connection.prepare("CREATE UNIQUE INDEX index_raw_captures_fingerprint ON raw_captures(fingerprint)").use { it.step() }
+            }
+        })
+        .addMigrations(object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(connection: androidx.sqlite.SQLiteConnection) {
+                connection.prepare("CREATE TABLE IF NOT EXISTS pending_changes (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, transactionId INTEGER NOT NULL, operation TEXT NOT NULL)").use { it.step() }
+                connection.prepare("CREATE UNIQUE INDEX index_pending_changes_transactionId ON pending_changes(transactionId)").use { it.step() }
+                connection.prepare("INSERT INTO pending_changes(transactionId, operation) SELECT id, 'UPSERT' FROM transactions WHERE status = 'CONFIRMED'").use { it.step() }
             }
         })
         .setDriver(BundledSQLiteDriver())

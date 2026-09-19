@@ -23,10 +23,10 @@ class TransactionRepositoryImpl(
         dao.byId(id)?.toDomain()
 
     override suspend fun upsert(transaction: Transaction): Long =
-        dao.upsert(transaction.toEntity())
+        dao.saveLocally(transaction.toEntity())
 
     override suspend fun delete(id: Long) =
-        dao.delete(id)
+        dao.deleteLocally(id)
 
     override fun observeConfirmedNetMinor(): Flow<Long> =
         dao.observeConfirmedNetMinor()
