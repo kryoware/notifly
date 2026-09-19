@@ -73,7 +73,7 @@ captures start arriving, and you'll want it working first.
 - [x] Handle the user returning with it still disabled
 - [x] `requestRebind()` on reconnect; show real connection state in Settings
 - [x] Allow-list populated from installed apps (`QUERY_ALL_PACKAGES`)
-- [ ] Verify dedupe against an app that updates one notification repeatedly
+- [x] Verify dedupe against an app that updates one notification repeatedly
 - [x] Grep the codebase for any log statement that could carry notification text
 
 Room regression verifies duplicate delivery creates one unconfirmed transaction and
@@ -122,12 +122,12 @@ to validate duplicate windows, hold/final-payment reconciliation, or learned rul
 
 ## Phase 10 — Ship
 
-- [ ] Release build with R8, verify nothing reflective breaks
+- [x] Release build with R8, verify nothing reflective breaks
 - [x] Play Store justification for `QUERY_ALL_PACKAGES` and notification access
 - [x] Privacy policy stating on-device parsing explicitly
 - [x] Launcher icons, adaptive icon, splash
 - [ ] Accessibility pass: TalkBack labels, 48dp targets, contrast
-- [ ] `@Preview(locale = "ar")` RTL check
+- [x] `@Preview(locale = "ar")` RTL check
 
 R8 release compilation and Android lint pass; release runtime checks still require
 a device. Added Arabic RTL preview, explicit accessibility labels and native 48dp
