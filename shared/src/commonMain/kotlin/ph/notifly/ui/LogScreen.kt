@@ -62,7 +62,10 @@ fun LogScreen(model: LogModel) {
             FilterChip(s.filter == null, { model.filter(null) }, label = { Text("All") })
             CaptureResult.entries.forEach { result -> FilterChip(s.filter == result, { model.filter(result) }, label = { Text(result.label()) }) }
         }
-        TextButton(onClick = { clear = true }, enabled = s.captures.isNotEmpty()) { Text("Clear log") }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { shareCsv(s.captures.toCsv()) }, enabled = s.captures.isNotEmpty()) { Text("Export CSV") }
+            TextButton(onClick = { clear = true }, enabled = s.captures.isNotEmpty()) { Text("Clear log") }
+        }
         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (s.captures.isEmpty()) item { Text("No captures to show.") }
             items(s.captures, key = { it.id }) { capture ->
