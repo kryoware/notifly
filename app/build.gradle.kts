@@ -29,6 +29,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    kotlin {
+        jvmToolchain(17)
+    }
+
     sourceSets["main"].java.srcDirs("src/main/kotlin")
 }
 
@@ -36,5 +40,7 @@ dependencies {
     implementation(project(":shared"))
     implementation(compose.runtime)
     implementation(compose.material3)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.kotlinx.datetime)
     implementation(libs.koin.android)
 }

@@ -1,6 +1,6 @@
 package ph.notifly.domain.model
 
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 enum class TransactionType { INCOME, EXPENSE, TRANSFER }
 

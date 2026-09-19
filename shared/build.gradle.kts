@@ -11,6 +11,7 @@ plugins {
 }
 
 kotlin {
+    jvmToolchain(17)
     androidTarget {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
@@ -18,7 +19,7 @@ kotlin {
 
     // Declared so commonMain stays honest about platform leakage.
     // There is no iosApp/ yet — see CLAUDE.md § "Platform boundary".
-    iosX64()
+    // iosX64()
     iosArm64()
     iosSimulatorArm64()
 
@@ -58,7 +59,7 @@ room {
 dependencies {
     // Room's KSP processor must be added for every target that uses the DB.
     add("kspAndroid", libs.room.compiler)
-    add("kspIosX64", libs.room.compiler)
+    // add("kspIosX64", libs.room.compiler)
     add("kspIosArm64", libs.room.compiler)
     add("kspIosSimulatorArm64", libs.room.compiler)
 }

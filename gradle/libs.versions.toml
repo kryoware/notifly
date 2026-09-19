@@ -1,20 +1,17 @@
-# ⚠️ VERSIONS ARE UNVERIFIED — see CLAUDE.md § "First run".
-# These were written offline and never resolved against a repository.
-# Run ./gradlew build and let Claude Code fix what doesn't resolve.
-
 [versions]
-agp = "9.4.1"
-kotlin = "2.4.20"
+agp = "9.3.3"
+kotlin = "2.4.0"
 ksp = "2.3.12"
-composeMultiplatform = "1.12.0"
-coroutines = "1.11.0"
-androidxLifecycle = "2.11.0"
-androidxNavigation = "2.10.1"
-room = "2.8.5"
+composeMultiplatform = "1.11.0"
+coroutines = "1.10.2"
+androidxLifecycle = "2.9.4"
+androidxNavigation = "2.9.0"
+androidxActivity = "1.10.0"
+room = "2.8.2"
 sqlite = "2.6.1"
-datastore = "1.2.1"
-koin = "4.2.2"
-kotlinxDatetime = "0.8.0"
+datastore = "1.1.7"
+koin = "4.1.1"
+kotlinxDatetime = "0.7.1"
 compileSdk = "36"
 minSdk = "26"
 targetSdk = "36"
@@ -27,6 +24,7 @@ kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.
 androidx-lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "androidxLifecycle" }
 androidx-lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidxLifecycle" }
 androidx-navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "androidxNavigation" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidxActivity" }
 
 room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }

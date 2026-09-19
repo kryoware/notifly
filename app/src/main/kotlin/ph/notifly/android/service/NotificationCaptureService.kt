@@ -5,7 +5,7 @@ import android.service.notification.StatusBarNotification
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import org.koin.android.ext.android.inject
 import ph.notifly.data.parser.NotificationParser
 import ph.notifly.data.parser.ParseOutcome
