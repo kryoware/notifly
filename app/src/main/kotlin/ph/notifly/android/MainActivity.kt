@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import ph.notifly.android.service.NotificationCaptureService
 import ph.notifly.domain.source.TransactionSource
-import ph.notifly.ui.NotiflyAppimport io.sentry.Sentry
+import ph.notifly.ui.NotiflyApp
 
 
 class MainActivity : ComponentActivity() {
@@ -33,14 +33,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-    // waiting for view to draw to better represent a captured error with a screenshot
-    findViewById<android.view.View>(android.R.id.content).viewTreeObserver.addOnGlobalLayoutListener {
-      try {
-        throw Exception("This app uses Sentry! :)")
-      } catch (e: Exception) {
-        Sentry.captureException(e)
-      }
-    }
 
         setContent {
             NotiflyApp(

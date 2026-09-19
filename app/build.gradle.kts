@@ -19,12 +19,18 @@ android {
         versionName = "0.1.0"
     }
 
-    providers.environmentVariable("KEYSTORE_FILE").orNull?.let { keystorePath ->
+    val signingValues = listOf(
+        providers.environmentVariable("KEYSTORE_FILE").orNull,
+        providers.environmentVariable("KEYSTORE_PASSWORD").orNull,
+        providers.environmentVariable("KEY_ALIAS").orNull,
+        providers.environmentVariable("KEY_PASSWORD").orNull,
+    )
+    if (signingValues.all { it != null }) {
         signingConfigs.create("release") {
-            storeFile = file(keystorePath)
-            storePassword = providers.environmentVariable("KEYSTORE_PASSWORD").get()
-            keyAlias = providers.environmentVariable("KEY_ALIAS").get()
-            keyPassword = providers.environmentVariable("KEY_PASSWORD").get()
+            storeFile = file(signingValues[0]!!)
+            storePassword = signingValues[1]
+            keyAlias = signingValues[2]
+            keyPassword = signingValues[3]
         }
     }
 

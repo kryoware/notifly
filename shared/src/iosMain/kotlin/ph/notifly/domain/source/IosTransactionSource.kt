@@ -18,4 +18,5 @@ class IosTransactionSource : TransactionSource {
     override val id: String = "ios.unavailable"
     override fun isAvailable(): Boolean = false
     override fun observe(): Flow<RawCapture> = emptyFlow()
+    override suspend fun capture(event: NotificationEvent) = Unit
 }

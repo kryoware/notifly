@@ -11,6 +11,6 @@ import ph.notifly.domain.source.TransactionSource
 actual val androidModule: Module = module {
     single { ph.notifly.data.local.InstalledApps(get(), get()) }
     single { ph.notifly.data.local.appPreferences(get()) }
-    single<TransactionSource> { NotificationTransactionSource(get(), get()) }
+    single<TransactionSource> { NotificationTransactionSource(get(), get(), get(), get()) }
     single<AppDatabase> { getRoomDatabase(getDatabaseBuilder(get())) }
 }

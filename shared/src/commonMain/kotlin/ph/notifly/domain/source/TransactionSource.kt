@@ -18,4 +18,14 @@ interface TransactionSource {
     val id: String
     fun isAvailable(): Boolean
     fun observe(): Flow<RawCapture>
+    suspend fun capture(event: NotificationEvent)
 }
+
+data class NotificationEvent(
+    val key: String,
+    val sourceApp: String,
+    val postedAtMillis: Long,
+    val readContent: () -> NotificationContent,
+)
+
+data class NotificationContent(val title: String, val text: String)
