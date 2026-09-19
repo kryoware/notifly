@@ -13,5 +13,11 @@ class NotiflyApplication : Application() {
             androidContext(this@NotiflyApplication)
             modules(sharedModule, androidModule)
         }
+        val scheduler = getSystemService(android.app.job.JobScheduler::class.java)
+        scheduler.schedule(android.app.job.JobInfo.Builder(1,
+            android.content.ComponentName(this, ph.notifly.android.service.CaptureMaintenanceService::class.java))
+            .setPeriodic(java.util.concurrent.TimeUnit.HOURS.toMillis(6))
+            .setPersisted(true)
+            .build())
     }
 }

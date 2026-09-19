@@ -6,6 +6,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -40,7 +41,7 @@ fun NotiflyApp(demo: Boolean = false, permissionAvailable: Boolean = false, requ
     fun navigate(target: String) {
         nav.navigate(target) {
             launchSingleTop = true
-            if (target in listOf("home", "transactions", "settings")) popUpTo(nav.graph.id) { inclusive = false }
+            if (target in listOf("home", "transactions", "insights", "settings")) popUpTo(nav.graph.id) { inclusive = false }
         }
     }
     val handle: (UiEvent) -> Unit = { event -> when (event) {
@@ -48,6 +49,7 @@ fun NotiflyApp(demo: Boolean = false, permissionAvailable: Boolean = false, requ
         is UiEvent.Message -> { if (event.undo != null) navigate("transactions"); scope.launch {
             if (snackbar.showSnackbar(event.text, actionLabel = event.undo?.let { "Undo" }) == SnackbarResult.ActionPerformed) {
                 try { event.undo?.let { transactions.upsert(it) } }
+                catch (e: kotlinx.coroutines.CancellationException) { throw e }
                 catch (_: Exception) { snackbar.showSnackbar("Couldn't restore the transaction. Please try again.") }
             }
         }; Unit }
@@ -56,13 +58,13 @@ fun NotiflyApp(demo: Boolean = false, permissionAvailable: Boolean = false, requ
         if (onboarded == null) { CircularProgressIndicator(); return@NotiflyTheme }
         Scaffold(
             topBar = { TopAppBar(title = { Text(if (demo) "Notifly · Demo" else "Notifly") }, navigationIcon = {
-                if (route !in listOf("home", "transactions", "settings", "onboarding")) IconButton(onClick = { if (!nav.popBackStack()) navigate("home") }) {
+                if (route !in listOf("home", "transactions", "insights", "settings", "onboarding")) IconButton(onClick = { if (!nav.popBackStack()) navigate("home") }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                 }
             }) },
             bottomBar = {
-                if (route in listOf("home", "transactions", "settings")) NavigationBar {
-                    listOf(Triple("home", "Home", Icons.Default.Home), Triple("transactions", "Transactions", Icons.AutoMirrored.Filled.List), Triple("settings", "Settings", Icons.Default.Settings)).forEach { (target, label, icon) ->
+                if (route in listOf("home", "transactions", "insights", "settings")) NavigationBar {
+                    listOf(Triple("home", "Home", Icons.Default.Home), Triple("transactions", "Transactions", Icons.AutoMirrored.Filled.List), Triple("insights", "Insights", Icons.Default.PieChart), Triple("settings", "Settings", Icons.Default.Settings)).forEach { (target, label, icon) ->
                         NavigationBarItem(selected = route == target, onClick = { navigate(target) }, icon = { Icon(icon, null) }, label = { Text(label) })
                     }
                 }
@@ -72,6 +74,7 @@ fun NotiflyApp(demo: Boolean = false, permissionAvailable: Boolean = false, requ
                 composable("onboarding") { val m = viewModel { OnboardingModel() }; Events(m, handle); OnboardingScreen(m, requestPermission, permissionAvailable) }
                 composable("auth") { val m = viewModel { AuthModel(preferences, demo) }; Events(m, handle); AuthScreen(m, demo) }
                 composable("home") { val m = viewModel { HomeModel(transactions) }; Events(m, handle); HomeScreen(m) }
+                composable("insights") { val m = viewModel { InsightsModel(transactions) }; Events(m, handle); InsightsScreen(m) }
                 composable("transactions") { val m = viewModel { TransactionsModel(transactions) }; Events(m, handle); TransactionsScreen(m) }
                 composable("settings") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle); SettingsScreen(m, permissionAvailable, requestPermission) }
                 composable("allow-list") { val m = viewModel { AllowListModel(apps) }; Events(m, handle); AllowListScreen(m) }

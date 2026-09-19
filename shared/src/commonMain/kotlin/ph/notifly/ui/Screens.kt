@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -12,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import ph.notifly.domain.model.*
 import ph.notifly.ui.theme.NotiflyPalette
 import ph.notifly.ui.theme.accents
@@ -76,6 +79,26 @@ fun TransactionsScreen(model: TransactionsModel) {
 }
 
 @Composable
+fun InsightsScreen(model: InsightsModel) {
+    val s by model.state.collectAsState()
+    val expenses = s.rows.filter { it.type == TransactionType.EXPENSE }.groupBy { it.category }
+        .mapValues { (_, rows) -> rows.sumOf { it.amountMinor } }.entries.sortedByDescending { it.value }
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item { Text("Spending by category", style = MaterialTheme.typography.headlineSmall) }
+        item { Text("Confirmed transactions only. Transfers are excluded.") }
+        items(expenses) { (category, amount) ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(category, Modifier.weight(1f)); Text(money(amount))
+            }
+        }
+        if (expenses.isEmpty()) item { Text("No confirmed expenses yet.") }
+        item { Text("Income: ${money(s.rows.filter { it.type == TransactionType.INCOME }.sumOf { it.amountMinor })}") }
+        item { Text("Expenses: ${money(expenses.sumOf { it.value })}") }
+        item { Text("Balance: ${money(s.net)}") }
+    }
+}
+
+@Composable
 fun EditorScreen(model: EditorModel) {
     val s by model.state.collectAsState()
     var delete by remember { mutableStateOf(false) }
@@ -88,6 +111,7 @@ fun EditorScreen(model: EditorModel) {
         item { OutlinedTextField(s.title, { model.edit(title = it) }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
         item { OutlinedTextField(s.amount, { model.edit(amount = it) }, label = { Text("Amount (PHP)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)) }
         item { OutlinedTextField(s.category, { model.edit(category = it) }, label = { Text("Category") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
+        item { OutlinedTextField(s.date, { model.edit(date = it) }, label = { Text("Date (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
         item { Text("Source: ${s.original?.sourceApp ?: s.sourceApp ?: "Manual"}") }
         if (s.original != null) item { Text("Date: ${s.original!!.occurredAt}") }
         s.error?.let { error -> item { Text(error, color = MaterialTheme.colorScheme.error) } }
@@ -114,11 +138,11 @@ fun SettingsScreen(model: SettingsModel, permissionAvailable: Boolean, requestPe
         item { Text("Listener: $connection") }
         item { OutlinedButton(onClick = requestPermission) { Text("Manage notification access") } }
         item { TextButton(onClick = { model.navigate("allow-list") }) { Text("Allowed apps") } }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Offline mode"); Switch(s.offline, model::offline) } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Offline mode", Modifier.weight(1f)); Switch(s.offline, model::offline, modifier = Modifier.semantics { contentDescription = "Offline mode" }) } }
         item { Text("Theme", style = MaterialTheme.typography.titleLarge) }
         item { Text("${s.pending} changes waiting to sync. Cloud sync is not configured.") }
         items(NotiflyPalette.entries) { p -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(p.name); RadioButton(s.palette == p, { model.palette(p) })
+            Text(p.name); RadioButton(s.palette == p, { model.palette(p) }, modifier = Modifier.semantics { contentDescription = "${p.name} theme" })
         } }
         item { TextButton(onClick = { model.navigate("themes") }) { Text("Inspect theme palettes") } }
         item { TextButton(onClick = { model.navigate("log") }) { Text("Notification log") } }
@@ -133,7 +157,7 @@ fun AllowListScreen(model: AllowListModel, onboarding: Boolean = false) {
         item { Text("Only apps you explicitly enable can create captures.") }
         items(s.apps, key = { it.packageName }) { app ->
             ListItem(headlineContent = { Text(app.label) }, supportingContent = { Text("${app.kind} · ${app.capturedCount} captures") },
-                trailingContent = { Switch(app.listening, { model.toggle(app) }) })
+                trailingContent = { Switch(app.listening, { model.toggle(app) }, modifier = Modifier.semantics { contentDescription = "Listen to ${app.label}" }) })
         }
         if (s.apps.isEmpty()) item { Text("No installed apps available.", Modifier.padding(vertical = 24.dp)) }
         if (onboarding) item { Button(onClick = { model.navigate("auth") }) { Text("Continue") } }
@@ -163,7 +187,7 @@ fun OnboardingScreen(model: OnboardingModel, requestPermission: () -> Unit, perm
 @Composable
 fun AuthScreen(model: AuthModel, demo: Boolean) {
     val s by model.state.collectAsState()
-    Column(Modifier.fillMaxSize().imePadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(if (s.signup) "Create account" else "Welcome back", style = MaterialTheme.typography.headlineLarge)
         if (demo) Text("Demo account flow — no account will be created.")
         OutlinedTextField(s.email, { model.edit(email = it) }, label = { Text("Email") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))

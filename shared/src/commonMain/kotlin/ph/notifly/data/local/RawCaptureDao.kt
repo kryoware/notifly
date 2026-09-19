@@ -13,13 +13,22 @@ interface RawCaptureDao {
     @Insert(onConflict = androidx.room.OnConflictStrategy.IGNORE)
     suspend fun record(entity: RawCaptureEntity): Long
 
+    @Insert(onConflict = androidx.room.OnConflictStrategy.IGNORE)
+    suspend fun reserveReceipt(receipt: CaptureReceiptEntity): Long
+
+    @androidx.room.Transaction
+    suspend fun recordOnce(capture: RawCaptureEntity): Long {
+        if (capture.fingerprint != null && reserveReceipt(CaptureReceiptEntity(capture.fingerprint)) == -1L) return -1L
+        return record(capture)
+    }
+
     @Insert
     suspend fun insertTransaction(entity: TransactionEntity): Long
 
     @androidx.room.Transaction
     suspend fun recordParsed(capture: RawCaptureEntity, transaction: TransactionEntity): Long {
         require(transaction.status == "NEEDS_REVIEW")
-        val id = record(capture)
+        val id = recordOnce(capture)
         if (id != -1L) insertTransaction(transaction.copy(captureId = id))
         return id
     }

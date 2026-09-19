@@ -123,11 +123,18 @@ to validate duplicate windows, hold/final-payment reconciliation, or learned rul
 ## Phase 10 — Ship
 
 - [ ] Release build with R8, verify nothing reflective breaks
-- [ ] Play Store justification for `QUERY_ALL_PACKAGES` and notification access
-- [ ] Privacy policy stating on-device parsing explicitly
-- [ ] Launcher icons, adaptive icon, splash
+- [x] Play Store justification for `QUERY_ALL_PACKAGES` and notification access
+- [x] Privacy policy stating on-device parsing explicitly
+- [x] Launcher icons, adaptive icon, splash
 - [ ] Accessibility pass: TalkBack labels, 48dp targets, contrast
 - [ ] `@Preview(locale = "ar")` RTL check
+
+R8 release compilation and Android lint pass; release runtime checks still require
+a device. Added Arabic RTL preview, explicit accessibility labels and native 48dp
+controls; TalkBack, large-font rendering, and contrast/Figma review remain pending.
+Privacy and Play Store declaration drafts are in docs/PRIVACY.md and docs/PLAY_STORE.md;
+publishing needs operator contact, policy URL, signing secrets and Play review.
+Android backup/device transfer explicitly exclude the local ledger and notification data.
 
 ---
 

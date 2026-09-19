@@ -1,7 +1,6 @@
 package ph.notifly.data.repository
 
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -24,10 +23,12 @@ class CaptureRepositoryImpl(
     private val writeLock = Mutex()
 
     override fun observeLog(filter: CaptureResult?): Flow<List<RawCapture>> =
-        dao.observeLog(filter?.name).map { entities -> entities.map { it.toDomain() } }
+        kotlinx.coroutines.flow.combine(dao.observeLog(filter?.name), preferences?.keepRawText ?: kotlinx.coroutines.flow.flowOf(false)) { entities, keep ->
+            entities.map { entity -> entity.toDomain().let { if (keep) it else it.copy(body = null) } }
+        }
 
     override suspend fun record(capture: RawCapture): Long = writeLock.withLock {
-        dao.record(retained(capture).toEntity())
+        dao.recordOnce(retained(capture).toEntity())
     }
 
     override suspend fun recordParsed(capture: RawCapture, transaction: Transaction): Long = writeLock.withLock {

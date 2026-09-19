@@ -17,8 +17,18 @@ android {
         versionName = "0.1.0"
     }
 
+    providers.environmentVariable("KEYSTORE_FILE").orNull?.let { keystorePath ->
+        signingConfigs.create("release") {
+            storeFile = file(keystorePath)
+            storePassword = providers.environmentVariable("KEYSTORE_PASSWORD").get()
+            keyAlias = providers.environmentVariable("KEY_ALIAS").get()
+            keyPassword = providers.environmentVariable("KEY_PASSWORD").get()
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

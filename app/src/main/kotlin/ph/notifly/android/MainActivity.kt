@@ -2,7 +2,6 @@ package ph.notifly.android
 
 import android.content.ComponentName
 import android.content.Intent
-import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
@@ -11,13 +10,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
 import ph.notifly.android.service.NotificationCaptureService
-import ph.notifly.data.local.AppDatabase
-import ph.notifly.data.local.AllowedAppEntity
 import ph.notifly.domain.source.TransactionSource
 import ph.notifly.ui.NotiflyApp
 

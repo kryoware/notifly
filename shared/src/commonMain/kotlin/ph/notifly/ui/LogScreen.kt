@@ -12,6 +12,8 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.*
 import ph.notifly.data.local.AppPreferences
@@ -53,7 +55,7 @@ fun LogScreen(model: LogModel) {
         Text("Notification log", style = MaterialTheme.typography.headlineSmall)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Keep raw text on device", Modifier.weight(1f))
-            Switch(s.keepRaw, model::retain)
+            Switch(s.keepRaw, model::retain, modifier = Modifier.semantics { contentDescription = "Keep raw text on device" })
         }
         Text("Raw text is never uploaded and is removed after 24 hours.", style = MaterialTheme.typography.bodySmall)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
