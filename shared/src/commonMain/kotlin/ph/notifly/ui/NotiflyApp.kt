@@ -22,7 +22,13 @@ import ph.notifly.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotiflyApp(demo: Boolean = false, permissionAvailable: Boolean = false, requestPermission: () -> Unit = {}) {
+fun NotiflyApp(
+    demo: Boolean = false,
+    permissionAvailable: Boolean = false,
+    requestPermission: () -> Unit = {},
+    batteryExempt: Boolean = false,
+    requestBatteryExemption: () -> Unit = {},
+) {
     val preferences = koinInject<AppPreferences>()
     val database = koinInject<ph.notifly.data.local.AppDatabase>()
     val realTransactions = koinInject<TransactionRepository>()
@@ -71,7 +77,7 @@ fun NotiflyApp(demo: Boolean = false, permissionAvailable: Boolean = false, requ
             }, snackbarHost = { SnackbarHost(snackbar) },
         ) { padding ->
             NavHost(nav, startDestination = if (onboarded == true) "home" else "onboarding", modifier = Modifier.fillMaxSize().padding(padding)) {
-                composable("onboarding") { val m = viewModel { OnboardingModel() }; Events(m, handle); OnboardingScreen(m, requestPermission, permissionAvailable) }
+                composable("onboarding") { val m = viewModel { OnboardingModel() }; Events(m, handle); OnboardingScreen(m, requestPermission, permissionAvailable, batteryExempt, requestBatteryExemption) }
                 composable("auth") { val m = viewModel { AuthModel(preferences, demo) }; Events(m, handle); AuthScreen(m, demo) }
                 composable("home") { val m = viewModel { HomeModel(transactions) }; Events(m, handle); HomeScreen(m) }
                 composable("insights") { val m = viewModel { InsightsModel(transactions) }; Events(m, handle); InsightsScreen(m) }

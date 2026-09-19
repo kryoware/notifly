@@ -1,8 +1,10 @@
 package ph.notifly.android
 
+import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import androidx.activity.ComponentActivity
@@ -20,18 +22,29 @@ class MainActivity : ComponentActivity() {
     private val source: TransactionSource by inject()
     private val installedApps: ph.notifly.data.local.InstalledApps by inject()
     private val available = mutableStateOf(false)
+    private val batteryExempt = mutableStateOf(false)
+    private fun openSystemSettings(action: String) {
+        try { startActivity(Intent(action)) }
+        catch (_: ActivityNotFoundException) {
+            android.widget.Toast.makeText(this, "This device has no such settings screen.", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            NotiflyApp(permissionAvailable = available.value, requestPermission = {
-                startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-            })
+            NotiflyApp(
+                permissionAvailable = available.value,
+                requestPermission = { openSystemSettings(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS) },
+                batteryExempt = batteryExempt.value,
+                requestBatteryExemption = { openSystemSettings(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS) },
+            )
         }
     }
     override fun onResume() {
         super.onResume()
         available.value = source.isAvailable()
+        batteryExempt.value = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
         if (available.value) NotificationListenerService.requestRebind(ComponentName(this, NotificationCaptureService::class.java))
         lifecycleScope.launch {
             try { installedApps.refresh() }

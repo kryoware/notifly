@@ -137,7 +137,7 @@ data class OnboardingState(val page: Int = 0)
 class OnboardingModel : ScreenModel() {
     private val mutableState = MutableStateFlow(OnboardingState())
     val state = mutableState.asStateFlow()
-    fun next() { mutableState.value = OnboardingState((state.value.page + 1).coerceAtMost(2)) }
+    fun next() { mutableState.value = OnboardingState((state.value.page + 1).coerceAtMost(3)) }
 }
 data class AuthState(val signup: Boolean = false, val email: String = "", val password: String = "", val error: String? = null)
 class AuthModel(private val preferences: AppPreferences, private val demo: Boolean) : ScreenModel() {

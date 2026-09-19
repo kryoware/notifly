@@ -75,6 +75,8 @@ captures start arriving, and you'll want it working first.
 - [x] Allow-list populated from installed apps (`QUERY_ALL_PACKAGES`)
 - [x] Verify dedupe against an app that updates one notification repeatedly
 - [x] Grep the codebase for any log statement that could carry notification text
+- [x] Battery-optimisation exemption prompt (4th onboarding page) to mitigate OEM
+      process-killers — not required for capture, `PowerManager.isIgnoringBatteryOptimizations`
 
 Room regression verifies duplicate delivery creates one unconfirmed transaction and
 defaults to no retained body. Device delivery/reconnect checks remain pending (no device attached).

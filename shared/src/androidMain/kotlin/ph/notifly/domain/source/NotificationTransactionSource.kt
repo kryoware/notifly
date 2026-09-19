@@ -14,7 +14,7 @@ class NotificationTransactionSource(private val context: Context, private val ca
     override fun isAvailable(): Boolean = Settings.Secure.getString(
         context.contentResolver, "enabled_notification_listeners",
     ).orEmpty().split(':').mapNotNull(ComponentName::unflattenFromString).any {
-        it.packageName == context.packageName && it.className == "ph.notifly.android.service.NotificationCaptureService"
+        it.packageName == context.packageName
     }
     override fun observe() = captures.observeLog()
         .let { flow -> kotlinx.coroutines.flow.flow { flow.collect { rows -> rows.firstOrNull()?.let { emit(it) } } } }

@@ -165,20 +165,35 @@ fun AllowListScreen(model: AllowListModel, onboarding: Boolean = false) {
 }
 
 @Composable
-fun OnboardingScreen(model: OnboardingModel, requestPermission: () -> Unit, permissionAvailable: Boolean) {
+fun OnboardingScreen(
+    model: OnboardingModel,
+    requestPermission: () -> Unit,
+    permissionAvailable: Boolean,
+    batteryExempt: Boolean,
+    requestBatteryExemption: () -> Unit,
+) {
     val s by model.state.collectAsState()
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        Text(listOf("Stop typing your expenses", "How it works", "One permission to grant")[s.page], style = MaterialTheme.typography.headlineLarge)
+        Text(listOf("Stop typing your expenses", "How it works", "One permission to grant", "Keep it running")[s.page], style = MaterialTheme.typography.headlineLarge)
         Text(listOf("Track payments from the apps you choose. Your notifications stay on your device.",
             "Choose your apps. We parse payment alerts on-device. You review and confirm every transaction.",
-            "Notification access lets Notifly read alerts only from allowed apps. Raw notification text is never uploaded.")[s.page])
+            "Notification access lets Notifly read alerts only from allowed apps. Raw notification text is never uploaded.",
+            "Android can pause background apps to save power, and some phones do it aggressively. Turning that off for Notifly keeps captures arriving promptly.")[s.page])
         Spacer(Modifier.weight(1f))
-        Text("${s.page + 1} of 3")
-        if (s.page < 2) Button(onClick = model::next) { Text(if (s.page == 0) "Get started" else "Next") }
-        else {
-            Text(if (permissionAvailable) "Access enabled" else "Access not enabled. You can continue manually.")
-            Button(onClick = requestPermission) { Text("Grant access") }
-            OutlinedButton(onClick = { model.navigate("choose-apps") }) { Text(if (permissionAvailable) "Continue" else "Skip — add manually") }
+        Text("${s.page + 1} of 4")
+        when (s.page) {
+            0, 1 -> Button(onClick = model::next) { Text(if (s.page == 0) "Get started" else "Next") }
+            2 -> {
+                Text(if (permissionAvailable) "Access enabled" else "Access not enabled. You can continue manually.")
+                Button(onClick = requestPermission) { Text("Grant access") }
+                OutlinedButton(onClick = model::next) { Text(if (permissionAvailable) "Continue" else "Skip — add manually") }
+            }
+            else -> {
+                Text(if (batteryExempt) "Battery optimisation is off for Notifly" else "Notifly is still battery-optimised. Capture still works — it may just be delayed on some phones.")
+                if (!batteryExempt) Text("In the list that opens, switch the filter to All apps, then pick Notifly.")
+                Button(onClick = requestBatteryExemption) { Text("Open battery settings") }
+                OutlinedButton(onClick = { model.navigate("choose-apps") }) { Text(if (batteryExempt) "Continue" else "Skip for now") }
+            }
         }
         TextButton(onClick = { model.navigate("auth") }) { Text("I already have an account") }
     }

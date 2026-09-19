@@ -27,6 +27,11 @@ class ScreenModelsTest {
             assertTrue(captures.observeLog().first().all { it.body == null })
         } finally { Dispatchers.resetMain() }
     }
+    @Test fun onboardingCapsAtFourthPage() {
+        val model = OnboardingModel()
+        repeat(4) { model.next() }
+        assertEquals(3, model.state.value.page)
+    }
     @Test fun reviewDoesNotMoveBalanceAndInvalidEditsDoNotWrite() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
