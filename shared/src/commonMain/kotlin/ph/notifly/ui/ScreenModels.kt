@@ -11,10 +11,13 @@ import ph.notifly.domain.diagnostics.ErrorSite
 import ph.notifly.domain.model.*
 import ph.notifly.domain.repository.*
 import ph.notifly.ui.theme.NotiflyPalette
+import ph.notifly.ui.theme.ThemeMode
 import kotlin.time.Clock
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
-import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.atTime
+import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import org.koin.core.context.GlobalContext
 
@@ -38,9 +41,13 @@ open class ScreenModel : ViewModel() {
 }
 
 data class LedgerState(val rows: List<Transaction> = emptyList(), val net: Long = 0L)
-class HomeModel(repository: TransactionRepository) : ScreenModel() {
+class HomeModel(private val repository: TransactionRepository) : ScreenModel() {
     val state = combine(repository.observeAll(), repository.observeConfirmedNetMinor()) { rows, net -> LedgerState(rows, net) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LedgerState())
+    fun confirm(t: Transaction) = work {
+        repository.upsert(t.copy(status = TransactionStatus.CONFIRMED))
+        mutableEvents.emit(UiEvent.Message("Transaction confirmed", undo = t))
+    }
 }
 class InsightsModel(repository: TransactionRepository) : ScreenModel() {
     val state = repository.observeByStatus(TransactionStatus.CONFIRMED).map { rows ->
@@ -51,7 +58,7 @@ class InsightsModel(repository: TransactionRepository) : ScreenModel() {
 }
 enum class TransactionFilter { ALL, NEEDS_REVIEW, INCOME, EXPENSE }
 data class TransactionsState(val rows: List<Transaction> = emptyList(), val filter: TransactionFilter = TransactionFilter.ALL)
-class TransactionsModel(repository: TransactionRepository) : ScreenModel() {
+class TransactionsModel(private val repository: TransactionRepository) : ScreenModel() {
     private val filter = MutableStateFlow(TransactionFilter.ALL)
     val state = combine(repository.observeAll(), filter) { rows, f ->
         TransactionsState(rows.filter { when (f) {
@@ -62,6 +69,10 @@ class TransactionsModel(repository: TransactionRepository) : ScreenModel() {
         } }, f)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TransactionsState())
     fun filter(value: TransactionFilter) { filter.value = value }
+    fun confirm(t: Transaction) = work {
+        repository.upsert(t.copy(status = TransactionStatus.CONFIRMED))
+        mutableEvents.emit(UiEvent.Message("Transaction confirmed", undo = t))
+    }
 }
 
 data class EditorState(
@@ -70,6 +81,7 @@ data class EditorState(
     val error: String? = null, val ready: Boolean = false, val saving: Boolean = false,
     val sourceText: String? = null, val sourceApp: String? = null, val captureId: Long? = null,
     val date: String = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString(),
+    val time: String = "00:00",
 )
 class EditorModel(private val repository: TransactionRepository, id: Long,
                   captures: CaptureRepository? = null, captureId: Long? = null) : ScreenModel() {
@@ -78,25 +90,31 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
     init { work {
         val t = if (id == 0L) null else repository.byId(id)
         mutableState.value = if (id != 0L && t == null) EditorState(error = "Transaction no longer exists.")
-        else EditorState(t, t?.title.orEmpty(), t?.let { amountText(it.amountMinor) }.orEmpty(),
-            t?.category ?: "Other", t?.type ?: TransactionType.EXPENSE, ready = true,
-            date = (t?.occurredAt ?: Clock.System.now()).toLocalDateTime(TimeZone.currentSystemDefault()).date.toString())
+        else {
+            val local = (t?.occurredAt ?: Clock.System.now()).toLocalDateTime(TimeZone.currentSystemDefault())
+            EditorState(t, t?.title.orEmpty(), t?.let { amountText(it.amountMinor) }.orEmpty(),
+                t?.category ?: "Other", t?.type ?: TransactionType.EXPENSE, ready = true,
+                date = local.date.toString(),
+                time = if (t == null) "00:00" else local.hour.toString().padStart(2, '0') + ":" + local.minute.toString().padStart(2, '0'))
+        }
         if (captureId != null) {
             val capture = captures?.observeLog()?.first()?.find { it.id == captureId }
             mutableState.value = state.value.copy(sourceText = capture?.body, sourceApp = capture?.sourceApp, captureId = capture?.id)
         }
     } }
     fun edit(title: String = state.value.title, amount: String = state.value.amount,
-             category: String = state.value.category, type: TransactionType = state.value.type, date: String = state.value.date) {
-        mutableState.value = state.value.copy(title = title, amount = amount, category = category, type = type, date = date, error = null)
+             category: String = state.value.category, type: TransactionType = state.value.type,
+             date: String = state.value.date, time: String = state.value.time) {
+        mutableState.value = state.value.copy(title = title, amount = amount, category = category, type = type, date = date, time = time, error = null)
     }
     fun save() {
         val s = state.value
         if (!s.ready || s.saving) return
         val amount = parseAmountMinor(s.amount)
         val date = runCatching { LocalDate.parse(s.date) }.getOrNull()
-        if (date == null) {
-            mutableState.value = s.copy(error = "Enter a valid date as YYYY-MM-DD.")
+        val time = runCatching { LocalTime.parse(s.time) }.getOrNull()
+        if (date == null || time == null) {
+            mutableState.value = s.copy(error = "Enter a valid date as YYYY-MM-DD and a time as HH:MM.")
             return
         }
         if (s.title.isBlank() || amount == null) {
@@ -104,8 +122,7 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
             return
         }
         mutableState.value = s.copy(saving = true)
-        val occurredAt = s.original?.occurredAt?.takeIf { it.toLocalDateTime(TimeZone.currentSystemDefault()).date == date }
-            ?: date.atStartOfDayIn(TimeZone.currentSystemDefault())
+        val occurredAt = date.atTime(time).toInstant(TimeZone.currentSystemDefault())
         work {
             try {
                 repository.upsert(s.original?.copy(title = s.title.trim(), amountMinor = amount,
@@ -124,12 +141,13 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
     }
 }
 
-data class SettingsState(val palette: NotiflyPalette = NotiflyPalette.Evergreen, val offline: Boolean = true,
-                          val pending: Int = 0, val crashReporting: Boolean = false)
+data class SettingsState(val palette: NotiflyPalette = NotiflyPalette.Evergreen, val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val offline: Boolean = true, val pending: Int = 0, val crashReporting: Boolean = false)
 class SettingsModel(private val preferences: AppPreferences, pending: Flow<Int>) : ScreenModel() {
-    val state = combine(preferences.palette, preferences.offline, pending, preferences.crashReporting, ::SettingsState)
+    val state = combine(preferences.palette, preferences.themeMode, preferences.offline, pending, preferences.crashReporting, ::SettingsState)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsState())
     fun palette(value: NotiflyPalette) = work { preferences.setPalette(value) }
+    fun themeMode(value: ThemeMode) = work { preferences.setThemeMode(value) }
     fun offline(value: Boolean) = work {
         if (!value) mutableEvents.emit(UiEvent.Message("Cloud sync is not configured yet. Changes remain saved on this device."))
         else preferences.setOffline(true)

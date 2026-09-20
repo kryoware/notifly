@@ -2,36 +2,72 @@
 
 package ph.notifly.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import kotlin.time.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.toLocalDateTime
 import ph.notifly.domain.model.*
 import ph.notifly.ui.theme.NotiflyPalette
+import ph.notifly.ui.theme.ThemeMode
 import ph.notifly.ui.theme.hint
 import ph.notifly.ui.theme.accents
 
+private val CATEGORIES = listOf("Income", "Food", "Transport", "Bills", "Shopping", "Other")
+private val FAB_CLEARANCE = 88.dp
+
 @Composable
-fun TransactionRow(transaction: Transaction, open: () -> Unit) {
+fun TransactionRow(transaction: Transaction, open: () -> Unit, confirm: (() -> Unit)? = null, modifier: Modifier = Modifier) {
     val color = when (transaction.type) {
         TransactionType.INCOME -> MaterialTheme.accents.income
         TransactionType.EXPENSE -> MaterialTheme.accents.expense
+        TransactionType.TRANSFER -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val containerColor = when (transaction.type) {
+        TransactionType.INCOME -> MaterialTheme.accents.incomeContainer
+        TransactionType.EXPENSE -> MaterialTheme.accents.expenseContainer
+        TransactionType.TRANSFER -> MaterialTheme.colorScheme.surfaceContainerHighest
+    }
+    val onContainerColor = when (transaction.type) {
+        TransactionType.INCOME -> MaterialTheme.accents.onIncomeContainer
+        TransactionType.EXPENSE -> MaterialTheme.accents.onExpenseContainer
         TransactionType.TRANSFER -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     val icon = when (transaction.type) {
@@ -39,48 +75,106 @@ fun TransactionRow(transaction: Transaction, open: () -> Unit) {
         TransactionType.EXPENSE -> Icons.Default.ArrowUpward
         TransactionType.TRANSFER -> Icons.Default.SwapHoriz
     }
-    TextButton(onClick = open, modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)) {
-        Icon(icon, contentDescription = transaction.type.name, tint = color)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(transaction.title, color = MaterialTheme.colorScheme.onSurface)
-            Text(if (transaction.status == TransactionStatus.NEEDS_REVIEW) "Needs review" else transaction.category,
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Text((if (transaction.type == TransactionType.INCOME) "+" else if (transaction.type == TransactionType.EXPENSE) "−" else "") + money(transaction.amountMinor), color = color)
-    }
+    val needsReview = transaction.status == TransactionStatus.NEEDS_REVIEW
+    val supporting = if (needsReview) "Parsed from ${transaction.sourceApp} · unconfirmed"
+        else "${transaction.sourceApp ?: "Manual"} · ${transaction.occurredAt.toLocalDateTime(TimeZone.currentSystemDefault()).date}"
+    ListItem(
+        modifier = modifier.fillMaxWidth().clickable(onClick = open)
+            .semantics { contentDescription = "${transaction.title}, ${money(transaction.amountMinor)}${if (needsReview) ", needs review" else ""}" },
+        leadingContent = {
+            Surface(shape = CircleShape, color = containerColor, modifier = Modifier.size(40.dp)) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = onContainerColor, modifier = Modifier.size(20.dp))
+                }
+            }
+        },
+        headlineContent = { Text(transaction.title) },
+        supportingContent = {
+            Text(supporting, style = MaterialTheme.typography.bodySmall,
+                color = if (needsReview) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
+        },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text((if (transaction.type == TransactionType.INCOME) "+" else if (transaction.type == TransactionType.EXPENSE) "−" else "") + money(transaction.amountMinor), color = color)
+                if (needsReview && confirm != null) {
+                    IconButton(onClick = confirm, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Check, contentDescription = "Confirm ${transaction.title}", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        },
+    )
 }
 
 @Composable
 fun HomeScreen(model: HomeModel) {
     val s by model.state.collectAsState()
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val pendingTotal = s.rows.filter { it.status == TransactionStatus.NEEDS_REVIEW }
+        .sumOf { if (it.type == TransactionType.INCOME) it.amountMinor else -it.amountMinor }
+    val listState = rememberLazyListState()
+    Scaffold(
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { model.navigate("edit/0") },
+                expanded = !listState.canScrollBackward,
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("Add transaction") },
+            )
+        }
+    ) { padding ->
+    LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp), state = listState,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = FAB_CLEARANCE)) {
         item {
-            Card(Modifier.fillMaxWidth()) {
+            Card(Modifier.fillMaxWidth().animateContentSize()) {
                 Column(Modifier.padding(24.dp)) {
                     Text("Confirmed balance", style = MaterialTheme.typography.labelLarge)
                     Text(money(s.net), style = MaterialTheme.typography.headlineLarge)
                     Text("Transfers and transactions awaiting review are excluded.", style = MaterialTheme.typography.bodySmall)
+                    val pending = s.rows.count { it.status == TransactionStatus.NEEDS_REVIEW }
+                    if (pending > 0) {
+                        HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                        Text("Pending review", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
+                        Text(money(pendingTotal), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.tertiary)
+                    }
                 }
             }
         }
         val pending = s.rows.count { it.status == TransactionStatus.NEEDS_REVIEW }
-        if (pending > 0) item { OutlinedButton(onClick = { model.navigate("transactions") }) { Text("$pending transactions need review") } }
+        item {
+            AnimatedVisibility(pending > 0) {
+                ListItem(
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable { model.navigate("transactions") },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                    leadingContent = { Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = MaterialTheme.colorScheme.onTertiaryContainer) },
+                    headlineContent = { Text("$pending transaction${if (pending == 1) "" else "s"} need review", color = MaterialTheme.colorScheme.onTertiaryContainer) },
+                    supportingContent = { Text("Parsed automatically — confirm or edit them", color = MaterialTheme.colorScheme.onTertiaryContainer) },
+                )
+            }
+        }
         item { Text("Recent", style = MaterialTheme.typography.titleLarge) }
-        items(s.rows.take(5), key = { it.id }) { TransactionRow(it) { model.navigate("edit/${it.id}") } }
+        items(s.rows.take(5), key = { it.id }) { t ->
+            TransactionRow(t, { model.navigate("edit/${t.id}") },
+                confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null)
+        }
         if (s.rows.isEmpty()) item { Text("No transactions yet. Add one manually to get started.") }
-        item { Button(onClick = { model.navigate("edit/0") }) { Text("Add transaction") } }
+        if (s.rows.size > 5) item { TextButton(onClick = { model.navigate("transactions") }) { Text("See all transactions") } }
+    }
     }
 }
 
 @Composable
 fun TransactionsScreen(model: TransactionsModel) {
     val s by model.state.collectAsState()
+    val listState = rememberLazyListState()
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(onClick = { model.navigate("edit/0") }) {
-                Icon(Icons.Default.Add, contentDescription = "Add transaction")
-            }
+            ExtendedFloatingActionButton(
+                onClick = { model.navigate("edit/0") },
+                expanded = !listState.canScrollBackward,
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("Add transaction") },
+            )
         }
     ) { padding ->
     Column(Modifier.fillMaxSize().padding(padding)) {
@@ -92,13 +186,27 @@ fun TransactionsScreen(model: TransactionsModel) {
                 }) })
             }
         }
-        LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp)) {
-            items(s.rows, key = { it.id }) { TransactionRow(it) { model.navigate("edit/${it.id}") } }
-            if (s.rows.isEmpty()) item { Text("Nothing here yet", Modifier.padding(24.dp)) }
+        if (s.rows.isEmpty()) {
+            Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center) {
+                Text("Nothing here yet", style = MaterialTheme.typography.titleMedium)
+                Text("Transactions parsed from your allowed apps will show up here.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(12.dp))
+                FilledTonalButton(onClick = { model.navigate("edit/0") }) { Text("Add one manually") }
+            }
+        } else {
+            LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), state = listState,
+                contentPadding = PaddingValues(bottom = FAB_CLEARANCE)) {
+                items(s.rows, key = { it.id }) { t ->
+                    TransactionRow(t, { model.navigate("edit/${t.id}") },
+                        confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null,
+                        modifier = Modifier.animateItem())
+                }
+            }
         }
-}
-}
-
+    }
+    }
 }
 
 @Composable
@@ -106,18 +214,113 @@ fun InsightsScreen(model: InsightsModel) {
     val s by model.state.collectAsState()
     val expenses = s.rows.filter { it.type == TransactionType.EXPENSE }.groupBy { it.category }
         .mapValues { (_, rows) -> rows.sumOf { it.amountMinor } }.entries.sortedByDescending { it.value }
+    val max = expenses.maxOfOrNull { it.value }?.coerceAtLeast(1) ?: 1
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { Text("Spending by category", style = MaterialTheme.typography.headlineSmall) }
-        item { Text("Confirmed transactions only. Transfers are excluded.") }
-        items(expenses) { (category, amount) ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(category, Modifier.weight(1f)); Text(money(amount))
+        item { Text("Confirmed transactions only. Transfers are excluded.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        items(expenses.toList(), key = { it.key }) { (category, amount) ->
+            Column(Modifier.fillMaxWidth().animateItem(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(category, Modifier.weight(1f)); Text(money(amount))
+                }
+                LinearProgressIndicator(
+                    progress = { amount.toFloat() / max.toFloat() },
+                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                )
             }
         }
         if (expenses.isEmpty()) item { Text("No confirmed expenses yet.") }
-        item { Text("Income: ${money(s.rows.filter { it.type == TransactionType.INCOME }.sumOf { it.amountMinor })}") }
-        item { Text("Expenses: ${money(expenses.sumOf { it.value })}") }
-        item { Text("Balance: ${money(s.net)}") }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Income"); Text(money(s.rows.filter { it.type == TransactionType.INCOME }.sumOf { it.amountMinor }))
+                    }
+                    HorizontalDivider()
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Expenses"); Text(money(expenses.sumOf { it.value }))
+                    }
+                    HorizontalDivider()
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Balance", style = MaterialTheme.typography.titleMedium)
+                        Text(money(s.net), style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryField(value: String, onValueChange: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val options = if (value in CATEGORIES) CATEGORIES else CATEGORIES + value
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text("Category") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(text = { Text(option) }, onClick = { expanded = false; onValueChange(option) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun DateTimeFields(date: String, time: String, onDate: (String) -> Unit, onTime: (String) -> Unit) {
+    var showDate by remember { mutableStateOf(false) }
+    var showTime by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = date, onValueChange = {}, readOnly = true, label = { Text("Date") },
+            trailingIcon = { IconButton(onClick = { showDate = true }) { Icon(Icons.Default.CalendarToday, contentDescription = "Choose date") } },
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedTextField(
+            value = time, onValueChange = {}, readOnly = true, label = { Text("Time") },
+            trailingIcon = { IconButton(onClick = { showTime = true }) { Icon(Icons.Default.Schedule, contentDescription = "Choose time") } },
+            modifier = Modifier.weight(1f),
+        )
+    }
+    if (showDate) {
+        val parsed = runCatching { LocalDate.parse(date) }.getOrNull()
+        val initialMillis = parsed?.atStartOfDayIn(TimeZone.UTC)?.toEpochMilliseconds()
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        DatePickerDialog(
+            onDismissRequest = { showDate = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let { ms ->
+                        onDate(Instant.fromEpochMilliseconds(ms).toLocalDateTime(TimeZone.UTC).date.toString())
+                    }
+                    showDate = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showDate = false }) { Text("Cancel") } },
+        ) { DatePicker(state = pickerState) }
+    }
+    if (showTime) {
+        val parts = time.split(":")
+        val timeState = rememberTimePickerState(
+            initialHour = parts.getOrNull(0)?.toIntOrNull() ?: 0,
+            initialMinute = parts.getOrNull(1)?.toIntOrNull() ?: 0,
+        )
+        AlertDialog(
+            onDismissRequest = { showTime = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    onTime(timeState.hour.toString().padStart(2, '0') + ":" + timeState.minute.toString().padStart(2, '0'))
+                    showTime = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showTime = false }) { Text("Cancel") } },
+            text = { TimePicker(state = timeState) },
+        )
     }
 }
 
@@ -125,33 +328,66 @@ fun InsightsScreen(model: InsightsModel) {
 fun EditorScreen(model: EditorModel) {
     val s by model.state.collectAsState()
     var delete by remember { mutableStateOf(false) }
+    val titleFocus = remember { FocusRequester() }
+    val amountFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { if (s.original == null) titleFocus.requestFocus() }
     LazyColumn(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        s.sourceText?.let { text -> item { Text("Source notification (device only): $text") } }
-        if (s.original?.status == TransactionStatus.NEEDS_REVIEW) item { Text("Parsed on your device. Check the details before confirming.") }
-        item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    TransactionType.entries.forEachIndexed { index, type ->
-                        SegmentedButton(
-                            selected = s.type == type,
-                            onClick = { model.edit(type = type) },
-                            shape = SegmentedButtonDefaults.itemShape(index, TransactionType.entries.size),
-                            label = { Text(type.name.lowercase().replaceFirstChar { it.uppercase() }) },
-                        )
+        item {
+            AnimatedVisibility(s.original?.status == TransactionStatus.NEEDS_REVIEW || s.sourceText != null) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (s.original?.status == TransactionStatus.NEEDS_REVIEW)
+                            Text("Parsed on your device. Check the details before confirming.",
+                                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                        s.sourceText?.let { text ->
+                            Text("Source notification (device only): $text",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                        }
                     }
                 }
-        } }
-        item { OutlinedTextField(s.title, { model.edit(title = it) }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-        item { OutlinedTextField(s.amount, { model.edit(amount = it) }, label = { Text("Amount (PHP)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)) }
-        item { OutlinedTextField(s.category, { model.edit(category = it) }, label = { Text("Category") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-        item { OutlinedTextField(s.date, { model.edit(date = it) }, label = { Text("Date (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-        item { Text("Source: ${s.original?.sourceApp ?: s.sourceApp ?: "Manual"}") }
-        if (s.original != null) item { Text("Date: ${s.original!!.occurredAt}") }
-        s.error?.let { error -> item { Text(error, color = MaterialTheme.colorScheme.error) } }
+            }
+        }
+        item {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                TransactionType.entries.forEachIndexed { index, type ->
+                    SegmentedButton(
+                        selected = s.type == type,
+                        onClick = { model.edit(type = type) },
+                        shape = SegmentedButtonDefaults.itemShape(index, TransactionType.entries.size),
+                        label = { Text(type.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                    )
+                }
+            }
+        }
+        item {
+            OutlinedTextField(s.title, { model.edit(title = it) }, label = { Text("Description") },
+                modifier = Modifier.fillMaxWidth().focusRequester(titleFocus), singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(onNext = { amountFocus.requestFocus() }))
+        }
+        item {
+            OutlinedTextField(s.amount, { model.edit(amount = it) }, label = { Text("Amount (PHP)") },
+                placeholder = { Text("0.00") },
+                modifier = Modifier.fillMaxWidth().focusRequester(amountFocus), singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { if (s.ready && !s.saving) model.save() }))
+        }
+        item { CategoryField(s.category) { model.edit(category = it) } }
+        item { DateTimeFields(s.date, s.time, onDate = { model.edit(date = it) }, onTime = { model.edit(time = it) }) }
+        item { Text("Source: ${s.original?.sourceApp ?: s.sourceApp ?: "Manual"}", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item {
+            AnimatedVisibility(s.error != null) {
+                s.error?.let { error -> Text(error, color = MaterialTheme.colorScheme.error) }
+            }
+        }
         item { Button(onClick = model::save, enabled = s.ready && !s.saving, modifier = Modifier.fillMaxWidth()) {
             Text(if (s.original?.status == TransactionStatus.NEEDS_REVIEW) "Confirm transaction" else "Save transaction")
         } }
-        if (s.original != null) item { TextButton(onClick = { delete = true }) { Text("Delete transaction") } }
-        item { TextButton(onClick = { model.navigate("transactions") }) { Text("Cancel") } }
+        if (s.original != null) item {
+            TextButton(onClick = { delete = true }) {
+                Text("Delete transaction", color = MaterialTheme.colorScheme.error)
+            }
+        }
     }
     if (delete) AlertDialog(onDismissRequest = { delete = false }, title = { Text("Delete transaction?") },
         text = { Text("You can undo this immediately after deleting.") },
@@ -164,17 +400,43 @@ fun SettingsScreen(model: SettingsModel, permissionAvailable: Boolean, requestPe
     val s by model.state.collectAsState()
     val source = org.koin.compose.koinInject<ph.notifly.domain.source.TransactionSource>()
     val connection by source.connection.collectAsState()
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text("On-device capture", style = MaterialTheme.typography.titleLarge) }
-        item { Text(if (permissionAvailable) "Notification access enabled" else "Notification access disabled — manual entry still works") }
-        item { Text("Listener: $connection") }
-        item { OutlinedButton(onClick = requestPermission) { Text("Manage notification access") } }
-        item { TextButton(onClick = { model.navigate("allow-list") }) { Text("Allowed apps") } }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Offline mode", Modifier.weight(1f)); Switch(s.offline, model::offline, modifier = Modifier.semantics { contentDescription = "Offline mode" }) } }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Send crash reports", Modifier.weight(1f)); Switch(s.crashReporting, model::crashReporting, modifier = Modifier.semantics { contentDescription = "Send crash reports" }) } }
-        item { Text("Reports contain stack traces and device info only — never notification text.", style = MaterialTheme.typography.bodySmall) }
-        item { Text("Theme", style = MaterialTheme.typography.titleLarge) }
-        item { Text("${s.pending} changes waiting to sync. Cloud sync is not configured.") }
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        item { Text("Capture", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp)) }
+        item { ListItem(
+            headlineContent = { Text(if (permissionAvailable) "Notification access enabled" else "Notification access disabled") },
+            supportingContent = { Text(if (permissionAvailable) "Listener: $connection" else "Manual entry still works") },
+        ) }
+        item { ListItem(headlineContent = { Text("Manage notification access") }, modifier = Modifier.clickable(onClick = requestPermission)) }
+        item { Text("Listening apps", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp)) }
+        item { ListItem(headlineContent = { Text("Edit allowed apps") }, modifier = Modifier.clickable { model.navigate("allow-list") }) }
+        item { Text("Sync & privacy", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp)) }
+        item { ListItem(
+            headlineContent = { Text("Offline mode") },
+            supportingContent = { Text("Cloud sync is not configured yet.") },
+            trailingContent = { Switch(s.offline, model::offline, modifier = Modifier.semantics { contentDescription = "Offline mode" }) },
+        ) }
+        item { ListItem(
+            headlineContent = { Text("${s.pending} changes waiting to sync") },
+            supportingContent = { Text("Cloud sync is not configured.") },
+        ) }
+        item { ListItem(
+            headlineContent = { Text("Send crash reports") },
+            supportingContent = { Text("Reports contain stack traces and device info only — never notification text.") },
+            trailingContent = { Switch(s.crashReporting, model::crashReporting, modifier = Modifier.semantics { contentDescription = "Send crash reports" }) },
+        ) }
+        item { Text("Appearance", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp)) }
+        item {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                ThemeMode.entries.forEachIndexed { index, mode ->
+                    SegmentedButton(
+                        selected = s.themeMode == mode,
+                        onClick = { model.themeMode(mode) },
+                        shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
+                        label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                    )
+                }
+            }
+        }
         item {
             var expanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
@@ -184,7 +446,7 @@ fun SettingsScreen(model: SettingsModel, permissionAvailable: Boolean, requestPe
                     readOnly = true,
                     label = { Text("Theme") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                 )
                 ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                     NotiflyPalette.entries.forEach { palette ->
@@ -196,9 +458,9 @@ fun SettingsScreen(model: SettingsModel, permissionAvailable: Boolean, requestPe
                 }
             }
         }
-        item { TextButton(onClick = { model.navigate("themes") }) { Text("Inspect theme palettes") } }
-        item { TextButton(onClick = { model.navigate("log") }) { Text("Notification log") } }
-        item { TextButton(onClick = { model.navigate("auth") }) { Text("Account / sign in") } }
+        item { Text("More", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp)) }
+        item { ListItem(headlineContent = { Text("Notification log") }, modifier = Modifier.clickable { model.navigate("log") }) }
+        item { ListItem(headlineContent = { Text("Account / sign in") }, modifier = Modifier.clickable { model.navigate("auth") }) }
     }
 }
 
@@ -206,13 +468,13 @@ fun SettingsScreen(model: SettingsModel, permissionAvailable: Boolean, requestPe
 fun AllowListScreen(model: AllowListModel, onboarding: Boolean = false) {
     val s by model.state.collectAsState()
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        item { Text("Only apps you explicitly enable can create captures.") }
+        item { Text("Only apps you explicitly enable can create captures.", Modifier.padding(vertical = 8.dp)) }
         items(s.apps, key = { it.packageName }) { app ->
             ListItem(headlineContent = { Text(app.label) }, supportingContent = { Text("${app.kind} · ${app.capturedCount} captures") },
                 trailingContent = { Switch(app.listening, { model.toggle(app) }, modifier = Modifier.semantics { contentDescription = "Listen to ${app.label}" }) })
         }
         if (s.apps.isEmpty()) item { Text("No installed apps available.", Modifier.padding(vertical = 24.dp)) }
-        if (onboarding) item { Button(onClick = { model.navigate("auth") }) { Text("Continue") } }
+        if (onboarding) item { Button(onClick = { model.navigate("auth") }, modifier = Modifier.padding(vertical = 12.dp)) { Text("Continue") } }
     }
 }
 
@@ -232,7 +494,12 @@ fun OnboardingScreen(
             "Notification access lets Notifly read alerts only from allowed apps. Raw notification text is never uploaded.",
             "Android can pause background apps to save power, and some phones do it aggressively. Turning that off for Notifly keeps captures arriving promptly.")[s.page])
         Spacer(Modifier.weight(1f))
-        Text("${s.page + 1} of 4")
+        Row(Modifier.align(Alignment.CenterHorizontally), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            repeat(4) { i ->
+                Box(Modifier.size(8.dp).clip(CircleShape).background(
+                    if (i == s.page) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest))
+            }
+        }
         when (s.page) {
             0, 1 -> Button(onClick = model::next) { Text(if (s.page == 0) "Get started" else "Next") }
             2 -> {

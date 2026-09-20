@@ -1,5 +1,7 @@
 package ph.notifly.ui
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -9,6 +11,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -38,6 +41,7 @@ fun NotiflyApp(
     val transactions = remember(demo) { if (demo) DemoTransactions() else realTransactions }
     val apps = remember(demo) { if (demo) DemoAllowList() else realApps }
     val palette by preferences.palette.collectAsState(NotiflyPalette.Evergreen)
+    val themeMode by preferences.themeMode.collectAsState(ThemeMode.SYSTEM)
     val onboarded by preferences.onboardingComplete.collectAsState(null)
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
@@ -60,23 +64,54 @@ fun NotiflyApp(
             }
         }; Unit }
     } }
-    NotiflyTheme(palette) {
-        if (onboarded == null) { CircularProgressIndicator(); return@NotiflyTheme }
+    val topLevel = listOf("home", "transactions", "insights", "settings")
+    val title = when {
+        route == "home" -> "Notifly"
+        route == "transactions" -> "Transactions"
+        route == "insights" -> "Insights"
+        route == "settings" -> "Settings"
+        route?.startsWith("edit/") == true -> if (route == "edit/0") "Add transaction" else "Edit transaction"
+        route?.startsWith("from-log/") == true -> "Add transaction"
+        route == "allow-list" || route == "choose-apps" -> "Allowed apps"
+        route == "log" -> "Notification log"
+        route == "themes" -> "Theme palettes"
+        else -> "Notifly"
+    }
+    NotiflyTheme(palette, themeMode) {
+        if (onboarded == null) {
+            Surface(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+            return@NotiflyTheme
+        }
         Scaffold(
-            topBar = { TopAppBar(title = { Text(if (demo) "Notifly · Demo" else "Notifly") }, navigationIcon = {
-                if (route !in listOf("home", "transactions", "insights", "settings", "onboarding")) IconButton(onClick = { if (!nav.popBackStack()) navigate("home") }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+            topBar = {
+                if (route != "onboarding" && route != "auth") {
+                    TopAppBar(title = { Text(if (route in topLevel && demo) "$title · Demo" else title) }, navigationIcon = {
+                        if (route !in topLevel) IconButton(onClick = { if (!nav.popBackStack()) navigate("home") }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                        }
+                    })
                 }
-            }) },
+            },
             bottomBar = {
-                if (route in listOf("home", "transactions", "insights", "settings")) NavigationBar {
+                if (route in topLevel) NavigationBar {
                     listOf(Triple("home", "Home", Icons.Default.Home), Triple("transactions", "Transactions", Icons.AutoMirrored.Filled.List), Triple("insights", "Insights", Icons.Default.PieChart), Triple("settings", "Settings", Icons.Default.Settings)).forEach { (target, label, icon) ->
                         NavigationBarItem(selected = route == target, onClick = { navigate(target) }, icon = { Icon(icon, null) }, label = { Text(label) })
                     }
                 }
             }, snackbarHost = { SnackbarHost(snackbar) },
         ) { padding ->
-            NavHost(nav, startDestination = if (onboarded == true) "home" else "onboarding", modifier = Modifier.fillMaxSize().padding(padding)) {
+            NavHost(
+                nav, startDestination = if (onboarded == true) "home" else "onboarding",
+                modifier = Modifier.fillMaxSize().padding(padding),
+                enterTransition = {
+                    slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, animationSpec = tween(220)) + androidx.compose.animation.fadeIn(tween(220))
+                },
+                exitTransition = { androidx.compose.animation.fadeOut(tween(120)) },
+                popEnterTransition = { androidx.compose.animation.fadeIn(tween(220)) },
+                popExitTransition = {
+                    slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, animationSpec = tween(220)) + androidx.compose.animation.fadeOut(tween(120))
+                },
+            ) {
                 composable("onboarding") { val m = viewModel { OnboardingModel() }; Events(m, handle); OnboardingScreen(m, requestPermission, permissionAvailable, batteryExempt, requestBatteryExemption) }
                 composable("auth") { val m = viewModel { AuthModel(preferences, demo) }; Events(m, handle); AuthScreen(m, demo) }
                 composable("home") { val m = viewModel { HomeModel(transactions) }; Events(m, handle); HomeScreen(m) }

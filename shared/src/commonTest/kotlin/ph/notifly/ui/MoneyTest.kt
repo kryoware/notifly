@@ -12,4 +12,12 @@ class MoneyTest {
         listOf("", "0", "-1", "1.001", "NaN", "1e3", "92233720368547758.08").forEach { assertNull(parseAmountMinor(it)) }
         assertEquals("-92233720368547758.08", amountText(Long.MIN_VALUE))
     }
+    @Test fun moneyGroupsThousandsAndAmountTextRoundTrips() {
+        assertEquals("₱1,234,567.89", money(123456789L))
+        assertEquals("₱-1,234,567.89", money(-123456789L))
+        assertEquals("₱0.00", money(0L))
+        listOf(5L, 12345L, 123456789L, Long.MAX_VALUE).forEach {
+            assertEquals(it, parseAmountMinor(amountText(it)))
+        }
+    }
 }
