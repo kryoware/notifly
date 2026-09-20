@@ -21,6 +21,15 @@ The list stays on the device and is not used for advertising or profiling.
 visibility, scope package queries to supported apps and document that limitation.
 Do not claim approval until the permission declaration has been reviewed.
 
+## Data Safety section
+
+Declare *Crash logs* and *Diagnostics* under App activity: collected, not shared
+with third parties beyond the processor (Sentry), user can request deletion,
+encrypted in transit. Mark both optional — the crash reporter is opt-in and off
+by default, and Google requires this declaration regardless of opt-in status.
+Do not declare Personal info, Financial info, or Messages as collected: those
+never leave the device (see `PRIVACY.md`).
+
 ## Release gates
 
 - Publish the final privacy-policy URL and operator contact information.

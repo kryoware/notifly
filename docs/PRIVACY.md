@@ -22,13 +22,25 @@ Non-reversible notification fingerprints are retained locally to prevent duplica
 transactions after the log is cleared. They contain no raw text and are removed
 when app data is cleared or the app is uninstalled.
 
-The current build does not authenticate to or upload to a cloud service. Confirmed
-transaction changes are queued locally for a future opt-in sync connection. That
-connection must send only reviewed transaction fields, never notification bodies,
-source capture identifiers, or device-only notes. This policy must be updated
-with the chosen service, storage region, retention, and account-deletion procedure
-before cloud sync is enabled.
+The current build does not authenticate to or upload to a cloud service for
+transaction sync. Confirmed transaction changes are queued locally for a future
+opt-in sync connection. That connection must send only reviewed transaction
+fields, never notification bodies, source capture identifiers, or device-only
+notes. This policy must be updated with the chosen service, storage region,
+retention, and account-deletion procedure before cloud sync is enabled.
 
-There are no advertising or analytics SDKs. Android backup is disabled. Uninstalling
+Notifly includes an opt-in crash reporter (Sentry), off by default. It does not
+initialize until you turn on "Send crash reports" in Settings, and stops
+transmitting immediately if you turn it back off. When enabled, a crash or
+error report sent to Sentry contains: the exception type, a stack trace, device
+model, and OS/app version. It never contains: notification bodies, exception
+messages (stripped before sending, since a message can quote parsed
+notification text), screenshots, view hierarchies, or transaction data.
+Performance tracing and session replay are disabled. Two accepted limitations
+of this model: a crash in the first moments of app startup, before your
+preference loads, is not captured; and a report already queued on the device
+before you turn reporting off may still be delivered once you turn it back on.
+
+There are no advertising SDKs. Android backup is disabled. Uninstalling
 the app removes its local data. You can revoke notification access in Android
 Settings and disable individual apps in Notifly's allow-list at any time.
