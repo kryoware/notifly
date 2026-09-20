@@ -1,6 +1,7 @@
 package ph.notifly.ui.theme
 
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
@@ -167,11 +168,25 @@ private val ClayScheme = lightColorScheme(
     scrim = Color(0xFF000000),
 )
 
-internal fun schemeFor(palette: NotiflyPalette): ColorScheme = when (palette) {
-    NotiflyPalette.Evergreen -> EvergreenScheme
-    NotiflyPalette.Indigo -> IndigoScheme
-    NotiflyPalette.Slate -> SlateScheme
-    NotiflyPalette.Clay -> ClayScheme
+internal fun schemeFor(palette: NotiflyPalette, dark: Boolean = false): ColorScheme {
+    val light = when (palette) {
+        NotiflyPalette.Evergreen -> EvergreenScheme
+        NotiflyPalette.Indigo -> IndigoScheme
+        NotiflyPalette.Slate -> SlateScheme
+        NotiflyPalette.Clay -> ClayScheme
+    }
+    return if (!dark) light else darkColorScheme(
+        primary = light.primary,
+        onPrimary = light.onPrimary,
+        primaryContainer = light.primaryContainer,
+        onPrimaryContainer = light.onPrimaryContainer,
+        secondary = light.secondary,
+        onSecondary = light.onSecondary,
+        tertiary = light.tertiary,
+        onTertiary = light.onTertiary,
+        error = light.error,
+        onError = light.onError,
+    )
 }
 
 internal fun accentsFor(palette: NotiflyPalette): NotiflyAccents = when (palette) {

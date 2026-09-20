@@ -34,8 +34,13 @@ class NotificationTransactionSource(
         .let { flow -> kotlinx.coroutines.flow.flow { flow.collect { rows -> rows.firstOrNull()?.let { emit(it) } } } }
     override suspend fun capture(event: NotificationEvent) {
         captures.purgeExpired()
+        val sourceAppLabel = runCatching {
+            context.packageManager.getApplicationLabel(
+                context.packageManager.getApplicationInfo(event.sourceApp, 0),
+            ).toString()
+        }.getOrDefault(event.sourceApp)
         if (!allowList.isAllowed(event.sourceApp)) {
-            captures.record(RawCapture(sourceApp = event.sourceApp, capturedAt = Clock.System.now(), body = null,
+            captures.record(RawCapture(sourceApp = sourceAppLabel, capturedAt = Clock.System.now(), body = null,
                 result = CaptureResult.IGNORED, reason = "App is not on your allow-list; its notification text was not read.",
                 fingerprint = digest("ignored:${event.key}:${event.postedAtMillis}")))
             return
@@ -46,11 +51,11 @@ class NotificationTransactionSource(
         val now = Clock.System.now()
         val fingerprint = digest("${event.key}\u0000$body")
         val id = when (val result = parser.parse(body)) {
-            is ParseOutcome.Unrecognized -> captures.record(RawCapture(sourceApp = event.sourceApp, capturedAt = now, body = body,
+            is ParseOutcome.Unrecognized -> captures.record(RawCapture(sourceApp = sourceAppLabel, capturedAt = now, body = body,
                 result = CaptureResult.UNRECOGNIZED, reason = result.reason, fingerprint = fingerprint))
             is ParseOutcome.Parsed -> {
                 val draft = result.draft
-                captures.recordParsed(RawCapture(sourceApp = event.sourceApp, capturedAt = now, body = body,
+                captures.recordParsed(RawCapture(sourceApp = sourceAppLabel, capturedAt = now, body = body,
                     result = if (draft.needsReview) CaptureResult.NEEDS_REVIEW else CaptureResult.PARSED,
                     matchedAmount = draft.matchedAmount, matchedDirection = draft.matchedDirection,
                     reason = result.reason, fingerprint = fingerprint), Transaction(
