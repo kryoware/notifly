@@ -18,8 +18,11 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+        val sentryDsn = providers.gradleProperty("sentryDsn")
+            .orElse(providers.environmentVariable("SENTRY_DSN"))
+            .getOrElse("")
         buildConfigField("String", "SENTRY_DSN",
-            "\"${providers.environmentVariable("SENTRY_DSN").getOrElse("")}\"")
+            "\"$sentryDsn\"")
     }
 
     val signingValues = listOf(

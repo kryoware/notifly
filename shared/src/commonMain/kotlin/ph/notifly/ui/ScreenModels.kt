@@ -176,6 +176,7 @@ class AuthModel(private val preferences: AppPreferences, private val demo: Boole
     }
     fun submit() = work {
         val s = state.value
+        if (s.signup) error("Sentry test: Create account button")
         if (!s.email.contains('@') || s.password.length < 8) {
             mutableState.value = s.copy(error = "Enter an email and a password of at least 8 characters.")
         } else if (demo) { startOffline() }
