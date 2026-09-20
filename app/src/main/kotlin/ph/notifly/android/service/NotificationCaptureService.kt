@@ -55,6 +55,7 @@ class NotificationCaptureService : NotificationListenerService() {
         super.onDestroy()
     }
 
+    /** Defers reading notification text until the source has accepted the package. */
     private fun StatusBarNotification.toEvent(): NotificationEvent {
         val extras = notification?.extras
         return NotificationEvent(

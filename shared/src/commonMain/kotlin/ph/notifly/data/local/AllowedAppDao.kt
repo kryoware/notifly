@@ -16,6 +16,7 @@ interface AllowedAppDao {
     @Upsert
     suspend fun upsert(entity: AllowedAppEntity)
 
+    /** Inserts newly discovered packages without overwriting listening state or capture counts. */
     @androidx.room.Insert(onConflict = androidx.room.OnConflictStrategy.IGNORE)
     suspend fun addInstalled(entities: List<AllowedAppEntity>)
 

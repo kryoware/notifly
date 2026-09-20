@@ -7,6 +7,7 @@ import io.sentry.android.core.SentryAndroid
 import ph.notifly.domain.diagnostics.ErrorReporter
 import ph.notifly.domain.diagnostics.ErrorSite
 
+/** Removes message and breadcrumb text in place while retaining exception types and stack traces. */
 internal fun scrub(event: SentryEvent): SentryEvent {
     event.exceptions?.forEach { it.value = null }
     event.message = null
@@ -14,6 +15,7 @@ internal fun scrub(event: SentryEvent): SentryEvent {
     return event
 }
 
+/** Drops events while consent is off; otherwise returns the privacy-scrubbed event. */
 internal fun beforeSend(event: SentryEvent): SentryEvent? = if (CrashReporting.transmitting) scrub(event) else null
 
 object CrashReporting {
@@ -21,6 +23,10 @@ object CrashReporting {
     @Volatile
     var transmitting = false
 
+    /**
+     * Initializes Sentry with default PII, screenshots, view hierarchies, replay, logs, and tracing disabled.
+     * A blank [dsn] is a no-op.
+     */
     fun start(app: Application, dsn: String) {
         if (dsn.isBlank()) return
         SentryAndroid.init(app) { o ->

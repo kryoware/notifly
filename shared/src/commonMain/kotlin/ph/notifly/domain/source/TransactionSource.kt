@@ -18,6 +18,7 @@ interface TransactionSource {
     val id: String
     fun isAvailable(): Boolean
     fun observe(): Flow<RawCapture>
+    /** Processes [event], applying any source-app policy before invoking [NotificationEvent.readContent]. */
     suspend fun capture(event: NotificationEvent)
 }
 

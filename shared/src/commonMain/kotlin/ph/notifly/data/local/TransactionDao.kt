@@ -34,6 +34,11 @@ interface TransactionDao {
     @Query("DELETE FROM pending_changes WHERE id = :changeId")
     suspend fun acknowledge(changeId: Long)
 
+    /**
+     * Saves a row and replaces its pending sync operation when its confirmation state requires one.
+     *
+     * @throws IllegalArgumentException if the title is blank or the amount is not positive.
+     */
     @androidx.room.Transaction
     suspend fun saveLocally(entity: TransactionEntity): Long {
         require(entity.title.isNotBlank() && entity.amountMinor > 0)
@@ -45,6 +50,7 @@ interface TransactionDao {
         return id
     }
 
+    /** Deletes an existing row and queues deletion only if it was confirmed; missing IDs are ignored. */
     @androidx.room.Transaction
     suspend fun deleteLocally(id: Long) {
         val previous = byId(id) ?: return

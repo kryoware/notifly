@@ -22,6 +22,11 @@ class TransactionRepositoryImpl(
     override suspend fun byId(id: Long): Transaction? =
         dao.byId(id)?.toDomain()
 
+    /**
+     * Saves a PHP transaction and applies the corresponding local sync-queue update.
+     *
+     * @throws IllegalArgumentException if [transaction] uses another currency.
+     */
     override suspend fun upsert(transaction: Transaction): Long {
         require(transaction.currency == "PHP") { "Only PHP transactions are supported" }
         return dao.saveLocally(transaction.toEntity())

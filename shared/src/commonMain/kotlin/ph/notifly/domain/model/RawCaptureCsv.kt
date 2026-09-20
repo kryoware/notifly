@@ -1,5 +1,6 @@
 package ph.notifly.domain.model
 
+/** Returns CSV with quoted data fields, including any retained raw notification body. */
 fun List<RawCapture>.toCsv(): String = buildString {
     appendLine("id,source_app,captured_at,result,matched_amount,matched_direction,reason,raw_body")
     this@toCsv.forEach { capture ->

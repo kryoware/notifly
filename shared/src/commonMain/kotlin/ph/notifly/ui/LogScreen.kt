@@ -39,6 +39,7 @@ class LogModel(private val captures: CaptureRepository, private val preferences:
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LogState())
     init { work { captures.purgeExpired() } }
     fun filter(value: CaptureResult?) { filter.value = value }
+    /** Updates retention and permanently redacts stored bodies when retention is disabled. */
     fun retain(value: Boolean) = work {
         preferences.setKeepRawText(value)
         if (!value) captures.redactBodies()

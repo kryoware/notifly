@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class InstalledApps(private val context: Context, private val database: AppDatabase) {
+    /** Discovers other non-system and launchable system apps without overwriting existing allow-list choices. */
     suspend fun refresh() = withContext(Dispatchers.IO) {
         val manager = context.packageManager
         val apps = manager.getInstalledApplications(0).filter {

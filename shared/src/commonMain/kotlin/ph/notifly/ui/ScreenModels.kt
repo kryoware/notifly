@@ -30,6 +30,7 @@ open class ScreenModel : ViewModel() {
     protected val mutableEvents = MutableSharedFlow<UiEvent>()
     val events = mutableEvents.asSharedFlow()
     private val reporter by lazy { GlobalContext.getOrNull()?.get<ErrorReporter>() ?: ErrorReporter.None }
+    /** Runs UI work in this model's scope, preserving cancellation and reporting other failures to the user. */
     protected fun work(block: suspend () -> Unit) = viewModelScope.launch {
         try { block() } catch (e: CancellationException) { throw e }
         catch (e: Exception) {

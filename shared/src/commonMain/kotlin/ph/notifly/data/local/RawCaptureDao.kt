@@ -16,6 +16,7 @@ interface RawCaptureDao {
     @Insert(onConflict = androidx.room.OnConflictStrategy.IGNORE)
     suspend fun reserveReceipt(receipt: CaptureReceiptEntity): Long
 
+    /** Records a capture atomically, returning `-1` when its fingerprint was already reserved. */
     @androidx.room.Transaction
     suspend fun recordOnce(capture: RawCaptureEntity): Long {
         if (capture.fingerprint != null && reserveReceipt(CaptureReceiptEntity(capture.fingerprint)) == -1L) return -1L
@@ -25,6 +26,11 @@ interface RawCaptureDao {
     @Insert
     suspend fun insertTransaction(entity: TransactionEntity): Long
 
+    /**
+     * Stores a unique capture and its review draft atomically, or returns `-1` for a duplicate.
+     *
+     * @throws IllegalArgumentException if [transaction] is not awaiting review.
+     */
     @androidx.room.Transaction
     suspend fun recordParsed(capture: RawCaptureEntity, transaction: TransactionEntity): Long {
         require(transaction.status == "NEEDS_REVIEW")
