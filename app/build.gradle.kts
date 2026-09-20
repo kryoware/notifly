@@ -3,13 +3,14 @@ plugins {
     alias(libs.plugins.kotlinAndroid)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
-
-    id("io.sentry.android.gradle") version "6.22.0"
+    alias(libs.plugins.sentry)
 }
 
 android {
     namespace = "ph.notifly.android"
     compileSdk = libs.versions.compileSdk.get().toInt()
+
+    buildFeatures { buildConfig = true }
 
     defaultConfig {
         applicationId = "ph.notifly.android"
@@ -17,6 +18,8 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("String", "SENTRY_DSN",
+            "\"${providers.environmentVariable("SENTRY_DSN").getOrElse("")}\"")
     }
 
     val signingValues = listOf(
@@ -66,10 +69,12 @@ dependencies {
 
 
 sentry {
-    org.set("kryoware")
-    projectName.set("fundflow-android")
-
-    // this will upload your source code to Sentry to show it as part of the stack traces
-    // disable if you don't want to expose your sources
-    includeSourceContext.set(true)
+    autoInstallation { enabled = false }
+    tracingInstrumentation { enabled = false }
+    autoUploadProguardMapping = providers.environmentVariable("SENTRY_AUTH_TOKEN").isPresent
+    includeProguardMapping = true
+    includeSourceContext = false
+    telemetry = false
+    org = providers.environmentVariable("SENTRY_ORG").getOrElse("kryoware")
+    projectName = providers.environmentVariable("SENTRY_PROJECT").getOrElse("fundflow-android")
 }

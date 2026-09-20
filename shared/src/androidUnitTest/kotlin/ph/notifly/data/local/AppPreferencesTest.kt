@@ -53,6 +53,7 @@ class AppPreferencesTest {
         assertEquals(false, preferences.onboardingComplete.first())
         assertEquals(true, preferences.offline.first())
         assertEquals(false, preferences.keepRawText.first())
+        assertEquals(false, preferences.crashReporting.first())
     }
 
     @Test fun nonIoReadFailuresAreRethrown() {

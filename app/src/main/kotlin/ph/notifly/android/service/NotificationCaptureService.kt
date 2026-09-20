@@ -12,6 +12,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.koin.android.ext.android.inject
+import ph.notifly.domain.diagnostics.ErrorReporter
+import ph.notifly.domain.diagnostics.ErrorSite
 import ph.notifly.domain.source.NotificationContent
 import ph.notifly.domain.source.NotificationEvent
 import ph.notifly.domain.source.NotificationTransactionSource
@@ -20,6 +22,7 @@ import ph.notifly.domain.source.TransactionSource
 /** Notification content must never appear in diagnostics or network requests. */
 class NotificationCaptureService : NotificationListenerService() {
     private val source: TransactionSource by inject()
+    private val reporter: ErrorReporter by inject()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val processing = Mutex()
 
@@ -27,7 +30,10 @@ class NotificationCaptureService : NotificationListenerService() {
         scope.launch {
             try { processing.withLock { source.capture(sbn.toEvent()) } }
             catch (e: CancellationException) { throw e }
-            catch (_: Exception) { (source as NotificationTransactionSource).storageError() }
+            catch (e: Exception) {
+                reporter.report(e, ErrorSite.NOTIFICATION_CAPTURE)
+                (source as NotificationTransactionSource).storageError()
+            }
         }
     }
 

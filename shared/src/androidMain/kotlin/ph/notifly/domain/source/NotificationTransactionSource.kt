@@ -46,12 +46,12 @@ class NotificationTransactionSource(
         val now = Clock.System.now()
         val fingerprint = digest("${event.key}\u0000$body")
         val id = when (val result = parser.parse(body)) {
-            is ParseOutcome.Unrecognized -> captures.record(RawCapture(event.sourceApp, now, body,
-                CaptureResult.UNRECOGNIZED, reason = result.reason, fingerprint = fingerprint))
+            is ParseOutcome.Unrecognized -> captures.record(RawCapture(sourceApp = event.sourceApp, capturedAt = now, body = body,
+                result = CaptureResult.UNRECOGNIZED, reason = result.reason, fingerprint = fingerprint))
             is ParseOutcome.Parsed -> {
                 val draft = result.draft
-                captures.recordParsed(RawCapture(event.sourceApp, now, body,
-                    if (draft.needsReview) CaptureResult.NEEDS_REVIEW else CaptureResult.PARSED,
+                captures.recordParsed(RawCapture(sourceApp = event.sourceApp, capturedAt = now, body = body,
+                    result = if (draft.needsReview) CaptureResult.NEEDS_REVIEW else CaptureResult.PARSED,
                     matchedAmount = draft.matchedAmount, matchedDirection = draft.matchedDirection,
                     reason = result.reason, fingerprint = fingerprint), Transaction(
                     title = draft.merchant ?: "Payment from ${event.sourceApp}", amountMinor = draft.amountMinor,

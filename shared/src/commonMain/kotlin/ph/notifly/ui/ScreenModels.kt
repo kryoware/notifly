@@ -6,6 +6,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import ph.notifly.data.local.AppPreferences
+import ph.notifly.domain.diagnostics.ErrorReporter
+import ph.notifly.domain.diagnostics.ErrorSite
 import ph.notifly.domain.model.*
 import ph.notifly.domain.repository.*
 import ph.notifly.ui.theme.NotiflyPalette
@@ -14,6 +16,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
+import org.koin.core.context.GlobalContext
 
 sealed interface UiEvent {
     data class Navigate(val route: String) : UiEvent
@@ -23,9 +26,13 @@ sealed interface UiEvent {
 open class ScreenModel : ViewModel() {
     protected val mutableEvents = MutableSharedFlow<UiEvent>()
     val events = mutableEvents.asSharedFlow()
+    private val reporter by lazy { GlobalContext.getOrNull()?.get<ErrorReporter>() ?: ErrorReporter.None }
     protected fun work(block: suspend () -> Unit) = viewModelScope.launch {
         try { block() } catch (e: CancellationException) { throw e }
-        catch (_: Exception) { mutableEvents.emit(UiEvent.Message("Couldn't save or load data. Please try again.")) }
+        catch (e: Exception) {
+            reporter.report(e, ErrorSite.SCREEN_MODEL)
+            mutableEvents.emit(UiEvent.Message("Couldn't save or load data. Please try again."))
+        }
     }
     fun navigate(route: String) = work { mutableEvents.emit(UiEvent.Navigate(route)) }
 }
@@ -117,15 +124,17 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
     }
 }
 
-data class SettingsState(val palette: NotiflyPalette = NotiflyPalette.Evergreen, val offline: Boolean = true, val pending: Int = 0)
+data class SettingsState(val palette: NotiflyPalette = NotiflyPalette.Evergreen, val offline: Boolean = true,
+                          val pending: Int = 0, val crashReporting: Boolean = false)
 class SettingsModel(private val preferences: AppPreferences, pending: Flow<Int>) : ScreenModel() {
-    val state = combine(preferences.palette, preferences.offline, pending, ::SettingsState)
+    val state = combine(preferences.palette, preferences.offline, pending, preferences.crashReporting, ::SettingsState)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsState())
     fun palette(value: NotiflyPalette) = work { preferences.setPalette(value) }
     fun offline(value: Boolean) = work {
         if (!value) mutableEvents.emit(UiEvent.Message("Cloud sync is not configured yet. Changes remain saved on this device."))
         else preferences.setOffline(true)
     }
+    fun crashReporting(value: Boolean) = work { preferences.setCrashReporting(value) }
 }
 data class AllowListState(val apps: List<AllowedApp> = emptyList())
 class AllowListModel(private val repository: AllowListRepository) : ScreenModel() {

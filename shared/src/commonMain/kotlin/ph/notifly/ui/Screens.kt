@@ -139,6 +139,8 @@ fun SettingsScreen(model: SettingsModel, permissionAvailable: Boolean, requestPe
         item { OutlinedButton(onClick = requestPermission) { Text("Manage notification access") } }
         item { TextButton(onClick = { model.navigate("allow-list") }) { Text("Allowed apps") } }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Offline mode", Modifier.weight(1f)); Switch(s.offline, model::offline, modifier = Modifier.semantics { contentDescription = "Offline mode" }) } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Send crash reports", Modifier.weight(1f)); Switch(s.crashReporting, model::crashReporting, modifier = Modifier.semantics { contentDescription = "Send crash reports" }) } }
+        item { Text("Reports contain stack traces and device info only — never notification text.", style = MaterialTheme.typography.bodySmall) }
         item { Text("Theme", style = MaterialTheme.typography.titleLarge) }
         item { Text("${s.pending} changes waiting to sync. Cloud sync is not configured.") }
         items(NotiflyPalette.entries) { p -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

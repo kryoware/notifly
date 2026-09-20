@@ -17,6 +17,8 @@ androidxTestCore = "1.7.0"
 compileSdk = "36"
 minSdk = "26"
 targetSdk = "36"
+sentry = "8.57.0"
+sentryPlugin = "6.22.0"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -40,6 +42,7 @@ koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
 
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
+sentry-android = { module = "io.sentry:sentry-android", version.ref = "sentry" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
@@ -50,3 +53,4 @@ composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMul
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 room = { id = "androidx.room", version.ref = "room" }
+sentry = { id = "io.sentry.android.gradle", version.ref = "sentryPlugin" }

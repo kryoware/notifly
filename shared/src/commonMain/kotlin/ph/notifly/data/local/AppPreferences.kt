@@ -16,6 +16,7 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     private val onboardingKey = booleanPreferencesKey("onboarding_complete")
     private val offlineKey = booleanPreferencesKey("offline")
     private val retentionKey = booleanPreferencesKey("keep_raw_text")
+    private val crashReportingKey = booleanPreferencesKey("crash_reporting")
     private val data = store.data.catch { exception ->
         if (exception is IOException) emit(emptyPreferences()) else throw exception
     }
@@ -25,8 +26,10 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     val onboardingComplete = data.map { it[onboardingKey] ?: false }
     val offline = data.map { it[offlineKey] ?: true }
     val keepRawText = data.map { it[retentionKey] ?: false }
+    val crashReporting = data.map { it[crashReportingKey] ?: false }
     suspend fun setPalette(value: NotiflyPalette) { store.edit { it[paletteKey] = value.name } }
     suspend fun completeOnboarding() { store.edit { it[onboardingKey] = true } }
     suspend fun setOffline(value: Boolean) { store.edit { it[offlineKey] = value } }
     suspend fun setKeepRawText(value: Boolean) { store.edit { it[retentionKey] = value } }
+    suspend fun setCrashReporting(value: Boolean) { store.edit { it[crashReportingKey] = value } }
 }
