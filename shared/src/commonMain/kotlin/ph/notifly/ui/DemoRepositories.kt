@@ -20,7 +20,8 @@ class DemoTransactions : TransactionRepository {
     override suspend fun byId(id: Long) = rows.value.find { it.id == id }
     override suspend fun upsert(transaction: Transaction): Long {
         val id = transaction.id.takeIf { it != 0L } ?: nextId++
-        rows.value = (rows.value.filterNot { it.id == id } + transaction.copy(id = id)).sortedByDescending { it.occurredAt }
+        rows.value = (rows.value.filterNot { it.id == id } + transaction.copy(id = id))
+            .sortedWith(compareByDescending<Transaction> { it.occurredAt }.thenByDescending { it.createdAt })
         return id
     }
     override suspend fun delete(id: Long) { rows.value = rows.value.filterNot { it.id == id } }

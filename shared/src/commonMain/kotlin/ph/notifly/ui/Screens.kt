@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package ph.notifly.ui
 
 import androidx.compose.foundation.layout.*
@@ -8,6 +10,11 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -17,6 +24,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import ph.notifly.domain.model.*
 import ph.notifly.ui.theme.NotiflyPalette
+import ph.notifly.ui.theme.hint
 import ph.notifly.ui.theme.accents
 
 @Composable
@@ -26,7 +34,14 @@ fun TransactionRow(transaction: Transaction, open: () -> Unit) {
         TransactionType.EXPENSE -> MaterialTheme.accents.expense
         TransactionType.TRANSFER -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val icon = when (transaction.type) {
+        TransactionType.INCOME -> Icons.Default.ArrowDownward
+        TransactionType.EXPENSE -> Icons.Default.ArrowUpward
+        TransactionType.TRANSFER -> Icons.Default.SwapHoriz
+    }
     TextButton(onClick = open, modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)) {
+        Icon(icon, contentDescription = transaction.type.name, tint = color)
+        Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(transaction.title, color = MaterialTheme.colorScheme.onSurface)
             Text(if (transaction.status == TransactionStatus.NEEDS_REVIEW) "Needs review" else transaction.category,
@@ -61,7 +76,14 @@ fun HomeScreen(model: HomeModel) {
 @Composable
 fun TransactionsScreen(model: TransactionsModel) {
     val s by model.state.collectAsState()
-    Column(Modifier.fillMaxSize()) {
+    Scaffold(
+        floatingActionButton = {
+            FloatingActionButton(onClick = { model.navigate("edit/0") }) {
+                Icon(Icons.Default.Add, contentDescription = "Add transaction")
+            }
+        }
+    ) { padding ->
+    Column(Modifier.fillMaxSize().padding(padding)) {
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TransactionFilter.entries.forEach { f ->
                 FilterChip(s.filter == f, { model.filter(f) }, label = { Text(when (f) {
@@ -74,8 +96,9 @@ fun TransactionsScreen(model: TransactionsModel) {
             items(s.rows, key = { it.id }) { TransactionRow(it) { model.navigate("edit/${it.id}") } }
             if (s.rows.isEmpty()) item { Text("Nothing here yet", Modifier.padding(24.dp)) }
         }
-        Button(onClick = { model.navigate("edit/0") }, Modifier.padding(16.dp)) { Text("Add transaction") }
-    }
+}
+}
+
 }
 
 @Composable
@@ -106,7 +129,16 @@ fun EditorScreen(model: EditorModel) {
         s.sourceText?.let { text -> item { Text("Source notification (device only): $text") } }
         if (s.original?.status == TransactionStatus.NEEDS_REVIEW) item { Text("Parsed on your device. Check the details before confirming.") }
         item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TransactionType.entries.forEach { type -> FilterChip(s.type == type, { model.edit(type = type) }, label = { Text(type.name.lowercase().replaceFirstChar { it.uppercase() }) }) }
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    TransactionType.entries.forEachIndexed { index, type ->
+                        SegmentedButton(
+                            selected = s.type == type,
+                            onClick = { model.edit(type = type) },
+                            shape = SegmentedButtonDefaults.itemShape(index, TransactionType.entries.size),
+                            label = { Text(type.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                        )
+                    }
+                }
         } }
         item { OutlinedTextField(s.title, { model.edit(title = it) }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
         item { OutlinedTextField(s.amount, { model.edit(amount = it) }, label = { Text("Amount (PHP)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)) }
@@ -143,9 +175,27 @@ fun SettingsScreen(model: SettingsModel, permissionAvailable: Boolean, requestPe
         item { Text("Reports contain stack traces and device info only — never notification text.", style = MaterialTheme.typography.bodySmall) }
         item { Text("Theme", style = MaterialTheme.typography.titleLarge) }
         item { Text("${s.pending} changes waiting to sync. Cloud sync is not configured.") }
-        items(NotiflyPalette.entries) { p -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(p.name); RadioButton(s.palette == p, { model.palette(p) }, modifier = Modifier.semantics { contentDescription = "${p.name} theme" })
-        } }
+        item {
+            var expanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+                OutlinedTextField(
+                    value = "${s.palette.name} · ${s.palette.hint}",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Theme") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                )
+                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    NotiflyPalette.entries.forEach { palette ->
+                        DropdownMenuItem(
+                            text = { Text("${palette.name} · ${palette.hint}") },
+                            onClick = { expanded = false; model.palette(palette) },
+                        )
+                    }
+                }
+            }
+        }
         item { TextButton(onClick = { model.navigate("themes") }) { Text("Inspect theme palettes") } }
         item { TextButton(onClick = { model.navigate("log") }) { Text("Notification log") } }
         item { TextButton(onClick = { model.navigate("auth") }) { Text("Account / sign in") } }

@@ -17,6 +17,14 @@ import androidx.compose.ui.graphics.Color
 
 enum class NotiflyPalette { Evergreen, Indigo, Slate, Clay }
 
+val NotiflyPalette.hint: String
+    get() = when (this) {
+        NotiflyPalette.Evergreen -> "Green"
+        NotiflyPalette.Indigo -> "Purple"
+        NotiflyPalette.Slate -> "Blue"
+        NotiflyPalette.Clay -> "Terracotta"
+    }
+
 /** MD3 has no income/expense roles. These ride alongside the scheme. */
 data class NotiflyAccents(
     val income: Color,

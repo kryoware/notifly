@@ -110,9 +110,9 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
             try {
                 repository.upsert(s.original?.copy(title = s.title.trim(), amountMinor = amount,
                     category = s.category, type = s.type, status = TransactionStatus.CONFIRMED, occurredAt = occurredAt)
-                    ?: Transaction(title = s.title.trim(), amountMinor = amount, type = s.type,
-                        status = TransactionStatus.CONFIRMED, category = s.category,
-                        occurredAt = occurredAt, sourceApp = s.sourceApp, captureId = s.captureId))
+            ?: Transaction(title = s.title.trim(), amountMinor = amount, type = s.type,
+                status = TransactionStatus.CONFIRMED, category = s.category,
+                occurredAt = occurredAt, createdAt = Clock.System.now(), sourceApp = s.sourceApp, captureId = s.captureId))
                 mutableEvents.emit(UiEvent.Navigate("transactions"))
             } finally { mutableState.value = state.value.copy(saving = false) }
         }

@@ -20,6 +20,7 @@ data class Transaction(
     val status: TransactionStatus,
     val category: String,
     val occurredAt: Instant,
+    val createdAt: Instant = occurredAt,
     val sourceApp: String?,         // null for manual entries
     val captureId: Long?,           // links back to the RawCapture that produced it
     val note: String = "",
