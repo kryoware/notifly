@@ -69,5 +69,6 @@ class NotificationTransactionSource(
     fun connected(value: Boolean) { mutableConnection.value = if (value) "Connected" else "Disconnected" }
     fun storageError() { mutableConnection.value = "Capture failed — check device storage, then reconnect" }
     private fun digest(value: String) = MessageDigest.getInstance("SHA-256")
-        .digest(value.toByteArray(Charsets.UTF_8)).joinToString("")
+        .digest(value.toByteArray(Charsets.UTF_8))
+        .joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
 }

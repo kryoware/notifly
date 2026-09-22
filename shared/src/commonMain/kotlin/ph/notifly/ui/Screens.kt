@@ -238,12 +238,14 @@ fun InsightsScreen(model: InsightsModel) {
         item { Text("Spending by category", style = MaterialTheme.typography.headlineSmall) }
         item { Text("Confirmed transactions only. Transfers are excluded.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         items(expenses.toList(), key = { it.key }) { (category, amount) ->
+            val progressPercent = amount * 100L / max
             Column(Modifier.fillMaxWidth().animateItem(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(category, Modifier.weight(1f)); Text(money(amount))
                 }
                 LinearProgressIndicator(
-                    progress = { amount.toFloat() / max.toFloat() },
+                    // Compose's progress API requires Float; monetary totals stay Long through the calculation.
+                    progress = { progressPercent / 100f },
                     modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
                 )
             }

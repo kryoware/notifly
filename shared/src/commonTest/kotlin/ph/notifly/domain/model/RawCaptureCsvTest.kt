@@ -17,8 +17,8 @@ class RawCaptureCsvTest {
         )).toCsv()
 
         assertEquals(
-            "id,source_app,captured_at,result,matched_amount,matched_direction,reason,raw_body\n" +
-                "\"7\",\"Wallet, Inc.\",\"1970-01-01T00:00:00Z\",\"UNRECOGNIZED\",\"\",\"\",\"needs \"\"review\"\"\",\"\"\n",
+            "id,source_app,captured_at,result,matched_amount,matched_direction,reason\n" +
+                "\"7\",\"Wallet, Inc.\",\"1970-01-01T00:00:00Z\",\"UNRECOGNIZED\",\"\",\"\",\"needs \"\"review\"\"\"\n",
             csv,
         )
     }
