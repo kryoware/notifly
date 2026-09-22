@@ -9,6 +9,7 @@ captures/
 .kotlin/
 .browser-check/
 xcuserdata/
+
 .claude/.headroom_wrap_marker.json
 .claude/.headroom_wrap_owners.json
 

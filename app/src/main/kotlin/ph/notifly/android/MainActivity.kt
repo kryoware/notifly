@@ -40,6 +40,8 @@ class MainActivity : ComponentActivity() {
                 requestPermission = { openSystemSettings(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS) },
                 batteryExempt = batteryExempt.value,
                 requestBatteryExemption = { openSystemSettings(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS) },
+                versionName = BuildConfig.VERSION_NAME,
+                isDebugBuild = BuildConfig.DEBUG,
             )
         }
     }

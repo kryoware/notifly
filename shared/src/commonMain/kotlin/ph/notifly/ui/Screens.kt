@@ -19,20 +19,38 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.DeveloperMode
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -54,7 +72,7 @@ private val CATEGORIES = listOf("Income", "Food", "Transport", "Bills", "Shoppin
 private val FAB_CLEARANCE = 88.dp
 
 @Composable
-fun TransactionRow(transaction: Transaction, open: () -> Unit, confirm: (() -> Unit)? = null, modifier: Modifier = Modifier) {
+fun TransactionRow(transaction: Transaction, appLabels: Map<String, String>, open: () -> Unit, confirm: (() -> Unit)? = null, modifier: Modifier = Modifier) {
     val color = when (transaction.type) {
         TransactionType.INCOME -> MaterialTheme.accents.income
         TransactionType.EXPENSE -> MaterialTheme.accents.expense
@@ -76,8 +94,9 @@ fun TransactionRow(transaction: Transaction, open: () -> Unit, confirm: (() -> U
         TransactionType.TRANSFER -> Icons.Default.SwapHoriz
     }
     val needsReview = transaction.status == TransactionStatus.NEEDS_REVIEW
-    val supporting = if (needsReview) "Parsed from ${transaction.sourceApp} · unconfirmed"
-        else "${transaction.sourceApp ?: "Manual"} · ${transaction.occurredAt.toLocalDateTime(TimeZone.currentSystemDefault()).date}"
+    val sourceApp = transaction.sourceApp?.let { appLabels[it] ?: it }
+    val supporting = if (needsReview) "Parsed from $sourceApp · unconfirmed"
+        else "${sourceApp ?: "Manual"} · ${transaction.occurredAt.toLocalDateTime(TimeZone.currentSystemDefault()).date}"
     ListItem(
         modifier = modifier.fillMaxWidth().clickable(onClick = open)
             .semantics { contentDescription = "${transaction.title}, ${money(transaction.amountMinor)}${if (needsReview) ", needs review" else ""}" },
@@ -107,7 +126,7 @@ fun TransactionRow(transaction: Transaction, open: () -> Unit, confirm: (() -> U
 }
 
 @Composable
-fun HomeScreen(model: HomeModel) {
+fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap()) {
     val s by model.state.collectAsState()
     val pendingTotal = s.rows.filter { it.status == TransactionStatus.NEEDS_REVIEW }
         .sumOf { if (it.type == TransactionType.INCOME) it.amountMinor else -it.amountMinor }
@@ -154,7 +173,7 @@ fun HomeScreen(model: HomeModel) {
         }
         item { Text("Recent", style = MaterialTheme.typography.titleLarge) }
         items(s.rows.take(5), key = { it.id }) { t ->
-            TransactionRow(t, { model.navigate("edit/${t.id}") },
+            TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") },
                 confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null)
         }
         if (s.rows.isEmpty()) item { Text("No transactions yet. Add one manually to get started.") }
@@ -164,7 +183,7 @@ fun HomeScreen(model: HomeModel) {
 }
 
 @Composable
-fun TransactionsScreen(model: TransactionsModel) {
+fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> = emptyMap()) {
     val s by model.state.collectAsState()
     val listState = rememberLazyListState()
     Scaffold(
@@ -199,7 +218,7 @@ fun TransactionsScreen(model: TransactionsModel) {
             LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), state = listState,
                 contentPadding = PaddingValues(bottom = FAB_CLEARANCE)) {
                 items(s.rows, key = { it.id }) { t ->
-                    TransactionRow(t, { model.navigate("edit/${t.id}") },
+                    TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") },
                         confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null,
                         modifier = Modifier.animateItem())
                 }
@@ -395,38 +414,71 @@ fun EditorScreen(model: EditorModel) {
         dismissButton = { TextButton(onClick = { delete = false }) { Text("Cancel") } })
 }
 
+private const val RELEASE_NOTES_URL = "https://github.com/kryoware/notifly/releases"
+private const val HELP_URL = "https://www.google.com/search?q=notifly+help"
+private const val BUG_REPORT_URL = "https://www.google.com/search?q=notifly+report+a+bug"
+
 @Composable
-fun SettingsScreen(model: SettingsModel, permissionAvailable: Boolean, requestPermission: () -> Unit) {
+private fun SettingsSection(title: String) {
+    Text(
+        title,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun SettingsRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String? = null,
+    onClick: (() -> Unit)? = null,
+    trailing: @Composable (() -> Unit)? = null,
+) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = if (subtitle == null) null else { { Text(subtitle) } },
+        leadingContent = { Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+        trailingContent = when {
+            trailing != null -> trailing
+            onClick != null -> { {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            } }
+            else -> null
+        },
+        modifier = if (onClick == null) Modifier else Modifier.clickable(onClick = onClick),
+    )
+}
+
+@Composable
+fun SettingsScreen(
+    model: SettingsModel,
+    permissionAvailable: Boolean,
+    requestPermission: () -> Unit,
+    versionName: String,
+    isDebugBuild: Boolean,
+) {
     val s by model.state.collectAsState()
     val source = org.koin.compose.koinInject<ph.notifly.domain.source.TransactionSource>()
     val connection by source.connection.collectAsState()
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        item { Text("Capture", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp)) }
-        item { ListItem(
-            headlineContent = { Text(if (permissionAvailable) "Notification access enabled" else "Notification access disabled") },
-            supportingContent = { Text(if (permissionAvailable) "Listener: $connection" else "Manual entry still works") },
-        ) }
-        item { ListItem(headlineContent = { Text("Manage notification access") }, modifier = Modifier.clickable(onClick = requestPermission)) }
-        item { Text("Listening apps", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp)) }
-        item { ListItem(headlineContent = { Text("Edit allowed apps") }, modifier = Modifier.clickable { model.navigate("allow-list") }) }
-        item { Text("Sync & privacy", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp)) }
-        item { ListItem(
-            headlineContent = { Text("Offline mode") },
-            supportingContent = { Text("Cloud sync is not configured yet.") },
-            trailingContent = { Switch(s.offline, model::offline, modifier = Modifier.semantics { contentDescription = "Offline mode" }) },
-        ) }
-        item { ListItem(
-            headlineContent = { Text("${s.pending} changes waiting to sync") },
-            supportingContent = { Text("Cloud sync is not configured.") },
-        ) }
-        item { ListItem(
-            headlineContent = { Text("Send crash reports") },
-            supportingContent = { Text("Reports contain stack traces and device info only — never notification text.") },
-            trailingContent = { Switch(s.crashReporting, model::crashReporting, modifier = Modifier.semantics { contentDescription = "Send crash reports" }) },
-        ) }
-        item { Text("Appearance", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp)) }
+    val uriHandler = LocalUriHandler.current
+    var versionTaps by rememberSaveable { mutableIntStateOf(0) }
+    val showDeveloper = isDebugBuild || versionTaps >= 7
+
+    LazyColumn(Modifier.fillMaxSize()) {
+        item { SettingsSection("Account") }
         item {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            SettingsRow(
+                Icons.Default.Person, "Account",
+                "Sign in or keep using Notifly offline",
+                onClick = { model.navigate("auth") },
+            )
+        }
+
+        item { SettingsSection("Appearance") }
+        item {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 ThemeMode.entries.forEachIndexed { index, mode ->
                     SegmentedButton(
                         selected = s.themeMode == mode,
@@ -439,7 +491,11 @@ fun SettingsScreen(model: SettingsModel, permissionAvailable: Boolean, requestPe
         }
         item {
             var expanded by remember { mutableStateOf(false) }
-            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = !expanded },
+                modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp),
+            ) {
                 OutlinedTextField(
                     value = "${s.palette.name} · ${s.palette.hint}",
                     onValueChange = {},
@@ -458,9 +514,98 @@ fun SettingsScreen(model: SettingsModel, permissionAvailable: Boolean, requestPe
                 }
             }
         }
-        item { Text("More", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp)) }
-        item { ListItem(headlineContent = { Text("Notification log") }, modifier = Modifier.clickable { model.navigate("log") }) }
-        item { ListItem(headlineContent = { Text("Account / sign in") }, modifier = Modifier.clickable { model.navigate("auth") }) }
+
+        item { SettingsSection("Capture") }
+        item {
+            SettingsRow(
+                if (permissionAvailable) Icons.Default.NotificationsActive else Icons.Default.NotificationsOff,
+                if (permissionAvailable) "Notification access enabled" else "Notification access disabled",
+                if (permissionAvailable) "Listener: $connection" else "Manual entry still works",
+            )
+        }
+        item { SettingsRow(Icons.Default.Settings, "Manage notification access", onClick = requestPermission) }
+        item {
+            SettingsRow(
+                Icons.Default.Apps, "Allowed apps",
+                "Choose which notifications Notifly reads",
+                onClick = { model.navigate("allow-list") },
+            )
+        }
+        item {
+            SettingsRow(
+                Icons.AutoMirrored.Filled.List, "Notification log",
+                "See what was captured and what couldn't be read",
+                onClick = { model.navigate("log") },
+            )
+        }
+
+        item { SettingsSection("Sync & privacy") }
+        item {
+            SettingsRow(
+                Icons.Default.CloudOff, "Offline mode", "Cloud sync is not configured yet.",
+                trailing = { Switch(s.offline, model::offline, modifier = Modifier.semantics { contentDescription = "Offline mode" }) },
+            )
+        }
+        item {
+            SettingsRow(Icons.Default.Sync, "${s.pending} changes waiting to sync", "Cloud sync is not configured.")
+        }
+        item {
+            SettingsRow(
+                Icons.Default.Warning, "Send crash reports",
+                "Reports contain stack traces and device info only — never notification text.",
+                trailing = { Switch(s.crashReporting, model::crashReporting, modifier = Modifier.semantics { contentDescription = "Send crash reports" }) },
+            )
+        }
+
+        item { SettingsSection("Support") }
+        item {
+            SettingsRow(
+                Icons.AutoMirrored.Filled.HelpOutline, "Help",
+                "Guides for setting up capture",
+                onClick = { uriHandler.openUri(HELP_URL) },
+            )
+        }
+        item {
+            SettingsRow(
+                Icons.Default.BugReport, "Report a bug",
+                "Tell us what went wrong",
+                onClick = { uriHandler.openUri(BUG_REPORT_URL) },
+            )
+        }
+
+        item { SettingsSection("About") }
+        item {
+            ListItem(
+                headlineContent = { Text("Version") },
+                supportingContent = { Text(versionName) },
+                leadingContent = { Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                modifier = Modifier.clickable { versionTaps++ },
+            )
+        }
+        item {
+            SettingsRow(
+                Icons.Default.NewReleases, "Release notes",
+                "What changed in each version",
+                onClick = { uriHandler.openUri(RELEASE_NOTES_URL) },
+            )
+        }
+
+        if (showDeveloper) {
+            item { SettingsSection("Developer") }
+            item {
+                SettingsRow(
+                    Icons.Default.Palette, "Theme palettes",
+                    "Render every palette side by side",
+                    onClick = { model.navigate("themes") },
+                )
+            }
+            item {
+                SettingsRow(
+                    Icons.Default.DeveloperMode, "Build",
+                    if (isDebugBuild) "debug" else "release",
+                )
+            }
+        }
     }
 }
 

@@ -13,6 +13,7 @@ data class SyncTransaction(
 
 fun Transaction.toSyncTransaction(): SyncTransaction {
     require(status == TransactionStatus.CONFIRMED) { "Only confirmed transactions can sync" }
+    require(currency == "PHP") { "Only PHP transactions can sync" }
     require(amountMinor > 0 && title.isNotBlank())
     return SyncTransaction(id, title, amountMinor, currency, type, category, occurredAt.toEpochMilliseconds())
 }

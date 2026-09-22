@@ -33,12 +33,7 @@ class NotiflyApplication : Application(), KoinComponent {
 
         scope.launch {
             preferences.crashReporting.collect { enabled ->
-                if (enabled) {
-                    CrashReporting.start(this@NotiflyApplication, BuildConfig.SENTRY_DSN)
-                    CrashReporting.transmitting = true
-                } else {
-                    CrashReporting.transmitting = false
-                }
+                CrashReporting.setEnabled(enabled, this@NotiflyApplication, BuildConfig.SENTRY_DSN)
             }
         }
     }

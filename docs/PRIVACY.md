@@ -36,8 +36,9 @@ error report sent to Sentry contains: the exception type, a stack trace, device
 model, and OS/app version. It never contains: notification bodies, exception
 messages (stripped before sending, since a message can quote parsed
 notification text), screenshots, view hierarchies, or transaction data.
-Performance tracing and session replay are disabled. Two accepted limitations
-of this model: a crash in the first moments of app startup, before your
+Performance tracing, structured logs, and metrics are enabled only while the
+setting is on; session replay remains disabled. Two accepted limitations of this
+model: a crash in the first moments of app startup, before your
 preference loads, is not captured; and a report already queued on the device
 before you turn reporting off may still be delivered once you turn it back on.
 

@@ -48,7 +48,7 @@ val databaseMigrations = arrayOf(
             override fun migrate(connection: androidx.sqlite.SQLiteConnection) {
                 connection.prepare("CREATE TABLE IF NOT EXISTS pending_changes (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, transactionId INTEGER NOT NULL, operation TEXT NOT NULL)").use { it.step() }
                 connection.prepare("CREATE UNIQUE INDEX index_pending_changes_transactionId ON pending_changes(transactionId)").use { it.step() }
-                connection.prepare("INSERT INTO pending_changes(transactionId, operation) SELECT id, 'UPSERT' FROM transactions WHERE status = 'CONFIRMED'").use { it.step() }
+                connection.prepare("INSERT INTO pending_changes(transactionId, operation) SELECT id, 'UPSERT' FROM transactions WHERE status = 'CONFIRMED' AND currency = 'PHP'").use { it.step() }
             }
         },
 )

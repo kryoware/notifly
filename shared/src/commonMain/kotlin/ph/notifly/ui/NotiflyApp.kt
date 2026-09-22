@@ -31,6 +31,8 @@ fun NotiflyApp(
     requestPermission: () -> Unit = {},
     batteryExempt: Boolean = false,
     requestBatteryExemption: () -> Unit = {},
+    versionName: String = "",
+    isDebugBuild: Boolean = false,
 ) {
     val preferences = koinInject<AppPreferences>()
     val database = koinInject<ph.notifly.data.local.AppDatabase>()
@@ -40,6 +42,7 @@ fun NotiflyApp(
     val captures = remember(demo) { if (demo) DemoCaptures() else realCaptures }
     val transactions = remember(demo) { if (demo) DemoTransactions() else realTransactions }
     val apps = remember(demo) { if (demo) DemoAllowList() else realApps }
+    val appLabels by apps.observeAll().collectAsState(emptyList())
     val palette by preferences.palette.collectAsState(NotiflyPalette.Evergreen)
     val themeMode by preferences.themeMode.collectAsState(ThemeMode.SYSTEM)
     val onboarded by preferences.onboardingComplete.collectAsState(null)
@@ -49,6 +52,7 @@ fun NotiflyApp(
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     fun navigate(target: String) {
+        if (route == target) return
         nav.navigate(target) {
             launchSingleTop = true
             if (target in listOf("home", "transactions", "insights", "settings")) popUpTo(nav.graph.id) { inclusive = false }
@@ -114,10 +118,10 @@ fun NotiflyApp(
             ) {
                 composable("onboarding") { val m = viewModel { OnboardingModel() }; Events(m, handle); OnboardingScreen(m, requestPermission, permissionAvailable, batteryExempt, requestBatteryExemption) }
                 composable("auth") { val m = viewModel { AuthModel(preferences, demo) }; Events(m, handle); AuthScreen(m, demo) }
-                composable("home") { val m = viewModel { HomeModel(transactions) }; Events(m, handle); HomeScreen(m) }
+                composable("home") { val m = viewModel { HomeModel(transactions) }; Events(m, handle); HomeScreen(m, appLabels.associate { it.packageName to it.label }) }
                 composable("insights") { val m = viewModel { InsightsModel(transactions) }; Events(m, handle); InsightsScreen(m) }
-                composable("transactions") { val m = viewModel { TransactionsModel(transactions) }; Events(m, handle); TransactionsScreen(m) }
-                composable("settings") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle); SettingsScreen(m, permissionAvailable, requestPermission) }
+                composable("transactions") { val m = viewModel { TransactionsModel(transactions) }; Events(m, handle); TransactionsScreen(m, appLabels.associate { it.packageName to it.label }) }
+                composable("settings") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle); SettingsScreen(m, permissionAvailable, requestPermission, versionName, isDebugBuild) }
                 composable("allow-list") { val m = viewModel { AllowListModel(apps) }; Events(m, handle); AllowListScreen(m) }
                 composable("choose-apps") { val m = viewModel { AllowListModel(apps) }; Events(m, handle); AllowListScreen(m, onboarding = true) }
                 composable("edit/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
