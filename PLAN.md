@@ -11,10 +11,10 @@ means the interaction, not a pixel copy.
 
 Cheap, and catches token mistakes before they're baked into twenty screens.
 
-- [ ] A debug screen or `@Preview` rendering all four palettes side by side
-- [ ] Swatches for every role plus `accents.income` / `accents.expense`
+- [x] A debug screen or `@Preview` rendering all four palettes side by side
+- [x] Swatches for every role plus `accents.income` / `accents.expense`
 - [ ] Compare against the Theming page in the Figma file
-- [ ] Palette choice persists via DataStore
+- [x] Palette choice persists via DataStore
 
 **Done when:** all four palettes render and match Figma.
 
@@ -27,15 +27,18 @@ to debug a service that only fires when a real notification arrives.
 
 Navigation first, then screens in this order:
 
-- [ ] Nav graph: onboarding → auth → main (bottom nav) → detail/edit → log
-- [ ] Home — balance card, review prompt, recent list
-- [ ] Transactions — filter chips (All / Needs review / Income / Expense)
-- [ ] Add / Edit — validation rejects empty description and non-positive amount
-- [ ] Delete — confirmation dialog, undo via snackbar
-- [ ] Settings — allow-list entry, offline switch, theme picker
-- [ ] Allow-list — per-app toggles
-- [ ] Onboarding + permission slides
-- [ ] Auth — login / signup, plus "continue offline"
+- [x] Nav graph: onboarding → auth → main (bottom nav) → detail/edit → log
+- [x] Home — balance card, review prompt, recent list
+- [x] Transactions — filter chips (All / Needs review / Income / Expense)
+- [x] Add / Edit — validation rejects empty description and non-positive amount
+- [x] Delete — confirmation dialog, undo via snackbar
+- [x] Settings — allow-list entry, offline switch, theme picker
+- [x] Allow-list — per-app toggles
+- [x] Onboarding + permission slides
+- [x] Auth — login / signup, plus "continue offline"
+
+Implementation checks pass for seeded demo flows. Cloud auth is not yet configured;
+production sign-in reports this explicitly. Full device interaction review remains pending.
 
 One ViewModel per screen. `StateFlow<UiState>` for state, `SharedFlow<Event>`
 for navigation and snackbars. Never put navigation in `UiState`.
@@ -49,13 +52,13 @@ for navigation and snackbars. Never put navigation in `UiState`.
 Build this before wiring the real listener. It's the only debugging surface once
 captures start arriving, and you'll want it working first.
 
-- [ ] Log screen listing captures newest-first
-- [ ] Four result states, colour-coded (Parsed / Needs review / Not recognised / Ignored)
-- [ ] Raw body with the matched amount and direction keyword highlighted
-- [ ] Expand shows amount, direction, merchant, source, plain-language reason
-- [ ] "Create transaction manually" on unrecognised entries, prefilled with the source text
-- [ ] "Keep raw text on device" switch → calls `redactBodies()` when turned off
-- [ ] Clear log action
+- [x] Log screen listing captures newest-first
+- [x] Four result states, colour-coded (Parsed / Needs review / Not recognised / Ignored)
+- [x] Raw body with the matched amount and direction keyword highlighted
+- [x] Expand shows amount, direction, merchant, source, plain-language reason
+- [x] "Create transaction manually" on unrecognised entries, prefilled with the source text
+- [x] "Keep raw text on device" switch → calls `redactBodies()` when turned off
+- [x] Clear log action
 
 **Done when:** you can seed a fake capture and see it rendered correctly.
 
@@ -63,15 +66,20 @@ captures start arriving, and you'll want it working first.
 
 ## Phase 7 — Real capture
 
-- [ ] `NotificationCaptureService` writes through `CaptureRepository`
-- [ ] Parsed drafts become transactions with `NEEDS_REVIEW` — never auto-confirm
-- [ ] Permission flow: `Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS`, then verify
+- [x] `NotificationCaptureService` writes through `CaptureRepository`
+- [x] Parsed drafts become transactions with `NEEDS_REVIEW` — never auto-confirm
+- [x] Permission flow: `Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS`, then verify
       on resume via `NotificationTransactionSource.isAvailable()`
-- [ ] Handle the user returning with it still disabled
-- [ ] `requestRebind()` on reconnect; show real connection state in Settings
-- [ ] Allow-list populated from installed apps (`QUERY_ALL_PACKAGES`)
-- [ ] Verify dedupe against an app that updates one notification repeatedly
-- [ ] Grep the codebase for any log statement that could carry notification text
+- [x] Handle the user returning with it still disabled
+- [x] `requestRebind()` on reconnect; show real connection state in Settings
+- [x] Allow-list populated from installed apps (`QUERY_ALL_PACKAGES`)
+- [x] Verify dedupe against an app that updates one notification repeatedly
+- [x] Grep the codebase for any log statement that could carry notification text
+- [x] Battery-optimisation exemption prompt (4th onboarding page) to mitigate OEM
+      process-killers — not required for capture, `PowerManager.isIgnoringBatteryOptimizations`
+
+Room regression verifies duplicate delivery creates one unconfirmed transaction and
+defaults to no retained body. Device delivery/reconnect checks remain pending (no device attached).
 
 Test with GCash and Maya on a real device. Emulators won't give you real
 notification traffic.
@@ -82,12 +90,17 @@ notification traffic.
 
 ## Phase 8 — Offline and sync
 
-- [ ] Every write goes to Room first; no network in the write path
-- [ ] Pending-change queue with a count
+Local queue and confirmed-only payload boundary implemented and tested. Recommended
+backend: Supabase. Authentication, WorkManager delivery, and progress/completion rings
+remain pending a configured backend and authenticated delivery contract. No changes
+are acknowledged or shown as synced without a successful server response.
+
+- [x] Every write goes to Room first; no network in the write path
+- [x] Pending-change queue with a count
 - [ ] WorkManager sync worker on Android, constrained to connectivity
 - [ ] Progress ring on the account avatar, driven by the queue draining
 - [ ] Green ring + check on completion (match the prototype)
-- [ ] Confirmed transactions only in the sync payload — assert this in a test
+- [x] Confirmed transactions only in the sync payload — assert this in a test
 
 **Done when:** airplane mode → edits → reconnect drains the queue visibly.
 
@@ -99,7 +112,11 @@ Deferred deliberately; needs real capture data from Phase 7 to tune.
 
 - [ ] Duplicate detection: same amount + near-same timestamp across two apps
 - [ ] "Merge or keep both?" prompt
-- [ ] Transfer handling excluded from spending totals
+- [x] Transfer handling excluded from spending totals
+
+Verified existing SQL exclusion with a real Room regression. Other confidence-tier
+items remain deferred as specified above: there are no real GCash/Maya samples yet
+to validate duplicate windows, hold/final-payment reconciliation, or learned rules.
 - [ ] Pre-auth holds reconciled when the final amount posts
 - [ ] Per-app learned rules, inspectable and deletable from the allow-list
 
@@ -107,12 +124,19 @@ Deferred deliberately; needs real capture data from Phase 7 to tune.
 
 ## Phase 10 — Ship
 
-- [ ] Release build with R8, verify nothing reflective breaks
-- [ ] Play Store justification for `QUERY_ALL_PACKAGES` and notification access
-- [ ] Privacy policy stating on-device parsing explicitly
-- [ ] Launcher icons, adaptive icon, splash
+- [x] Release build with R8, verify nothing reflective breaks
+- [x] Play Store justification for `QUERY_ALL_PACKAGES` and notification access
+- [x] Privacy policy stating on-device parsing explicitly
+- [x] Launcher icons, adaptive icon, splash
 - [ ] Accessibility pass: TalkBack labels, 48dp targets, contrast
-- [ ] `@Preview(locale = "ar")` RTL check
+- [x] `@Preview(locale = "ar")` RTL check
+
+R8 release compilation and Android lint pass; release runtime checks still require
+a device. Added Arabic RTL preview, explicit accessibility labels and native 48dp
+controls; TalkBack, large-font rendering, and contrast/Figma review remain pending.
+Privacy and Play Store declaration drafts are in docs/PRIVACY.md and docs/PLAY_STORE.md;
+publishing needs operator contact, policy URL, signing secrets and Play review.
+Android backup/device transfer explicitly exclude the local ledger and notification data.
 
 ---
 

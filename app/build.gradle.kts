@@ -3,11 +3,14 @@ plugins {
     alias(libs.plugins.kotlinAndroid)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.sentry)
 }
 
 android {
     namespace = "ph.notifly.android"
     compileSdk = libs.versions.compileSdk.get().toInt()
+
+    buildFeatures { buildConfig = true }
 
     defaultConfig {
         applicationId = "ph.notifly.android"
@@ -15,10 +18,31 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+        val sentryDsn = providers.gradleProperty("sentryDsn")
+            .orElse(providers.environmentVariable("SENTRY_DSN"))
+            .getOrElse("")
+        buildConfigField("String", "SENTRY_DSN",
+            "\"$sentryDsn\"")
+    }
+
+    val signingValues = listOf(
+        providers.environmentVariable("KEYSTORE_FILE").orNull,
+        providers.environmentVariable("KEYSTORE_PASSWORD").orNull,
+        providers.environmentVariable("KEY_ALIAS").orNull,
+        providers.environmentVariable("KEY_PASSWORD").orNull,
+    )
+    if (signingValues.all { it != null }) {
+        signingConfigs.create("release") {
+            storeFile = file(signingValues[0]!!)
+            storePassword = signingValues[1]
+            keyAlias = signingValues[2]
+            keyPassword = signingValues[3]
+        }
     }
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -44,4 +68,16 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.kotlinx.datetime)
     implementation(libs.koin.android)
+}
+
+
+sentry {
+    autoInstallation { enabled = false }
+    tracingInstrumentation { enabled = true }
+    autoUploadProguardMapping = providers.environmentVariable("SENTRY_AUTH_TOKEN").isPresent
+    includeProguardMapping = true
+    includeSourceContext = false
+    telemetry = false
+    org = providers.environmentVariable("SENTRY_ORG").getOrElse("kryoware")
+    projectName = providers.environmentVariable("SENTRY_PROJECT").getOrElse("fundflow-android")
 }

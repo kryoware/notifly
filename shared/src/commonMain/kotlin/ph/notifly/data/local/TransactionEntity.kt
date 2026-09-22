@@ -13,6 +13,7 @@ data class TransactionEntity(
     val status: String,
     val category: String,
     val occurredAtMillis: Long,
+    val createdAtMillis: Long = occurredAtMillis,
     val sourceApp: String?,
     val captureId: Long?,
     val note: String,

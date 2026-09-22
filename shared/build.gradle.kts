@@ -47,7 +47,9 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
         }
         androidMain.dependencies {
+            implementation(compose.preview)
             implementation(libs.koin.android)
+            implementation(libs.sentry.android)
         }
         androidUnitTest.dependencies {
             implementation(libs.robolectric)

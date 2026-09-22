@@ -17,6 +17,7 @@ fun TransactionEntity.toDomain() = Transaction(
     status = TransactionStatus.valueOf(status),
     category = category,
     occurredAt = Instant.fromEpochMilliseconds(occurredAtMillis),
+    createdAt = Instant.fromEpochMilliseconds(createdAtMillis),
     sourceApp = sourceApp,
     captureId = captureId,
     note = note,
@@ -31,12 +32,14 @@ fun Transaction.toEntity() = TransactionEntity(
     status = status.name,
     category = category,
     occurredAtMillis = occurredAt.toEpochMilliseconds(),
+    createdAtMillis = createdAt.toEpochMilliseconds(),
     sourceApp = sourceApp,
     captureId = captureId,
     note = note,
 )
 
 fun RawCaptureEntity.toDomain() = RawCapture(
+    fingerprint = fingerprint,
     id = id,
     sourceApp = sourceApp,
     capturedAt = Instant.fromEpochMilliseconds(capturedAtMillis),
@@ -48,6 +51,7 @@ fun RawCaptureEntity.toDomain() = RawCapture(
 )
 
 fun RawCapture.toEntity() = RawCaptureEntity(
+    fingerprint = fingerprint,
     id = id,
     sourceApp = sourceApp,
     capturedAtMillis = capturedAt.toEpochMilliseconds(),

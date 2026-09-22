@@ -16,6 +16,10 @@ Compose Multiplatform.
 - **All colour comes from `MaterialTheme.colorScheme` or `MaterialTheme.accents`.**
   No hardcoded hex outside `ui/theme/Color.kt`.
 
+Platform-rendered launcher and Android 12 splash assets are the sole scoped
+exception: they may use Android system black/white resources because they are
+outside Compose and cannot access `MaterialTheme`.
+
 ## Platform boundary
 
 Notification capture is **Android-only**. iOS has no API for reading other apps'

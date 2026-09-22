@@ -12,6 +12,12 @@ import kotlin.time.Duration.Companion.hours
 class FakeCaptureRepository(
     private val clock: Clock = Clock.System,
 ) : CaptureRepository {
+    val transactions = FakeTransactionRepository()
+    override suspend fun recordParsed(capture: RawCapture, transaction: ph.notifly.domain.model.Transaction): Long {
+        val id = record(capture)
+        transactions.upsert(transaction.copy(captureId = id))
+        return id
+    }
 
     private val store = MutableStateFlow<List<RawCapture>>(emptyList())
     private var nextId = 1L

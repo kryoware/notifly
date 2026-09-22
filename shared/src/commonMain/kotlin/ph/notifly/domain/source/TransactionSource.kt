@@ -14,7 +14,19 @@ import ph.notifly.domain.model.RawCapture
  * and must not know which implementation produced a capture.
  */
 interface TransactionSource {
+    val connection: kotlinx.coroutines.flow.StateFlow<String>
     val id: String
     fun isAvailable(): Boolean
     fun observe(): Flow<RawCapture>
+    /** Processes [event], applying any source-app policy before invoking [NotificationEvent.readContent]. */
+    suspend fun capture(event: NotificationEvent)
 }
+
+data class NotificationEvent(
+    val key: String,
+    val sourceApp: String,
+    val postedAtMillis: Long,
+    val readContent: () -> NotificationContent,
+)
+
+data class NotificationContent(val title: String, val text: String)
