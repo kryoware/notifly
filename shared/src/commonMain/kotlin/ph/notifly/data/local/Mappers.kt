@@ -68,6 +68,7 @@ fun AllowedAppEntity.toDomain() = AllowedApp(
     kind = kind,
     listening = listening,
     capturedCount = capturedCount,
+    finance = finance,
 )
 
 fun AllowedApp.toEntity() = AllowedAppEntity(
@@ -76,4 +77,5 @@ fun AllowedApp.toEntity() = AllowedAppEntity(
     kind = kind,
     listening = listening,
     capturedCount = capturedCount,
+    finance = finance,
 )

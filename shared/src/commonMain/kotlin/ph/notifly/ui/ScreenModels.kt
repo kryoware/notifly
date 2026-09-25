@@ -7,6 +7,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import ph.notifly.data.local.AppPreferences
+import ph.notifly.data.local.PinResult
 import ph.notifly.domain.diagnostics.ErrorReporter
 import ph.notifly.domain.diagnostics.ErrorSite
 import ph.notifly.domain.model.*
@@ -72,7 +73,7 @@ class InsightsModel(repository: TransactionRepository) : ScreenModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InsightsState())
     fun showMoreTimeline() { timelineLimit.value += 25 }
 }
-enum class TransactionFilter { ALL, NEEDS_REVIEW, INCOME, EXPENSE }
+enum class TransactionFilter { ALL, NEEDS_REVIEW, INCOME, EXPENSE, TRANSFER }
 data class TransactionsState(val rows: List<Transaction> = emptyList(), val filter: TransactionFilter = TransactionFilter.ALL)
 class TransactionsModel(private val repository: TransactionRepository) : ScreenModel() {
     private val filter = MutableStateFlow(TransactionFilter.ALL)
@@ -82,6 +83,7 @@ class TransactionsModel(private val repository: TransactionRepository) : ScreenM
             TransactionFilter.NEEDS_REVIEW -> it.status == TransactionStatus.NEEDS_REVIEW
             TransactionFilter.INCOME -> it.type == TransactionType.INCOME
             TransactionFilter.EXPENSE -> it.type == TransactionType.EXPENSE
+            TransactionFilter.TRANSFER -> it.type == TransactionType.TRANSFER
         } }, f)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TransactionsState())
     fun filter(value: TransactionFilter) { filter.value = value }
@@ -108,6 +110,8 @@ data class EditorState(
     val original: Transaction? = null, val title: String = "", val amount: String = "",
     val category: String = "Other", val type: TransactionType = TransactionType.EXPENSE,
     val error: String? = null, val ready: Boolean = false, val saving: Boolean = false,
+    val titleError: String? = null, val amountError: String? = null,
+    val dateError: String? = null, val timeError: String? = null,
     val sourceText: String? = null, val sourceApp: String? = null, val captureId: Long? = null,
     val date: String = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString(),
     val time: String = "00:00",
@@ -126,15 +130,17 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
                 date = local.date.toString(),
                 time = if (t == null) "00:00" else local.hour.toString().padStart(2, '0') + ":" + local.minute.toString().padStart(2, '0'))
         }
-        if (captureId != null) {
-            val capture = captures?.observeLog()?.first()?.find { it.id == captureId }
+        val linkedCaptureId = captureId ?: t?.captureId
+        if (linkedCaptureId != null) {
+            val capture = captures?.observeLog()?.first()?.find { it.id == linkedCaptureId }
             mutableState.value = state.value.copy(sourceText = capture?.body, sourceApp = capture?.sourceApp, captureId = capture?.id)
         }
     } }
     fun edit(title: String = state.value.title, amount: String = state.value.amount,
              category: String = state.value.category, type: TransactionType = state.value.type,
              date: String = state.value.date, time: String = state.value.time) {
-        mutableState.value = state.value.copy(title = title, amount = amount, category = category, type = type, date = date, time = time, error = null)
+        mutableState.value = state.value.copy(title = title, amount = amount, category = category, type = type, date = date, time = time,
+            error = null, titleError = null, amountError = null, dateError = null, timeError = null)
     }
     fun save() {
         val s = state.value
@@ -142,12 +148,14 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
         val amount = parseAmountMinor(s.amount)
         val date = runCatching { LocalDate.parse(s.date) }.getOrNull()
         val time = runCatching { LocalTime.parse(s.time) }.getOrNull()
-        if (date == null || time == null) {
-            mutableState.value = s.copy(error = "Enter a valid date as YYYY-MM-DD and a time as HH:MM.")
-            return
-        }
-        if (s.title.isBlank() || amount == null) {
-            mutableState.value = s.copy(error = "Add a description and an amount above zero, with at most two decimal places.")
+        if (date == null || time == null || s.title.isBlank() || amount == null) {
+            mutableState.value = s.copy(
+                error = "Correct the highlighted fields.",
+                titleError = if (s.title.isBlank()) "Add a description." else null,
+                amountError = if (amount == null) "Enter an amount above zero, with at most two decimal places." else null,
+                dateError = if (date == null) "Enter a valid date as YYYY-MM-DD." else null,
+                timeError = if (time == null) "Enter a valid time as HH:MM." else null,
+            )
             return
         }
         mutableState.value = s.copy(saving = true)
@@ -160,6 +168,10 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
                 status = TransactionStatus.CONFIRMED, category = s.category,
                 occurredAt = occurredAt, createdAt = Clock.System.now(), sourceApp = s.sourceApp, captureId = s.captureId))
                 mutableEvents.emit(UiEvent.Navigate("transactions"))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                mutableState.value = state.value.copy(error = "Couldn't save the transaction. Please try again.")
             } finally { mutableState.value = state.value.copy(saving = false) }
         }
     }
@@ -171,9 +183,12 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
 }
 
 data class SettingsState(val palette: NotiflyPalette = NotiflyPalette.Evergreen, val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val offline: Boolean = true, val pending: Int = 0, val crashReporting: Boolean = false)
+    val offline: Boolean = true, val pending: Int = 0, val crashReporting: Boolean = false,
+    val pinSet: Boolean = false, val biometric: Boolean = false)
 class SettingsModel(private val preferences: AppPreferences, pending: Flow<Int>) : ScreenModel() {
     val state = combine(preferences.palette, preferences.themeMode, preferences.offline, pending, preferences.crashReporting, ::SettingsState)
+        .combine(preferences.pinSet) { s, pin -> s.copy(pinSet = pin) }
+        .combine(preferences.biometricUnlock) { s, bio -> s.copy(biometric = bio) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsState())
     fun palette(value: NotiflyPalette) = work { preferences.setPalette(value) }
     fun themeMode(value: ThemeMode) = work { preferences.setThemeMode(value) }
@@ -182,16 +197,38 @@ class SettingsModel(private val preferences: AppPreferences, pending: Flow<Int>)
         else preferences.setOffline(true)
     }
     fun crashReporting(value: Boolean) = work { preferences.setCrashReporting(value) }
+    fun setPin(pin: String) = work { preferences.setPin(pin); mutableEvents.emit(UiEvent.Message("App PIN set.")) }
+    fun clearPin(current: String) = work {
+        when (val result = preferences.verifyPin(current)) {
+            PinResult.Ok -> { preferences.clearPin(); mutableEvents.emit(UiEvent.Message("App PIN removed.")) }
+            PinResult.Wrong -> mutableEvents.emit(UiEvent.Message("Wrong PIN."))
+            is PinResult.LockedFor -> mutableEvents.emit(UiEvent.Message("Too many attempts. Try again in ${result.seconds}s."))
+        }
+    }
+    fun biometric(value: Boolean) = work { preferences.setBiometricUnlock(value) }
     fun restartOnboarding() = work {
         preferences.resetOnboarding()
         navigate("onboarding")
     }
 }
-data class AllowListState(val apps: List<AllowedApp> = emptyList())
-class AllowListModel(private val repository: AllowListRepository) : ScreenModel() {
-    val state = repository.observeAll().map(::AllowListState)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AllowListState())
-    fun toggle(app: AllowedApp) = work { repository.setListening(app.packageName, !app.listening) }
+data class AllowListState(val apps: List<AllowedApp> = emptyList(), val query: String = "", val finance: Boolean = false)
+/** In [finance] mode, lists only allowed apps and toggles whether each one takes part in transfer detection. */
+class AllowListModel(private val repository: AllowListRepository, private val finance: Boolean = false) : ScreenModel() {
+    private val query = MutableStateFlow("")
+    /** Packages listening as of the first load. Keeps the pinned-at-top section from reordering under the user's finger; refreshed only when the screen (and model) is recreated. */
+    private var pinned: Set<String>? = null
+    val state = combine(repository.observeAll(), query.debounce(150).onStart { emit(query.value) }) { all, q ->
+        val apps = if (finance) all.filter { it.listening } else all
+        val p = pinned ?: apps.filter { it.isChecked() }.map { it.packageName }.toSet().also { pinned = it }
+        val visible = apps.filter { q.isBlank() || it.label.contains(q, ignoreCase = true) || it.packageName.contains(q, ignoreCase = true) }
+        AllowListState(visible.sortedBy { it.packageName !in p }, q, finance)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AllowListState(finance = finance))
+    fun AllowedApp.isChecked() = if (this@AllowListModel.finance) finance else listening
+    fun toggle(app: AllowedApp) = work {
+        if (finance) repository.setFinance(app.packageName, !app.finance)
+        else repository.setListening(app.packageName, !app.listening)
+    }
+    fun search(value: String) { query.value = value }
 }
 data class OnboardingState(val page: Int = 0)
 class OnboardingModel : ScreenModel() {
@@ -199,7 +236,8 @@ class OnboardingModel : ScreenModel() {
     val state = mutableState.asStateFlow()
     fun next() { mutableState.value = OnboardingState((state.value.page + 1).coerceAtMost(3)) }
 }
-data class AuthState(val signup: Boolean = false, val email: String = "", val password: String = "", val error: String? = null)
+data class AuthState(val signup: Boolean = false, val email: String = "", val password: String = "",
+    val error: String? = null, val emailError: String? = null, val passwordError: String? = null)
 class AuthModel(private val preferences: AppPreferences, private val demo: Boolean) : ScreenModel() {
     private val mutableState = MutableStateFlow(AuthState())
     val state = mutableState.asStateFlow()
@@ -209,7 +247,10 @@ class AuthModel(private val preferences: AppPreferences, private val demo: Boole
     fun submit() = work {
         val s = state.value
         if (!s.email.contains('@') || s.password.length < 8) {
-            mutableState.value = s.copy(error = "Enter an email and a password of at least 8 characters.")
+            mutableState.value = s.copy(
+                emailError = if (!s.email.contains('@')) "Enter a valid email." else null,
+                passwordError = if (s.password.length < 8) "Use at least 8 characters." else null,
+            )
         } else if (demo) { startOffline() }
         else { mutableState.value = s.copy(error = "Cloud sign-in is not configured. You can continue offline.") }
     }

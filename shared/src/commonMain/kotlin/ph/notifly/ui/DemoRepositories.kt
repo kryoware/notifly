@@ -40,14 +40,17 @@ class DemoTransactions : TransactionRepository {
 
 class DemoAllowList : AllowListRepository {
     private val rows = MutableStateFlow(listOf(
-        AllowedApp("com.globe.gcash.android", "GCash", "Wallet", true),
-        AllowedApp("com.paymaya", "Maya", "Wallet", true),
+        AllowedApp("com.globe.gcash.android", "GCash", "Wallet", true, finance = true),
+        AllowedApp("com.paymaya", "Maya", "Wallet", true, finance = true),
         AllowedApp("com.bpi.ng.app", "BPI Mobile", "Bank", false),
     ))
     override fun observeAll() = rows
     override suspend fun isAllowed(packageName: String) = rows.value.any { it.packageName == packageName && it.listening }
     override suspend fun setListening(packageName: String, listening: Boolean) {
         rows.value = rows.value.map { if (it.packageName == packageName) it.copy(listening = listening) else it }
+    }
+    override suspend fun setFinance(packageName: String, finance: Boolean) {
+        rows.value = rows.value.map { if (it.packageName == packageName) it.copy(finance = finance) else it }
     }
     override suspend fun incrementCapturedCount(packageName: String) {
         rows.value = rows.value.map { if (it.packageName == packageName) it.copy(capturedCount = it.capturedCount + 1) else it }

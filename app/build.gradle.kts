@@ -64,7 +64,7 @@ android {
 dependencies {
     implementation(project(":shared"))
     implementation(compose.runtime)
-    implementation(compose.material3)
+    implementation(libs.compose.material3)
     implementation(libs.androidx.activity.compose)
     implementation(libs.kotlinx.datetime)
     implementation(libs.koin.android)

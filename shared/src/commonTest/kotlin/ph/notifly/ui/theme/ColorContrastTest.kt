@@ -18,7 +18,24 @@ class ColorContrastTest {
                 listOf(scheme.surface, scheme.surfaceContainerLow).forEach { surface ->
                     assertContrast(palette, dark, "income", accents.income, surface)
                     assertContrast(palette, dark, "expense", accents.expense, surface)
+                    assertContrast(palette, dark, "onSurface", scheme.onSurface, surface)
+                    assertContrast(palette, dark, "onSurfaceVariant", scheme.onSurfaceVariant, surface)
                 }
+                listOf(
+                    "primary" to (scheme.onPrimary to scheme.primary),
+                    "primaryContainer" to (scheme.onPrimaryContainer to scheme.primaryContainer),
+                    "secondary" to (scheme.onSecondary to scheme.secondary),
+                    "secondaryContainer" to (scheme.onSecondaryContainer to scheme.secondaryContainer),
+                    "tertiary" to (scheme.onTertiary to scheme.tertiary),
+                    "tertiaryContainer" to (scheme.onTertiaryContainer to scheme.tertiaryContainer),
+                    "error" to (scheme.onError to scheme.error),
+                    "errorContainer" to (scheme.onErrorContainer to scheme.errorContainer),
+                    "inverseSurface" to (scheme.inverseOnSurface to scheme.inverseSurface),
+                    "incomeContainer" to (accents.onIncomeContainer to accents.incomeContainer),
+                    "expenseContainer" to (accents.onExpenseContainer to accents.expenseContainer),
+                ).forEach { (role, colors) -> assertContrast(palette, dark, role, colors.first, colors.second) }
+                assertContrast(palette, dark, "outline", scheme.outline, scheme.surface, 3.0)
+                assertContrast(palette, dark, "selected control", scheme.primary, scheme.surface, 3.0)
             }
         }
     }
@@ -29,9 +46,10 @@ class ColorContrastTest {
         role: String,
         foreground: Color,
         background: Color,
+        minimum: Double = 4.5,
     ) {
         val ratio = contrastRatio(foreground, background)
-        assertTrue(ratio >= 4.5, "$palette ${if (dark) "dark" else "light"} $role contrast was $ratio")
+        assertTrue(ratio >= minimum, "$palette ${if (dark) "dark" else "light"} $role contrast was $ratio")
     }
 
     private fun contrastRatio(first: Color, second: Color): Double {

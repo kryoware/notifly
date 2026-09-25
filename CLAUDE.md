@@ -13,8 +13,12 @@ Compose Multiplatform.
 - **NEEDS_REVIEW never moves the headline balance.** Show it as a separate pending line.
 - **Never invent a value to avoid an Unrecognized branch.** No amount means no transaction.
 - **Money is `Long` minor units (centavos).** Never `Double`, never `Float`.
+- **Do not modify existing transactions during tests.** The test device holds real
+  data. Create a new transaction clearly marked as test data (e.g. description
+  `[TEST] …`) and delete it afterwards.
 - **All colour comes from `MaterialTheme.colorScheme` or `MaterialTheme.accents`.**
-  No hardcoded hex outside `ui/theme/Color.kt`.
+  No hardcoded hex in app sources outside `ui/theme/Color.kt`; the local generator
+  stores the four seed hex values.
 
 Platform-rendered launcher and Android 12 splash assets are the sole scoped
 exception: they may use Android system black/white resources because they are
@@ -91,12 +95,3 @@ listener that only fires when a real notification arrives.
 - Apps update one notification in place, so the same `sbn.key` arrives repeatedly.
   `NotificationCaptureService` dedupes on key + content hash.
 - `QUERY_ALL_PACKAGES` needs a declared Play Store justification.
-
-## Design source
-
-Figma file key `BTqrcTY3MPDY5WeDng5dzi` — `M3 Color` roles alias `M3 Tones`.
-`ui/theme/Color.kt` is generated from it. Change colours in Figma, regenerate here.
-
-Interaction reference: `docs/prototype.html` — open it in a browser. It is the
-behavioural spec for every screen, including the notification log and the
-offline sync ring.

@@ -7,5 +7,6 @@ interface AllowListRepository {
     fun observeAll(): Flow<List<AllowedApp>>
     suspend fun isAllowed(packageName: String): Boolean
     suspend fun setListening(packageName: String, listening: Boolean)
+    suspend fun setFinance(packageName: String, finance: Boolean)
     suspend fun incrementCapturedCount(packageName: String)
 }

@@ -1,6 +1,7 @@
 package ph.notifly.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -28,9 +29,8 @@ fun NotiflyTheme(
         ThemeMode.DARK -> true
     }
     CompositionLocalProvider(LocalNotiflyAccents provides accentsFor(palette, dark)) {
-        MaterialTheme(
+        MaterialExpressiveTheme(
             colorScheme = schemeFor(palette, dark),
-            typography = NotiflyTypography,
             content = content,
         )
     }

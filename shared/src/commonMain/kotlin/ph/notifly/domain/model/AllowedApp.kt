@@ -6,4 +6,5 @@ data class AllowedApp(
     val kind: String,
     val listening: Boolean,
     val capturedCount: Int = 0,
+    val finance: Boolean = false,
 )

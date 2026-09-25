@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
@@ -23,6 +24,13 @@ class AppPreferencesTest {
         override val data = flow<Preferences> { throw error }
         override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences) =
             transform(emptyPreferences())
+    }
+
+    private fun memoryStore() = object : DataStore<Preferences> {
+        private val state = MutableStateFlow(emptyPreferences())
+        override val data = state
+        override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences) =
+            transform(state.value).also { state.value = it }
     }
 
     @Test fun paletteSurvivesReopeningStore() = runBlocking {
@@ -60,5 +68,24 @@ class AppPreferencesTest {
         val preferences = AppPreferences(failingStore(IllegalStateException("broken store")))
 
         assertFailsWith<IllegalStateException> { runBlocking { preferences.palette.first() } }
+    }
+
+    @Test fun pinVerifiesLocksOutAndClearsBiometrics() = runBlocking {
+        val prefs = AppPreferences(memoryStore())
+        assertEquals(false, prefs.pinSet.first())
+        assertFailsWith<IllegalArgumentException> { prefs.setPin("12a456") }
+        prefs.setPin("123456")
+        prefs.setBiometricUnlock(true)
+        assertEquals(true, prefs.pinSet.first())
+        assertEquals(true, prefs.biometricUnlock.first())
+        assertEquals(PinResult.Ok, prefs.verifyPin("123456"))
+        val now = kotlin.time.Clock.System.now()
+        repeat(4) { assertEquals(PinResult.Wrong, prefs.verifyPin("000000", now)) }
+        assertEquals(PinResult.LockedFor(30), prefs.verifyPin("000000", now))
+        assertEquals(PinResult.LockedFor(30), prefs.verifyPin("123456", now))
+        assertEquals(PinResult.Ok, prefs.verifyPin("123456", now + kotlin.time.Duration.parse("31s")))
+        prefs.clearPin()
+        assertEquals(false, prefs.pinSet.first())
+        assertEquals(false, prefs.biometricUnlock.first())
     }
 }
