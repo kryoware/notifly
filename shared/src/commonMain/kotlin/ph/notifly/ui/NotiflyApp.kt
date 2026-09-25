@@ -99,8 +99,8 @@ fun NotiflyApp(
                 composable("onboarding") { val m = viewModel { OnboardingModel() }; Events(m, handle); OnboardingScreen(m, requestPermission, permissionAvailable, batteryExempt, requestBatteryExemption) }
                 composable("auth") { val m = viewModel { AuthModel(preferences, demo) }; Events(m, handle); AuthScreen(m, demo) }
                 composable("home") { val m = viewModel { HomeModel(transactions) }; Events(m, handle); HomeScreen(m, appLabels, snackbar, demo) }
-                composable("insights") { val m = viewModel { InsightsModel(transactions) }; Events(m, handle)
-                    AppDestination(if (demo) "Insights · Demo" else "Insights", snackbar) { InsightsScreen(m) } }
+                composable("insights") { val m = viewModel { InsightsModel(transactions, preferences) }; Events(m, handle)
+                    AppDestination(if (demo) "Insights · Demo" else "Insights", snackbar) { InsightsScreen(m, appLabels) } }
                 composable("transactions") { val m = viewModel { TransactionsModel(transactions) }; Events(m, handle); TransactionsScreen(m, appLabels, snackbar, demo) }
                 composable("settings") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle)
                     AppDestination(if (demo) "Settings · Demo" else "Settings", snackbar) {

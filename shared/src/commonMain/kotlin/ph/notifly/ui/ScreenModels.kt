@@ -3,7 +3,6 @@ package ph.notifly.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import ph.notifly.data.local.AppPreferences
@@ -15,7 +14,6 @@ import ph.notifly.domain.repository.*
 import ph.notifly.ui.theme.NotiflyPalette
 import ph.notifly.ui.theme.ThemeMode
 import kotlin.time.Clock
-import kotlin.time.Duration.Companion.days
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
@@ -46,11 +44,14 @@ open class ScreenModel : ViewModel() {
 
 data class LedgerState(val rows: List<Transaction> = emptyList(), val net: Long = 0L)
 data class InsightsState(
-    val rows: List<Transaction> = emptyList(),
-    val net: Long = 0L,
-    val timeline: List<Transaction> = emptyList(),
-    val timelineHasMore: Boolean = false,
-)
+    val days: Int = INSIGHT_WINDOWS.first(),
+    val windows: List<WindowInsights> = emptyList(),
+    val month: MonthInsights? = null,
+    val budget: Long? = null,
+    val pending: Int = 0,
+) {
+    val selected get() = windows.firstOrNull { it.days == days }
+}
 class HomeModel(private val repository: TransactionRepository) : ScreenModel() {
     val state = combine(repository.observeAll(), repository.observeConfirmedNetMinor()) { rows, net -> LedgerState(rows, net) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LedgerState())
@@ -59,19 +60,16 @@ class HomeModel(private val repository: TransactionRepository) : ScreenModel() {
         mutableEvents.emit(UiEvent.Message("Transaction confirmed", undo = t))
     }
 }
-@OptIn(ExperimentalCoroutinesApi::class)
-class InsightsModel(repository: TransactionRepository) : ScreenModel() {
-    private val timelineLimit = MutableStateFlow(10)
-    private val timelineStart = Clock.System.now() - 7.days
-    val state = combine(
-        repository.observeByStatus(TransactionStatus.CONFIRMED),
-        timelineLimit.flatMapLatest { limit -> repository.observeConfirmedSince(timelineStart, limit + 1).map { it to limit } },
-    ) { rows, (timelineRows, limit) ->
-        InsightsState(rows, rows.sumOf { when (it.type) {
-            TransactionType.INCOME -> it.amountMinor; TransactionType.EXPENSE -> -it.amountMinor; TransactionType.TRANSFER -> 0L
-        } }, timelineRows.take(limit), timelineRows.size > limit)
+class InsightsModel(repository: TransactionRepository, private val preferences: AppPreferences) : ScreenModel() {
+    private val days = MutableStateFlow(INSIGHT_WINDOWS.first())
+    val state = combine(repository.observeAll(), days, preferences.monthlyBudget) { rows, d, budget ->
+        val zone = TimeZone.currentSystemDefault()
+        val today = Clock.System.now().toLocalDateTime(zone).date
+        InsightsState(d, INSIGHT_WINDOWS.map { windowInsights(rows, today, it, zone) }, monthInsights(rows, today, zone),
+            budget, rows.count { it.status == TransactionStatus.NEEDS_REVIEW })
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InsightsState())
-    fun showMoreTimeline() { timelineLimit.value += 25 }
+    fun days(value: Int) { days.value = value }
+    fun budget(minor: Long?) = work { preferences.setMonthlyBudget(minor) }
 }
 enum class TransactionFilter { ALL, NEEDS_REVIEW, INCOME, EXPENSE, TRANSFER }
 data class TransactionsState(val rows: List<Transaction> = emptyList(), val filter: TransactionFilter = TransactionFilter.ALL)

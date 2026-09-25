@@ -43,6 +43,7 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     private val biometricKey = booleanPreferencesKey("biometric_unlock")
     private val pinFailuresKey = intPreferencesKey("pin_failures")
     private val pinLockedUntilKey = longPreferencesKey("pin_locked_until")
+    private val monthlyBudgetKey = longPreferencesKey("monthly_budget_minor")
     private val data = store.data.catch { exception ->
         if (exception is IOException) emit(emptyPreferences()) else throw exception
     }
@@ -56,6 +57,7 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     val crashReporting = data.map { it[crashReportingKey] ?: false }
     val pinSet = data.map { it[pinHashKey] != null }
     val biometricUnlock = data.map { it[pinHashKey] != null && (it[biometricKey] ?: false) }
+    val monthlyBudget = data.map { it[monthlyBudgetKey] }
     suspend fun setPalette(value: NotiflyPalette) { store.edit { it[paletteKey] = value.name } }
     suspend fun setThemeMode(value: ThemeMode) { store.edit { it[themeModeKey] = value.name } }
     suspend fun completeOnboarding() { store.edit { it[onboardingKey] = true } }
@@ -63,6 +65,7 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     suspend fun setOffline(value: Boolean) { store.edit { it[offlineKey] = value } }
     suspend fun setKeepRawText(value: Boolean) { store.edit { it[retentionKey] = value } }
     suspend fun setCrashReporting(value: Boolean) { store.edit { it[crashReportingKey] = value } }
+    suspend fun setMonthlyBudget(minor: Long?) { store.edit { if (minor == null) it.remove(monthlyBudgetKey) else it[monthlyBudgetKey] = minor } }
 
     /** Stores only a salted PBKDF2 hash of [pin]; the PIN itself is never persisted. */
     suspend fun setPin(pin: String) {
