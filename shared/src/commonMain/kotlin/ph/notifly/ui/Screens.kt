@@ -181,6 +181,14 @@ private fun TransactionFilter.display(): String = when (this) {
     TransactionFilter.TRANSFER -> "Transfer"
 }
 
+private fun TransactionFilter.icon() = when (this) {
+    TransactionFilter.ALL -> Res.drawable.symbol_list
+    TransactionFilter.NEEDS_REVIEW -> Res.drawable.symbol_pending_actions
+    TransactionFilter.INCOME -> Res.drawable.symbol_south_west
+    TransactionFilter.EXPENSE -> Res.drawable.symbol_north_east
+    TransactionFilter.TRANSFER -> Res.drawable.symbol_swap_horiz
+}
+
 @Composable
 fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> = emptyMap(),
                        snackbar: SnackbarHostState? = null, demo: Boolean = false) {
@@ -226,6 +234,7 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                     selected = s.filter == f,
                     onClick = { model.filter(f) },
                     shape = SegmentedButtonDefaults.itemShape(index, TransactionFilter.entries.size),
+                    icon = { Icon(painterResource(f.icon()), contentDescription = null, Modifier.size(SegmentedButtonDefaults.IconSize)) },
                     label = { Text(f.display()) },
                 )
             }

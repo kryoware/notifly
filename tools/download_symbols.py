@@ -9,8 +9,8 @@ from urllib.request import urlopen
 
 
 NAMES = (
-    "add", "arrow_back", "calendar_today", "check", "clear", "delete",
-    "expand_more", "file_download", "home", "keyboard_arrow_right", "list",
+    "add", "arrow_back", "calendar_today", "check", "check_circle", "clear", "delete",
+    "expand_more", "file_download", "help", "home", "keyboard_arrow_right", "list",
     "north_east", "notifications_active", "pending_actions", "pie_chart",
     "schedule", "search", "settings", "south_west", "swap_horiz",
 )

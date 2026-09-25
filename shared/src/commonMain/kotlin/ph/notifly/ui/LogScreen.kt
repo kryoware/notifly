@@ -60,6 +60,14 @@ private fun CaptureResult.label() = when (this) {
     CaptureResult.IGNORED -> "Ignored"
 }
 
+private fun CaptureResult?.icon() = when (this) {
+    null -> Res.drawable.symbol_list
+    CaptureResult.PARSED -> Res.drawable.symbol_check
+    CaptureResult.NEEDS_REVIEW -> Res.drawable.symbol_pending_actions
+    CaptureResult.UNRECOGNIZED -> Res.drawable.symbol_help
+    CaptureResult.IGNORED -> Res.drawable.symbol_clear
+}
+
 @Composable
 fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap()) {
     val s by model.state.collectAsState()
@@ -74,6 +82,7 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap()) {
                     selected = s.filter == result,
                     onClick = { model.filter(result) },
                     shape = SegmentedButtonDefaults.itemShape(index, filters.size),
+                    icon = { Icon(painterResource(result.icon()), contentDescription = null, Modifier.size(SegmentedButtonDefaults.IconSize)) },
                     label = { Text(result?.label() ?: "All") },
                 )
             }
