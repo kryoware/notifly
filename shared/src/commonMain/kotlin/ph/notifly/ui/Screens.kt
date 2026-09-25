@@ -7,6 +7,8 @@ import notifly.shared.generated.resources.Res
 import notifly.shared.generated.resources.*
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -75,12 +77,17 @@ fun TransactionRow(
     val occurredOn = transaction.occurredAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
     val supportingText = transaction.title + if (needsReview) " · Needs review" else ""
     val leading: @Composable () -> Unit = {
-            if (selectionMode) {
-                Checkbox(selected, onCheckedChange = null)
-            } else {
-                AppIcon(transaction.sourceApp, sender)
-            }
+        Crossfade(selected, label = "avatar") { checked ->
+            if (checked) Icon(painterResource(Res.drawable.symbol_check_circle), contentDescription = null,
+                Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary)
+            else AppIcon(transaction.sourceApp, sender)
+        }
     }
+    val container by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else ListItemDefaults.colors().containerColor,
+        label = "selection",
+    )
+    val colors = ListItemDefaults.colors(containerColor = container, selectedContainerColor = container)
     val supporting: @Composable () -> Unit = {
             Text(supportingText, style = MaterialTheme.typography.bodySmall,
                 color = if (needsReview) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -103,12 +110,12 @@ fun TransactionRow(
     val rowModifier = modifier.fillMaxWidth()
         .semantics { contentDescription = "${transaction.title}, ${money(transaction.amountMinor)}${if (needsReview) ", needs review" else ""}" }
     if (selectionMode) {
-        ListItem(checked = selected, onCheckedChange = { onToggleSelection() }, modifier = rowModifier,
+        ListItem(checked = selected, onCheckedChange = { onToggleSelection() }, modifier = rowModifier, colors = colors,
             leadingContent = leading, supportingContent = supporting, trailingContent = trailing,
             content = { Text(sender, style = MaterialTheme.typography.titleMedium) })
     } else {
         ListItem(onClick = open, onLongClick = onLongClick, onLongClickLabel = "Select transaction",
-            modifier = rowModifier, leadingContent = leading, supportingContent = supporting,
+            modifier = rowModifier, colors = colors, leadingContent = leading, supportingContent = supporting,
             trailingContent = trailing, content = { Text(sender, style = MaterialTheme.typography.titleMedium) })
     }
 }
@@ -215,6 +222,7 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                         Icon(painterResource(Res.drawable.symbol_delete), contentDescription = "Delete selected transactions")
                     } }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             ) else TopAppBar(title = { Text(if (demo) "Transactions · Demo" else "Transactions") })
         },
         snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) },
