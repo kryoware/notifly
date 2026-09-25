@@ -6,6 +6,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,44 +19,30 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.DeveloperMode
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.NewReleases
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.NotificationsOff
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import kotlin.time.Instant
@@ -72,51 +60,57 @@ private val CATEGORIES = listOf("Income", "Food", "Transport", "Bills", "Shoppin
 private val FAB_CLEARANCE = 88.dp
 
 @Composable
-fun TransactionRow(transaction: Transaction, appLabels: Map<String, String>, open: () -> Unit, confirm: (() -> Unit)? = null, modifier: Modifier = Modifier) {
+fun TransactionRow(
+    transaction: Transaction,
+    appLabels: Map<String, String>,
+    open: () -> Unit,
+    confirm: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onToggleSelection: () -> Unit = {},
+    onLongClick: () -> Unit = {},
+) {
     val color = when (transaction.type) {
         TransactionType.INCOME -> MaterialTheme.accents.income
         TransactionType.EXPENSE -> MaterialTheme.accents.expense
         TransactionType.TRANSFER -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val containerColor = when (transaction.type) {
-        TransactionType.INCOME -> MaterialTheme.accents.incomeContainer
-        TransactionType.EXPENSE -> MaterialTheme.accents.expenseContainer
-        TransactionType.TRANSFER -> MaterialTheme.colorScheme.surfaceContainerHighest
-    }
-    val onContainerColor = when (transaction.type) {
-        TransactionType.INCOME -> MaterialTheme.accents.onIncomeContainer
-        TransactionType.EXPENSE -> MaterialTheme.accents.onExpenseContainer
-        TransactionType.TRANSFER -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    val icon = when (transaction.type) {
-        TransactionType.INCOME -> Icons.Default.ArrowDownward
-        TransactionType.EXPENSE -> Icons.Default.ArrowUpward
-        TransactionType.TRANSFER -> Icons.Default.SwapHoriz
-    }
     val needsReview = transaction.status == TransactionStatus.NEEDS_REVIEW
     val sourceApp = transaction.sourceApp?.let { appLabels[it] ?: it }
-    val supporting = if (needsReview) "Parsed from $sourceApp · unconfirmed"
-        else "${sourceApp ?: "Manual"} · ${transaction.occurredAt.toLocalDateTime(TimeZone.currentSystemDefault()).date}"
+    val sender = sourceApp ?: "Manual"
+    val occurredOn = transaction.occurredAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
+    val supporting = transaction.title + if (needsReview) " · Needs review" else ""
+    val onClick = if (selectionMode) onToggleSelection else open
     ListItem(
-        modifier = modifier.fillMaxWidth().clickable(onClick = open)
+        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+            .background(if (selected) MaterialTheme.colorScheme.surfaceContainerHighest else Color.Transparent)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .semantics { contentDescription = "${transaction.title}, ${money(transaction.amountMinor)}${if (needsReview) ", needs review" else ""}" },
         leadingContent = {
-            Surface(shape = CircleShape, color = containerColor, modifier = Modifier.size(40.dp)) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = onContainerColor, modifier = Modifier.size(20.dp))
+            if (selectionMode) {
+                Checkbox(selected, onCheckedChange = { onToggleSelection() })
+            } else {
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.size(40.dp)) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(sender.take(1), style = MaterialTheme.typography.titleMedium)
+                    }
                 }
             }
         },
-        headlineContent = { Text(transaction.title) },
+        headlineContent = { Text(sender, style = MaterialTheme.typography.titleMedium) },
         supportingContent = {
             Text(supporting, style = MaterialTheme.typography.bodySmall,
                 color = if (needsReview) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
         },
         trailingContent = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text((if (transaction.type == TransactionType.INCOME) "+" else if (transaction.type == TransactionType.EXPENSE) "−" else "") + money(transaction.amountMinor), color = color)
-                if (needsReview && confirm != null) {
-                    IconButton(onClick = confirm, modifier = Modifier.size(32.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(occurredOn.toString(), style = MaterialTheme.typography.labelSmall)
+                    Text((if (transaction.type == TransactionType.INCOME) "+" else if (transaction.type == TransactionType.EXPENSE) "−" else "") + money(transaction.amountMinor), color = color)
+                }
+                if (!selectionMode && needsReview && confirm != null) {
+                    IconButton(onClick = confirm) {
                         Icon(Icons.Default.Check, contentDescription = "Confirm ${transaction.title}", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
@@ -186,6 +180,10 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap()) {
 fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> = emptyMap()) {
     val s by model.state.collectAsState()
     val listState = rememberLazyListState()
+    var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    val selectionMode = selectedIds.isNotEmpty()
+    val selectedRows = s.rows.filter { it.id in selectedIds }
+    LaunchedEffect(s.rows) { selectedIds = selectedIds.intersect(s.rows.map { it.id }.toSet()) }
     Scaffold(
         floatingActionButton = {
             ExtendedFloatingActionButton(
@@ -197,12 +195,34 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
         }
     ) { padding ->
     Column(Modifier.fillMaxSize().padding(padding)) {
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TransactionFilter.entries.forEach { f ->
-                FilterChip(s.filter == f, { model.filter(f) }, label = { Text(when (f) {
-                    TransactionFilter.ALL -> "All"; TransactionFilter.NEEDS_REVIEW -> "Needs review"
-                    TransactionFilter.INCOME -> "Income"; TransactionFilter.EXPENSE -> "Expense"
-                }) })
+        if (selectionMode) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("${selectedIds.size} selected", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                IconButton(
+                    onClick = { model.confirmAll(selectedRows); selectedIds = emptySet() },
+                    enabled = selectedRows.any { it.status == TransactionStatus.NEEDS_REVIEW },
+                ) { Icon(Icons.Default.Check, contentDescription = "Confirm selected transactions") }
+                IconButton(onClick = { model.deleteAll(selectedRows); selectedIds = emptySet() }) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete selected transactions")
+                }
+                TextButton(onClick = { selectedIds = emptySet() }) { Text("Cancel") }
+            }
+        } else {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                TransactionFilter.entries.forEachIndexed { index, f ->
+                    SegmentedButton(
+                        selected = s.filter == f,
+                        onClick = { model.filter(f) },
+                        shape = SegmentedButtonDefaults.itemShape(index, TransactionFilter.entries.size),
+                        label = { Text(when (f) {
+                            TransactionFilter.ALL -> "All"; TransactionFilter.NEEDS_REVIEW -> "Needs review"
+                            TransactionFilter.INCOME -> "Income"; TransactionFilter.EXPENSE -> "Expense"
+                        }) },
+                    )
+                }
             }
         }
         if (s.rows.isEmpty()) {
@@ -218,9 +238,46 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
             LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), state = listState,
                 contentPadding = PaddingValues(bottom = FAB_CLEARANCE)) {
                 items(s.rows, key = { it.id }) { t ->
-                    TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") },
-                        confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null,
-                        modifier = Modifier.animateItem())
+                    val toggle = { selectedIds = if (t.id in selectedIds) selectedIds - t.id else selectedIds + t.id }
+                    val row = @Composable {
+                        TransactionRow(
+                            t, appLabels, { model.navigate("edit/${t.id}") },
+                            confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null,
+                            modifier = Modifier.animateItem(),
+                            selectionMode = selectionMode,
+                            selected = t.id in selectedIds,
+                            onToggleSelection = toggle,
+                            onLongClick = { selectedIds = selectedIds + t.id },
+                        )
+                    }
+                    if (selectionMode) {
+                        row()
+                    } else {
+                        val dismissState = rememberSwipeToDismissBoxState(confirmValueChange = { value ->
+                            when (value) {
+                                SwipeToDismissBoxValue.StartToEnd -> {
+                                    if (t.status != TransactionStatus.NEEDS_REVIEW) return@rememberSwipeToDismissBoxState false
+                                    model.confirm(t)
+                                    true
+                                }
+                                SwipeToDismissBoxValue.EndToStart -> { model.delete(t); true }
+                                SwipeToDismissBoxValue.Settled -> false
+                            }
+                        })
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            backgroundContent = {
+                                val toConfirm = dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+                                Box(
+                                    Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp))
+                                        .background(if (toConfirm) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer)
+                                        .padding(horizontal = 24.dp),
+                                    contentAlignment = if (toConfirm) Alignment.CenterStart else Alignment.CenterEnd,
+                                ) { Icon(if (toConfirm) Icons.Default.Check else Icons.Default.Delete, contentDescription = null) }
+                            },
+                            content = { row() },
+                        )
+                    }
                 }
             }
         }
@@ -269,7 +326,53 @@ fun InsightsScreen(model: InsightsModel) {
                 }
             }
         }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Recent activity", style = MaterialTheme.typography.headlineSmall)
+                Text("Last 7 days", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        items(s.timeline, key = { it.id }) { transaction ->
+            TimelineTransactionRow(transaction, Modifier.animateItem())
+        }
+        if (s.timeline.isEmpty()) item { Text("No confirmed transactions in the last 7 days.") }
+        if (s.timelineHasMore) item {
+            OutlinedButton(onClick = model::showMoreTimeline, modifier = Modifier.fillMaxWidth()) { Text("Show 25 more") }
+        }
     }
+}
+
+@Composable
+private fun TimelineTransactionRow(transaction: Transaction, modifier: Modifier = Modifier) {
+    val color = when (transaction.type) {
+        TransactionType.INCOME -> MaterialTheme.accents.income
+        TransactionType.EXPENSE -> MaterialTheme.accents.expense
+        TransactionType.TRANSFER -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val kind = when (transaction.type) {
+        TransactionType.INCOME -> "Income"
+        TransactionType.EXPENSE -> "Expense"
+        TransactionType.TRANSFER -> "Transfer"
+    }
+    val date = transaction.occurredAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
+    ListItem(
+        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)),
+        leadingContent = {
+            Surface(shape = CircleShape, color = color.copy(alpha = 0.14f), modifier = Modifier.size(40.dp)) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Text(kind.take(1), color = color, style = MaterialTheme.typography.titleMedium)
+                }
+            }
+        },
+        headlineContent = { Text(transaction.title) },
+        supportingContent = { Text("$kind · ${transaction.category}", color = color) },
+        trailingContent = {
+            Column(horizontalAlignment = Alignment.End) {
+                Text(date.toString(), style = MaterialTheme.typography.labelSmall)
+                Text((if (transaction.type == TransactionType.INCOME) "+" else if (transaction.type == TransactionType.EXPENSE) "−" else "") + money(transaction.amountMinor), color = color)
+            }
+        },
+    )
 }
 
 @Composable
@@ -303,7 +406,7 @@ private fun DateTimeFields(date: String, time: String, onDate: (String) -> Unit,
             modifier = Modifier.weight(1f),
         )
         OutlinedTextField(
-            value = time, onValueChange = {}, readOnly = true, label = { Text("Time") },
+            value = formatTime(time), onValueChange = {}, readOnly = true, label = { Text("Time") },
             trailingIcon = { IconButton(onClick = { showTime = true }) { Icon(Icons.Default.Schedule, contentDescription = "Choose time") } },
             modifier = Modifier.weight(1f),
         )
@@ -330,6 +433,7 @@ private fun DateTimeFields(date: String, time: String, onDate: (String) -> Unit,
         val timeState = rememberTimePickerState(
             initialHour = parts.getOrNull(0)?.toIntOrNull() ?: 0,
             initialMinute = parts.getOrNull(1)?.toIntOrNull() ?: 0,
+            is24Hour = false,
         )
         AlertDialog(
             onDismissRequest = { showTime = false },
@@ -424,32 +528,59 @@ private const val BUG_REPORT_URL = "https://www.google.com/search?q=notifly+repo
 private fun SettingsSection(title: String) {
     Text(
         title,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 20.dp, bottom = 8.dp),
     )
+}
+
+private fun formatTime(value: String): String {
+    val parts = value.split(":")
+    val hour = parts.getOrNull(0)?.toIntOrNull() ?: return value
+    val minute = parts.getOrNull(1)?.toIntOrNull() ?: return value
+    val suffix = if (hour < 12) "AM" else "PM"
+    val displayHour = when (val twelveHour = hour % 12) { 0 -> 12; else -> twelveHour }
+    return "$displayHour:${minute.toString().padStart(2, '0')} $suffix"
+}
+
+@Composable
+private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) { Column(content = content) }
 }
 
 @Composable
 private fun SettingsRow(
-    icon: ImageVector,
     title: String,
     subtitle: String? = null,
+    subtitleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     onClick: (() -> Unit)? = null,
-    trailing: @Composable (() -> Unit)? = null,
+    checked: Boolean? = null,
+    onCheckedChange: ((Boolean) -> Unit)? = null,
 ) {
     ListItem(
         headlineContent = { Text(title) },
-        supportingContent = if (subtitle == null) null else { { Text(subtitle) } },
-        leadingContent = { Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+        supportingContent = if (subtitle == null) null else { { Text(subtitle, color = subtitleColor) } },
+        leadingContent = null,
         trailingContent = when {
-            trailing != null -> trailing
+            checked != null -> { { Switch(checked = checked, onCheckedChange = null) } }
             onClick != null -> { {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null)
             } }
             else -> null
         },
-        modifier = if (onClick == null) Modifier else Modifier.clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        modifier = Modifier.fillMaxWidth().then(when {
+            checked != null && onCheckedChange != null -> Modifier.toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            )
+            onClick != null -> Modifier.clickable(onClick = onClick)
+            else -> Modifier
+        }),
     )
 }
 
@@ -465,147 +596,127 @@ fun SettingsScreen(
     val source = org.koin.compose.koinInject<ph.notifly.domain.source.TransactionSource>()
     val connection by source.connection.collectAsState()
     val uriHandler = LocalUriHandler.current
-    var versionTaps by rememberSaveable { mutableIntStateOf(0) }
-    val showDeveloper = isDebugBuild || versionTaps >= 7
 
-    LazyColumn(Modifier.fillMaxSize()) {
+    LazyColumn(
+        Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        contentPadding = PaddingValues(bottom = 24.dp),
+    ) {
         item { SettingsSection("Account") }
         item {
-            SettingsRow(
-                Icons.Default.Person, "Account",
-                "Sign in or keep using Notifly offline",
-                onClick = { model.navigate("auth") },
-            )
+            SettingsGroup {
+                SettingsRow("Account", "Sign in or keep using Notifly offline", onClick = { model.navigate("auth") })
+            }
+        }
+
+        item { SettingsSection("Security") }
+        item {
+            SettingsGroup {
+                SettingsRow(
+                    if (permissionAvailable) "Notification access enabled" else "Notification access disabled",
+                    if (permissionAvailable) "Listener: $connection" else "Listener: $connection · Manual entry still works",
+                    subtitleColor = if (connection == "Connected") MaterialTheme.accents.income else MaterialTheme.colorScheme.error,
+                )
+                HorizontalDivider()
+                SettingsRow("Manage notification access", onClick = requestPermission)
+                HorizontalDivider()
+                SettingsRow("Allowed apps", "Choose which notifications Notifly reads", onClick = { model.navigate("allow-list") })
+            }
         }
 
         item { SettingsSection("Appearance") }
         item {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                ThemeMode.entries.forEachIndexed { index, mode ->
-                    SegmentedButton(
-                        selected = s.themeMode == mode,
-                        onClick = { model.themeMode(mode) },
-                        shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
-                        label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) },
-                    )
+            SettingsGroup {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Text("Theme mode", style = MaterialTheme.typography.titleMedium)
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                        ThemeMode.entries.forEachIndexed { index, mode ->
+                            SegmentedButton(
+                                selected = s.themeMode == mode,
+                                onClick = { model.themeMode(mode) },
+                                shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
+                                label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                            )
+                        }
+                    }
                 }
-            }
-        }
-        item {
-            var expanded by remember { mutableStateOf(false) }
-            ExposedDropdownMenuBox(
-                expanded = expanded,
-                onExpandedChange = { expanded = !expanded },
-                modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp),
-            ) {
-                OutlinedTextField(
-                    value = "${s.palette.name} · ${s.palette.hint}",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Theme") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-                )
-                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    NotiflyPalette.entries.forEach { palette ->
-                        DropdownMenuItem(
-                            text = { Text("${palette.name} · ${palette.hint}") },
-                            onClick = { expanded = false; model.palette(palette) },
-                        )
+                HorizontalDivider()
+                var expanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded },
+                    modifier = Modifier.padding(16.dp),
+                ) {
+                    OutlinedTextField(
+                        value = "${s.palette.name} · ${s.palette.hint}",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Color palette") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                    )
+                    ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        NotiflyPalette.entries.forEach { palette ->
+                            DropdownMenuItem(
+                                text = { Text("${palette.name} · ${palette.hint}") },
+                                onClick = { expanded = false; model.palette(palette) },
+                            )
+                        }
                     }
                 }
             }
         }
 
-        item { SettingsSection("Capture") }
+        item { SettingsSection("Capture & privacy") }
         item {
-            SettingsRow(
-                if (permissionAvailable) Icons.Default.NotificationsActive else Icons.Default.NotificationsOff,
-                if (permissionAvailable) "Notification access enabled" else "Notification access disabled",
-                if (permissionAvailable) "Listener: $connection" else "Manual entry still works",
-            )
-        }
-        item { SettingsRow(Icons.Default.Settings, "Manage notification access", onClick = requestPermission) }
-        item {
-            SettingsRow(
-                Icons.Default.Apps, "Allowed apps",
-                "Choose which notifications Notifly reads",
-                onClick = { model.navigate("allow-list") },
-            )
-        }
-        item {
-            SettingsRow(
-                Icons.AutoMirrored.Filled.List, "Notification log",
-                "See what was captured and what couldn't be read",
-                onClick = { model.navigate("log") },
-            )
-        }
-
-        item { SettingsSection("Sync & privacy") }
-        item {
-            SettingsRow(
-                Icons.Default.CloudOff, "Offline mode", "Cloud sync is not configured yet.",
-                trailing = { Switch(s.offline, model::offline, modifier = Modifier.semantics { contentDescription = "Offline mode" }) },
-            )
-        }
-        item {
-            SettingsRow(Icons.Default.Sync, "${s.pending} changes waiting to sync", "Cloud sync is not configured.")
-        }
-        item {
-            SettingsRow(
-                Icons.Default.Warning, "Send crash reports",
-                "Reports contain stack traces and device info only — never notification text.",
-                trailing = { Switch(s.crashReporting, model::crashReporting, modifier = Modifier.semantics { contentDescription = "Send crash reports" }) },
-            )
+            SettingsGroup {
+                SettingsRow(
+                    "Offline mode", "Cloud sync is not configured yet.",
+                    checked = s.offline,
+                    onCheckedChange = model::offline,
+                )
+                HorizontalDivider()
+                SettingsRow("${s.pending} changes waiting to sync", "Cloud sync is not configured.")
+                HorizontalDivider()
+                SettingsRow(
+                    "Send crash reports",
+                    "Reports contain stack traces and device info only — never notification text.",
+                    checked = s.crashReporting,
+                    onCheckedChange = model::crashReporting,
+                )
+            }
         }
 
         item { SettingsSection("Support") }
         item {
-            SettingsRow(
-                Icons.AutoMirrored.Filled.HelpOutline, "Help",
-                "Guides for setting up capture",
-                onClick = { uriHandler.openUri(HELP_URL) },
-            )
-        }
-        item {
-            SettingsRow(
-                Icons.Default.BugReport, "Report a bug",
-                "Tell us what went wrong",
-                onClick = { uriHandler.openUri(BUG_REPORT_URL) },
-            )
+            SettingsGroup {
+                SettingsRow("Help", "Guides for setting up capture", onClick = { uriHandler.openUri(HELP_URL) })
+                HorizontalDivider()
+                SettingsRow("Report a bug", "Tell us what went wrong", onClick = { uriHandler.openUri(BUG_REPORT_URL) })
+            }
         }
 
         item { SettingsSection("About") }
         item {
-            ListItem(
-                headlineContent = { Text("Version") },
-                supportingContent = { Text(versionName) },
-                leadingContent = { Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                modifier = Modifier.clickable { versionTaps++ },
-            )
-        }
-        item {
-            SettingsRow(
-                Icons.Default.NewReleases, "Release notes",
-                "What changed in each version",
-                onClick = { uriHandler.openUri(RELEASE_NOTES_URL) },
-            )
+            SettingsGroup {
+                SettingsRow("Version", versionName)
+                HorizontalDivider()
+                SettingsRow("Release notes", "What changed in each version", onClick = { uriHandler.openUri(RELEASE_NOTES_URL) })
+            }
         }
 
-        if (showDeveloper) {
+        if (isDebugBuild) {
             item { SettingsSection("Developer") }
             item {
-                SettingsRow(
-                    Icons.Default.Palette, "Theme palettes",
-                    "Render every palette side by side",
-                    onClick = { model.navigate("themes") },
-                )
-            }
-            item {
-                SettingsRow(
-                    Icons.Default.DeveloperMode, "Build",
-                    if (isDebugBuild) "debug" else "release",
-                )
+                SettingsGroup {
+                    SettingsRow("Notification log", "See what was captured and what couldn't be read", onClick = { model.navigate("log") })
+                    HorizontalDivider()
+                    SettingsRow("Replay onboarding", "Restart the first-run flow", onClick = model::restartOnboarding)
+                    HorizontalDivider()
+                    SettingsRow("Theme palettes", "Render every palette side by side", onClick = { model.navigate("themes") })
+                    HorizontalDivider()
+                    SettingsRow("Build", "debug")
+                }
             }
         }
     }
@@ -617,8 +728,16 @@ fun AllowListScreen(model: AllowListModel, onboarding: Boolean = false) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         item { Text("Only apps you explicitly enable can create captures.", Modifier.padding(vertical = 8.dp)) }
         items(s.apps, key = { it.packageName }) { app ->
-            ListItem(headlineContent = { Text(app.label) }, supportingContent = { Text("${app.kind} · ${app.capturedCount} captures") },
-                trailingContent = { Switch(app.listening, { model.toggle(app) }, modifier = Modifier.semantics { contentDescription = "Listen to ${app.label}" }) })
+            ListItem(
+                headlineContent = { Text(app.label) },
+                supportingContent = { Text("${app.kind} · ${app.capturedCount} captures") },
+                trailingContent = { Switch(app.listening, onCheckedChange = null) },
+                modifier = Modifier.toggleable(
+                    value = app.listening,
+                    role = Role.Switch,
+                    onValueChange = { model.toggle(app) },
+                ),
+            )
         }
         if (s.apps.isEmpty()) item { Text("No installed apps available.", Modifier.padding(vertical = 24.dp)) }
         if (onboarding) item { Button(onClick = { model.navigate("auth") }, modifier = Modifier.padding(vertical = 12.dp)) { Text("Continue") } }
@@ -641,12 +760,10 @@ fun OnboardingScreen(
             "Notification access lets Notifly read alerts only from allowed apps. Raw notification text is never uploaded.",
             "Android can pause background apps to save power, and some phones do it aggressively. Turning that off for Notifly keeps captures arriving promptly.")[s.page])
         Spacer(Modifier.weight(1f))
-        Row(Modifier.align(Alignment.CenterHorizontally), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            repeat(4) { i ->
-                Box(Modifier.size(8.dp).clip(CircleShape).background(
-                    if (i == s.page) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest))
-            }
-        }
+        LinearProgressIndicator(
+            progress = { (s.page + 1) / 4f },
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Step ${s.page + 1} of 4" },
+        )
         when (s.page) {
             0, 1 -> Button(onClick = model::next) { Text(if (s.page == 0) "Get started" else "Next") }
             2 -> {
@@ -668,11 +785,15 @@ fun OnboardingScreen(
 @Composable
 fun AuthScreen(model: AuthModel, demo: Boolean) {
     val s by model.state.collectAsState()
+    val password = rememberTextFieldState(s.password)
+    LaunchedEffect(password) {
+        snapshotFlow { password.text.toString() }.collect { model.edit(password = it) }
+    }
     Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(if (s.signup) "Create account" else "Welcome back", style = MaterialTheme.typography.headlineLarge)
         if (demo) Text("Demo account flow — no account will be created.")
         OutlinedTextField(s.email, { model.edit(email = it) }, label = { Text("Email") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
-        OutlinedTextField(s.password, { model.edit(password = it) }, label = { Text("Password") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
+        OutlinedSecureTextField(password, label = { Text("Password") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
         s.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Button(onClick = { model.submit() }) { Text(if (s.signup) "Create account" else "Sign in") }
         TextButton(onClick = { model.edit(signup = !s.signup) }) { Text(if (s.signup) "I already have an account" else "Create account") }

@@ -109,4 +109,19 @@ class ScreenModelsTest {
             runCurrent()
         } finally { Dispatchers.resetMain() }
     }
+    @Test fun bulkActionsConfirmPendingAndDeleteSelectedRows() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val repository = DemoTransactions()
+            val model = TransactionsModel(repository)
+            val rows = repository.observeAll().first()
+            model.confirmAll(rows)
+            runCurrent()
+            assertTrue(repository.observeAll().first().all { it.status == TransactionStatus.CONFIRMED })
+            model.deleteAll(rows)
+            runCurrent()
+            assertTrue(repository.observeAll().first().isEmpty())
+            model.viewModelScope.cancel()
+        } finally { Dispatchers.resetMain() }
+    }
 }

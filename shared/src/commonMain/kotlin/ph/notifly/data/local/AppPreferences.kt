@@ -33,6 +33,7 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     suspend fun setPalette(value: NotiflyPalette) { store.edit { it[paletteKey] = value.name } }
     suspend fun setThemeMode(value: ThemeMode) { store.edit { it[themeModeKey] = value.name } }
     suspend fun completeOnboarding() { store.edit { it[onboardingKey] = true } }
+    suspend fun resetOnboarding() { store.edit { it[onboardingKey] = false } }
     suspend fun setOffline(value: Boolean) { store.edit { it[offlineKey] = value } }
     suspend fun setKeepRawText(value: Boolean) { store.edit { it[retentionKey] = value } }
     suspend fun setCrashReporting(value: Boolean) { store.edit { it[crashReportingKey] = value } }

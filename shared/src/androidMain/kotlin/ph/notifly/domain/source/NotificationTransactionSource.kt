@@ -34,17 +34,14 @@ class NotificationTransactionSource(
         .let { flow -> kotlinx.coroutines.flow.flow { flow.collect { rows -> rows.firstOrNull()?.let { emit(it) } } } }
     override suspend fun capture(event: NotificationEvent) {
         captures.purgeExpired()
+        if (!allowList.isAllowed(event.sourceApp)) {
+            return
+        }
         val sourceAppLabel = runCatching {
             context.packageManager.getApplicationLabel(
                 context.packageManager.getApplicationInfo(event.sourceApp, 0),
             ).toString()
         }.getOrDefault(event.sourceApp)
-        if (!allowList.isAllowed(event.sourceApp)) {
-            captures.record(RawCapture(sourceApp = sourceAppLabel, capturedAt = Clock.System.now(), body = null,
-                result = CaptureResult.IGNORED, reason = "App is not on your allow-list; its notification text was not read.",
-                fingerprint = digest("ignored:${event.key}:${event.postedAtMillis}")))
-            return
-        }
         val content = event.readContent()
         val body = listOf(content.title, content.text).filter { it.isNotBlank() }.joinToString(" — ")
         if (body.isBlank()) return

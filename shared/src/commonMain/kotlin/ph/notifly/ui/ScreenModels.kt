@@ -3,6 +3,7 @@ package ph.notifly.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import ph.notifly.data.local.AppPreferences
@@ -13,6 +14,7 @@ import ph.notifly.domain.repository.*
 import ph.notifly.ui.theme.NotiflyPalette
 import ph.notifly.ui.theme.ThemeMode
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
@@ -42,6 +44,12 @@ open class ScreenModel : ViewModel() {
 }
 
 data class LedgerState(val rows: List<Transaction> = emptyList(), val net: Long = 0L)
+data class InsightsState(
+    val rows: List<Transaction> = emptyList(),
+    val net: Long = 0L,
+    val timeline: List<Transaction> = emptyList(),
+    val timelineHasMore: Boolean = false,
+)
 class HomeModel(private val repository: TransactionRepository) : ScreenModel() {
     val state = combine(repository.observeAll(), repository.observeConfirmedNetMinor()) { rows, net -> LedgerState(rows, net) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LedgerState())
@@ -50,12 +58,19 @@ class HomeModel(private val repository: TransactionRepository) : ScreenModel() {
         mutableEvents.emit(UiEvent.Message("Transaction confirmed", undo = t))
     }
 }
+@OptIn(ExperimentalCoroutinesApi::class)
 class InsightsModel(repository: TransactionRepository) : ScreenModel() {
-    val state = repository.observeByStatus(TransactionStatus.CONFIRMED).map { rows ->
-        LedgerState(rows, rows.sumOf { when (it.type) {
+    private val timelineLimit = MutableStateFlow(10)
+    private val timelineStart = Clock.System.now() - 7.days
+    val state = combine(
+        repository.observeByStatus(TransactionStatus.CONFIRMED),
+        timelineLimit.flatMapLatest { limit -> repository.observeConfirmedSince(timelineStart, limit + 1).map { it to limit } },
+    ) { rows, (timelineRows, limit) ->
+        InsightsState(rows, rows.sumOf { when (it.type) {
             TransactionType.INCOME -> it.amountMinor; TransactionType.EXPENSE -> -it.amountMinor; TransactionType.TRANSFER -> 0L
-        } })
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LedgerState())
+        } }, timelineRows.take(limit), timelineRows.size > limit)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InsightsState())
+    fun showMoreTimeline() { timelineLimit.value += 25 }
 }
 enum class TransactionFilter { ALL, NEEDS_REVIEW, INCOME, EXPENSE }
 data class TransactionsState(val rows: List<Transaction> = emptyList(), val filter: TransactionFilter = TransactionFilter.ALL)
@@ -73,6 +88,19 @@ class TransactionsModel(private val repository: TransactionRepository) : ScreenM
     fun confirm(t: Transaction) = work {
         repository.upsert(t.copy(status = TransactionStatus.CONFIRMED))
         mutableEvents.emit(UiEvent.Message("Transaction confirmed", undo = t))
+    }
+    fun delete(t: Transaction) = work {
+        repository.delete(t.id)
+        mutableEvents.emit(UiEvent.Message("Transaction deleted", undo = t))
+    }
+    fun confirmAll(rows: List<Transaction>) = work {
+        val pending = rows.filter { it.status == TransactionStatus.NEEDS_REVIEW }
+        pending.forEach { repository.upsert(it.copy(status = TransactionStatus.CONFIRMED)) }
+        if (pending.isNotEmpty()) mutableEvents.emit(UiEvent.Message("${pending.size} transactions confirmed"))
+    }
+    fun deleteAll(rows: List<Transaction>) = work {
+        rows.forEach { repository.delete(it.id) }
+        if (rows.isNotEmpty()) mutableEvents.emit(UiEvent.Message("${rows.size} transactions deleted"))
     }
 }
 
@@ -154,6 +182,10 @@ class SettingsModel(private val preferences: AppPreferences, pending: Flow<Int>)
         else preferences.setOffline(true)
     }
     fun crashReporting(value: Boolean) = work { preferences.setCrashReporting(value) }
+    fun restartOnboarding() = work {
+        preferences.resetOnboarding()
+        navigate("onboarding")
+    }
 }
 data class AllowListState(val apps: List<AllowedApp> = emptyList())
 class AllowListModel(private val repository: AllowListRepository) : ScreenModel() {

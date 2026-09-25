@@ -19,6 +19,9 @@ class TransactionRepositoryImpl(
     override fun observeByStatus(status: TransactionStatus): Flow<List<Transaction>> =
         dao.observeByStatus(status.name).map { entities -> entities.map { it.toDomain() } }
 
+    override fun observeConfirmedSince(since: kotlin.time.Instant, limit: Int): Flow<List<Transaction>> =
+        dao.observeConfirmedSince(since.toEpochMilliseconds(), limit).map { entities -> entities.map { it.toDomain() } }
+
     override suspend fun byId(id: Long): Transaction? =
         dao.byId(id)?.toDomain()
 

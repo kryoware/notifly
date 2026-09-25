@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -14,16 +15,17 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.*
+import kotlin.time.Clock
 import ph.notifly.data.local.AppPreferences
 import ph.notifly.data.parser.NotificationParser
 import ph.notifly.data.parser.ParseOutcome
@@ -35,7 +37,8 @@ data class LogState(val captures: List<RawCapture> = emptyList(), val filter: Ca
 class LogModel(private val captures: CaptureRepository, private val preferences: AppPreferences) : ScreenModel() {
     private val filter = MutableStateFlow<CaptureResult?>(null)
     val state = combine(captures.observeLog(), filter, preferences.keepRawText) { rows, f, keep ->
-        LogState(rows.filter { f == null || it.result == f }.sortedByDescending { it.capturedAt }, f, keep)
+        LogState(rows.filter { it.result != CaptureResult.IGNORED && (f == null || it.result == f) }
+            .sortedByDescending { it.capturedAt }, f, keep)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LogState())
     init { work { captures.purgeExpired() } }
     fun filter(value: CaptureResult?) { filter.value = value }
@@ -61,17 +64,30 @@ fun LogScreen(model: LogModel) {
     var clear by remember { mutableStateOf(false) }
     val parser = remember { NotificationParser() }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(
+            Modifier.fillMaxWidth().toggleable(
+                value = s.keepRaw,
+                role = Role.Switch,
+                onValueChange = model::retain,
+            ).padding(top = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text("Keep raw text on device", Modifier.weight(1f))
-            Switch(s.keepRaw, model::retain, modifier = Modifier.semantics { contentDescription = "Keep raw text on device" })
+            Switch(s.keepRaw, onCheckedChange = null)
         }
         Text("Raw text is never uploaded and is removed after 24 hours.", style = MaterialTheme.typography.bodySmall)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(s.filter == null, { model.filter(null) }, label = { Text("All") })
-            CaptureResult.entries.forEach { result -> FilterChip(s.filter == result, { model.filter(result) }, label = { Text(result.label()) }) }
+            CaptureResult.entries.filter { it != CaptureResult.IGNORED }.forEach { result ->
+                FilterChip(s.filter == result, { model.filter(result) }, label = { Text(result.label()) })
+            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            IconButton(onClick = { shareCsv(s.captures.toCsv()) }, enabled = s.captures.isNotEmpty()) {
+            IconButton(onClick = {
+                val tab = s.filter?.exportName() ?: "all"
+                shareCsv(s.captures.toCsv(), "${tab}_${Clock.System.now().epochSeconds}.csv")
+            }, enabled = s.captures.isNotEmpty()) {
                 Icon(Icons.Default.FileDownload, contentDescription = "Export CSV")
             }
             IconButton(onClick = { clear = true }, enabled = s.captures.isNotEmpty()) {
@@ -128,4 +144,11 @@ fun LogScreen(model: LogModel) {
         text = { Text("This removes the local log. Your transactions remain.") },
         confirmButton = { TextButton(onClick = { clear = false; model.clear() }) { Text("Clear") } },
         dismissButton = { TextButton(onClick = { clear = false }) { Text("Cancel") } })
+}
+
+private fun CaptureResult.exportName() = when (this) {
+    CaptureResult.PARSED -> "parsed"
+    CaptureResult.NEEDS_REVIEW -> "needs_review"
+    CaptureResult.UNRECOGNIZED -> "unrecognized"
+    CaptureResult.IGNORED -> "ignored"
 }

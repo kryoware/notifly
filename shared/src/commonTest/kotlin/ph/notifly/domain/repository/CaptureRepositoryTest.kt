@@ -72,10 +72,12 @@ class CaptureRepositoryTest {
         repo.record(capture(result = CaptureResult.PARSED))
         repo.record(capture(result = CaptureResult.UNRECOGNIZED))
         repo.record(capture(result = CaptureResult.PARSED))
+        repo.record(capture(result = CaptureResult.IGNORED))
 
         val parsed = repo.observeLog(CaptureResult.PARSED).first()
         assertEquals(2, parsed.size)
         assertTrue(parsed.all { it.result == CaptureResult.PARSED })
+        assertTrue(repo.observeLog().first().none { it.result == CaptureResult.IGNORED })
     }
 
     @Test

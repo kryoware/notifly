@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.update
 import ph.notifly.domain.model.Transaction
 import ph.notifly.domain.model.TransactionStatus
 import ph.notifly.domain.model.TransactionType
+import kotlin.time.Instant
 
 class FakeTransactionRepository : TransactionRepository {
 
@@ -17,6 +18,13 @@ class FakeTransactionRepository : TransactionRepository {
 
     override fun observeByStatus(status: TransactionStatus): Flow<List<Transaction>> =
         store.map { list -> list.filter { it.status == status } }
+
+    override fun observeConfirmedSince(since: Instant, limit: Int): Flow<List<Transaction>> =
+        store.map { list ->
+            list.filter { it.status == TransactionStatus.CONFIRMED && it.occurredAt >= since }
+                .sortedWith(compareByDescending<Transaction> { it.occurredAt }.thenByDescending { it.createdAt })
+                .take(limit)
+        }
 
     override suspend fun byId(id: Long): Transaction? =
         store.value.firstOrNull { it.id == id }

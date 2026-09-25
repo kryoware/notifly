@@ -189,7 +189,7 @@ internal fun schemeFor(palette: NotiflyPalette, dark: Boolean = false): ColorSch
     )
 }
 
-internal fun accentsFor(palette: NotiflyPalette): NotiflyAccents = when (palette) {
+internal fun accentsFor(palette: NotiflyPalette, dark: Boolean = false): NotiflyAccents = when (palette) {
     NotiflyPalette.Evergreen -> NotiflyAccents(
         Color(0xFF1E6B45), Color(0xFFA4F2C4), Color(0xFF002110),
         Color(0xFFBA1A1A), Color(0xFFFFDAD6), Color(0xFF410002),
@@ -206,4 +206,6 @@ internal fun accentsFor(palette: NotiflyPalette): NotiflyAccents = when (palette
         Color(0xFF3C6B45), Color(0xFFBEF0C4), Color(0xFF00210B),
         Color(0xFFBA1A1A), Color(0xFFFFDAD6), Color(0xFF410002),
     )
+}.let { accents ->
+    if (dark) accents.copy(income = accents.incomeContainer, expense = accents.expenseContainer) else accents
 }

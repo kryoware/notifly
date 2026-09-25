@@ -24,7 +24,8 @@ class CaptureRepositoryImpl(
 
     override fun observeLog(filter: CaptureResult?): Flow<List<RawCapture>> =
         kotlinx.coroutines.flow.combine(dao.observeLog(filter?.name), preferences?.keepRawText ?: kotlinx.coroutines.flow.flowOf(false)) { entities, keep ->
-            entities.map { entity -> entity.toDomain().let { if (keep) it else it.copy(body = null) } }
+            entities.filter { it.result != CaptureResult.IGNORED.name }
+                .map { entity -> entity.toDomain().let { if (keep) it else it.copy(body = null) } }
         }
 
     override suspend fun record(capture: RawCapture): Long = writeLock.withLock {

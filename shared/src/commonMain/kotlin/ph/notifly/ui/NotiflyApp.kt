@@ -10,6 +10,11 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material3.*
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.adaptive.navigationsuite.ExperimentalMaterial3AdaptiveNavigationSuiteApi
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,7 +28,7 @@ import ph.notifly.data.local.AppPreferences
 import ph.notifly.domain.repository.*
 import ph.notifly.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveNavigationSuiteApi::class)
 @Composable
 fun NotiflyApp(
     demo: Boolean = false,
@@ -86,6 +91,29 @@ fun NotiflyApp(
             Surface(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
             return@NotiflyTheme
         }
+        val navigationSuiteType = if (route in topLevel) {
+            NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo())
+        } else {
+            NavigationSuiteType.None
+        }
+        NavigationSuiteScaffold(
+            navigationSuiteItems = {
+                listOf(
+                    Triple("home", "Home", Icons.Default.Home),
+                    Triple("transactions", "Transactions", Icons.AutoMirrored.Filled.List),
+                    Triple("insights", "Insights", Icons.Default.PieChart),
+                    Triple("settings", "Settings", Icons.Default.Settings),
+                ).forEach { (target, label, icon) ->
+                    item(
+                        selected = route == target,
+                        onClick = { navigate(target) },
+                        icon = { Icon(icon, null) },
+                        label = { Text(label) },
+                    )
+                }
+            },
+            layoutType = navigationSuiteType,
+        ) {
         Scaffold(
             topBar = {
                 if (route != "onboarding" && route != "auth") {
@@ -96,13 +124,7 @@ fun NotiflyApp(
                     })
                 }
             },
-            bottomBar = {
-                if (route in topLevel) NavigationBar {
-                    listOf(Triple("home", "Home", Icons.Default.Home), Triple("transactions", "Transactions", Icons.AutoMirrored.Filled.List), Triple("insights", "Insights", Icons.Default.PieChart), Triple("settings", "Settings", Icons.Default.Settings)).forEach { (target, label, icon) ->
-                        NavigationBarItem(selected = route == target, onClick = { navigate(target) }, icon = { Icon(icon, null) }, label = { Text(label) })
-                    }
-                }
-            }, snackbarHost = { SnackbarHost(snackbar) },
+            snackbarHost = { SnackbarHost(snackbar) },
         ) { padding ->
             NavHost(
                 nav, startDestination = if (onboarded == true) "home" else "onboarding",
@@ -133,6 +155,7 @@ fun NotiflyApp(
                     val m = viewModel { EditorModel(transactions, 0L, captures, it.arguments?.getLong("captureId")) }; Events(m, handle); EditorScreen(m)
                 }
             }
+        }
         }
     }
 }
