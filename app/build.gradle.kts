@@ -74,7 +74,8 @@ dependencies {
 sentry {
     autoInstallation { enabled = false }
     tracingInstrumentation { enabled = true }
-    autoUploadProguardMapping = providers.environmentVariable("SENTRY_AUTH_TOKEN").isPresent
+    autoUploadProguardMapping = providers.environmentVariable("SENTRY_AUTH_TOKEN")
+        .map { it.isNotBlank() }.getOrElse(false)
     includeProguardMapping = true
     includeSourceContext = false
     telemetry = false
