@@ -77,7 +77,8 @@ class CaptureRepositoryTest {
         val parsed = repo.observeLog(CaptureResult.PARSED).first()
         assertEquals(2, parsed.size)
         assertTrue(parsed.all { it.result == CaptureResult.PARSED })
-        assertTrue(repo.observeLog().first().none { it.result == CaptureResult.IGNORED })
+        assertEquals(4, repo.observeLog().first().size)
+        assertEquals(CaptureResult.IGNORED, repo.observeLog(CaptureResult.IGNORED).first().single().result)
     }
 
     @Test

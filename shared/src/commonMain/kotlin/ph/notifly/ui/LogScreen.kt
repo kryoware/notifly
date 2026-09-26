@@ -40,7 +40,7 @@ data class LogState(val captures: List<RawCapture> = emptyList(), val filter: Ca
 class LogModel(private val captures: CaptureRepository, private val preferences: AppPreferences) : ScreenModel() {
     private val filter = MutableStateFlow<CaptureResult?>(null)
     val state = combine(captures.observeLog(), filter, preferences.keepRawText) { rows, f, keep ->
-        LogState(rows.filter { it.result != CaptureResult.IGNORED && (f == null || it.result == f) }
+        LogState(rows.filter { f == null || it.result == f }
             .sortedByDescending { it.capturedAt }, f, keep)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LogState())
     init { work { captures.purgeExpired() } }

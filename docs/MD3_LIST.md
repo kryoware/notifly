@@ -23,6 +23,15 @@ Here is the breakdown of the UX interactions shown in the video:
 
 For modern Android development, **Jetpack Compose** is the recommended way to implement this. Here is the step-by-step architectural approach to replicate this UI/UX using Compose.
 
+In Notifly, use generated Material Symbols with `painterResource`; see [MD_ICONS.md](MD_ICONS.md).
+The examples use `clear`, `push_pin`, `archive`, `delete`, and `check_circle`.
+Add any missing names to `NAMES` in `tools/download_symbols.py` and rerun the generator before using them.
+
+```kotlin
+import org.jetbrains.compose.resources.painterResource
+import notifly.shared.generated.resources.*
+```
+
 ### 1. State Management
 
 The core of this UX is tracking which items are currently selected. You should hoist this state to your ViewModel or a parent Composable.
@@ -61,13 +70,13 @@ fun MainAppBar(
             title = { Text(selectedIds.size.toString()) },
             navigationIcon = {
                 IconButton(onClick = onClearSelection) {
-                    Icon(Icons.Default.Close, contentDescription = "Clear Selection")
+                    Icon(painterResource(Res.drawable.symbol_clear), contentDescription = "Clear Selection")
                 }
             },
             actions = {
-                IconButton(onClick = { /* Handle Pin */ }) { Icon(Icons.Default.PushPin, "") }
-                IconButton(onClick = { /* Handle Archive */ }) { Icon(Icons.Default.Archive, "") }
-                IconButton(onClick = { /* Handle Delete */ }) { Icon(Icons.Default.Delete, "") }
+                IconButton(onClick = { /* Handle Pin */ }) { Icon(painterResource(Res.drawable.symbol_push_pin), "Pin") }
+                IconButton(onClick = { /* Handle Archive */ }) { Icon(painterResource(Res.drawable.symbol_archive), "Archive") }
+                IconButton(onClick = { /* Handle Delete */ }) { Icon(painterResource(Res.drawable.symbol_delete), "Delete") }
             },
             // Use a slightly different background color for the contextual bar
             colors = TopAppBarDefaults.topAppBarColors(
@@ -129,7 +138,7 @@ fun MessageItem(
         Crossfade(targetState = isSelected, label = "avatar_animation") { selected ->
             if (selected) {
                 Icon(
-                    imageVector = Icons.Default.CheckCircle,
+                    painter = painterResource(Res.drawable.symbol_check_circle),
                     contentDescription = "Selected",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(40.dp)
@@ -180,15 +189,16 @@ fun SwipeableMessageItem( /* params */ ) {
     SwipeToDismissBox(
         state = dismissState,
         backgroundContent = {
-            // The background revealed when swiping (e.g., Green box with Archive icon)
+            // The themed background revealed when swiping
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(Color.Gray)
+                    .background(MaterialTheme.colorScheme.secondaryContainer)
                     .padding(horizontal = 20.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
-                Icon(Icons.Default.Archive, contentDescription = "Archive", tint = Color.White)
+                Icon(painterResource(Res.drawable.symbol_archive), contentDescription = "Archive",
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer)
             }
         }
     ) {

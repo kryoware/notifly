@@ -42,7 +42,8 @@ class NotificationParser {
 
         val lower = text.lowercase()
         val inWord = inbound.firstOrNull { lower.contains(it) }
-        val outWord = outbound.firstOrNull { lower.contains(it) }
+        // "Payment" is a noun in incoming payments; actual outbound verbs still conflict.
+        val outWord = outbound.firstOrNull { lower.contains(it) && (it != "payment" || inWord == null) }
         val isHold = holdWords.any { lower.contains(it) }
 
         if (inWord == null && outWord == null && !isHold) {
@@ -111,12 +112,13 @@ class NotificationParser {
     }
 
     /**
-     * Whole label or any distinctive word of it leading the counterparty, so "BDO" matches "BDO Digital"
+     * Whole label or a distinctive word leading the counterparty, optionally after possessives.
+     * "My BDO account" matches "BDO Digital"
      * but "JOLLIBEE at BDO Mall" does not.
      */
     private fun mentionedApp(counterparty: String, financeApps: Collection<String>): String? = financeApps.firstOrNull { label ->
         (label.split(Regex("[^A-Za-z0-9]+")).filter { it.length >= 3 && it.lowercase() !in genericNameWords } + label.trim())
-            .any { Regex("""^${Regex.escape(it)}\b""", RegexOption.IGNORE_CASE).containsMatchIn(counterparty) }
+            .any { Regex("""^(?:(?:my|your|own)\s+)*${Regex.escape(it)}\b""", RegexOption.IGNORE_CASE).containsMatchIn(counterparty) }
     }
 
     /** Takes the token run after "to"/"from". Deliberately crude — merchant is low-stakes. */

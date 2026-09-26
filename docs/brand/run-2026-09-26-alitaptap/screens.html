@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Notifly — Alitaptap app screens</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=block" rel="stylesheet">
+<style>
+:root {
+  --gabi: #0F0E12; --dusk: #17151B; --dusk2: #1E1C23; --high: #29262F; --line: #2F2C35;
+  --reed: #8E8996; --mute: #5C5864; --bone: #EEEAE0; --kraft: #E4DAC7;
+  --glow: #E4F45E; --glowSoft: rgba(228, 244, 94, .32);
+  --display: 'Bricolage Grotesque', 'Segoe UI', sans-serif;
+  --serif: 'Instrument Serif', Georgia, serif;
+  --mono: 'IBM Plex Mono', Consolas, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #09080B; color: var(--bone); font-family: var(--display); -webkit-font-smoothing: antialiased; }
+body::before { content: ''; position: fixed; inset: 0; background: radial-gradient(60% 40% at 50% 0%, rgba(228,244,94,.035), transparent 70%); pointer-events: none; }
+
+/* presentation */
+.grid { display: grid; grid-template-columns: repeat(3, 430px); gap: 72px 80px; padding: 0 120px 120px; }
+.head { display: flex; align-items: flex-end; justify-content: space-between; padding: 96px 120px 64px; }
+.head .t { font: 400 15px/1 var(--mono); letter-spacing: .16em; color: var(--reed); text-transform: uppercase; }
+.head .t b { color: var(--glow); font-weight: 500; }
+.cap { display: flex; justify-content: space-between; align-items: baseline; margin-top: 28px; padding: 0 6px; font: 500 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+.cap b { color: var(--glow); font-weight: 500; margin-right: 12px; }
+.cap span { color: var(--bone); letter-spacing: .1em; }
+body.single .head { display: none; }
+body.single .grid { display: block; padding: 145px; }
+body.single .cell { display: none; }
+body.single .cell.show { display: block; }
+
+/* device */
+.dev { width: 430px; height: 910px; border-radius: 56px; background: #050506; padding: 9px; position: relative;
+  box-shadow: 0 40px 80px rgba(0,0,0,.55), 0 0 0 1px #24212A, inset 0 0 0 1px #3A3642; }
+.dev::after { content: ''; position: absolute; right: -3px; top: 190px; width: 3px; height: 96px; border-radius: 0 2px 2px 0; background: #1F1C24; box-shadow: 0 130px 0 #1F1C24; }
+.scr { width: 412px; height: 892px; border-radius: 47px; background: var(--gabi); overflow: hidden; position: relative; display: flex; flex-direction: column; }
+.cam { position: absolute; top: 13px; left: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: #050506; box-shadow: inset 0 0 0 1.5px #1C1A20; z-index: 30; }
+.grain { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .06; mix-blend-mode: overlay; z-index: 25; }
+.sb { height: 40px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 4px 28px 0; font: 500 14px/1 var(--display); color: var(--bone); position: relative; z-index: 5; }
+.sb .sys { display: flex; gap: 6px; align-items: center; }
+.sb .sys svg { width: 15px; height: 15px; fill: var(--bone); }
+.gh { position: absolute; bottom: 8px; left: 50%; width: 108px; height: 4px; margin-left: -54px; border-radius: 2px; background: var(--bone); opacity: .5; z-index: 20; }
+
+/* type */
+.serif { font-family: var(--serif); font-weight: 400; letter-spacing: -.01em; }
+.serif em { font-style: italic; }
+.ml { font: 500 11.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--reed); }
+.amt { font: 500 15px/1 var(--mono); font-feature-settings: 'tnum'; white-space: nowrap; letter-spacing: -.01em; }
+.word { font: 600 24px/1 var(--display); font-variation-settings: 'opsz' 32; letter-spacing: -.03em; color: var(--bone); white-space: nowrap; }
+.ti { position: relative; }
+.ti i { position: absolute; left: 50%; top: .16em; width: .15em; height: .15em; border-radius: 50%; background: var(--glow); transform: translateX(-54%); box-shadow: 0 0 .14em rgba(228,244,94,.55); }
+
+/* chrome */
+.ic { width: 24px; height: 24px; fill: currentColor; flex: none; }
+.ic.s { width: 18px; height: 18px; }
+.bar { height: 64px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 8px 0 20px; position: relative; z-index: 5; }
+.bar.back { padding-left: 4px; }
+.bar h1 { flex: 1; font: 600 22px/1 var(--display); font-variation-settings: 'opsz' 28; letter-spacing: -.015em; }
+.ib { width: 48px; height: 48px; flex: none; display: grid; place-items: center; border-radius: 50%; color: var(--bone); }
+.body { flex: 1; overflow: hidden; position: relative; }
+.nav { flex: none; height: 104px; background: var(--dusk); display: flex; padding: 12px 8px 0; position: relative; z-index: 6; box-shadow: 0 -1px 0 #1F1D24; }
+.nav .it { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; font: 500 12.5px/16px var(--display); color: var(--reed); }
+.nav .pill { width: 64px; height: 32px; border-radius: 16px; display: grid; place-items: center; position: relative; }
+.nav .on { color: var(--bone); font-weight: 600; }
+.nav .on .pill { background: var(--high); }
+.nav .badge { position: absolute; top: 3px; right: 13px; width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--glow); }
+
+/* controls */
+.btn { height: 56px; border-radius: 28px; display: flex; align-items: center; justify-content: center; gap: 8px; font: 600 16px/1 var(--display); flex: none; }
+.btn.glow { background: var(--glow); color: var(--gabi); box-shadow: 0 0 28px rgba(228,244,94,.16); }
+.btn.out { box-shadow: inset 0 0 0 1px #3F3B47; color: var(--bone); }
+.tbtn { font: 500 15px/1 var(--display); color: var(--bone); text-align: center; padding: 16px; }
+.steps { display: flex; gap: 6px; }
+.steps i { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
+.steps i.done { background: #5E5A66; }
+.steps i.on { background: var(--glow); box-shadow: 0 0 10px rgba(228,244,94,.4); }
+.chips { display: flex; gap: 8px; padding: 6px 20px 10px; white-space: nowrap; flex: none; }
+.chip { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; border-radius: 12px; font: 500 14px/1 var(--display); color: var(--bone); box-shadow: inset 0 0 0 1px #3A3642; flex: none; }
+.chip .ic { width: 18px; height: 18px; color: var(--reed); }
+.chip.sel { background: var(--high); box-shadow: none; padding-left: 10px; }
+.chip.sel .ic { color: var(--bone); }
+.sw { width: 52px; height: 32px; border-radius: 16px; flex: none; position: relative; box-shadow: inset 0 0 0 2px var(--mute); }
+.sw::after { content: ''; position: absolute; left: 8px; top: 8px; width: 16px; height: 16px; border-radius: 50%; background: var(--mute); }
+.sw.on { background: var(--bone); box-shadow: none; }
+.sw.on::after { left: 24px; top: 4px; width: 24px; height: 24px; background: var(--gabi); }
+
+/* lists */
+.sec { display: flex; align-items: baseline; justify-content: space-between; padding: 20px 20px 6px; }
+.sec h3 { font: 600 18px/1 var(--display); letter-spacing: -.01em; }
+.sec .ml { font-size: 11px; }
+.grp { padding: 22px 20px 8px; }
+.row { display: flex; align-items: center; gap: 16px; min-height: 72px; padding: 10px 20px; position: relative; }
+.row .t { flex: 1; min-width: 0; }
+.row .h { font: 500 16px/22px var(--display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .s { font: 400 13.5px/19px var(--display); color: var(--reed); display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.av { width: 40px; height: 40px; border-radius: 50%; background: var(--high); display: grid; place-items: center; color: var(--bone); font: 600 15px/1 var(--display); flex: none; }
+.av.sq { border-radius: 12px; }
+.av .ic { width: 20px; height: 20px; }
+.rg { width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--glow); flex: none; }
+.dt { width: 7px; height: 7px; border-radius: 50%; background: var(--glow); box-shadow: 0 0 6px rgba(228,244,94,.6); flex: none; margin: 0 1.5px; }
+.pos { color: var(--kraft); }
+.dim { color: var(--reed); }
+.hr { height: 1px; background: #1F1D24; margin: 0 20px 0 76px; }
+
+/* welcome */
+.night { position: absolute; left: 0; top: 0; width: 412px; height: 600px; }
+.fade { position: absolute; left: 0; top: 0; width: 412px; height: 620px; background: linear-gradient(transparent 58%, var(--gabi) 94%); }
+.wl-top { position: absolute; left: 24px; top: 58px; z-index: 5; }
+.ov { position: absolute; left: 0; top: 0; width: 412px; height: 892px; pointer-events: none; z-index: 4; }
+.tag { position: absolute; z-index: 5; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: 15px; background: rgba(15,14,18,.82); box-shadow: inset 0 0 0 1px #3A3642; font: 500 12.5px/1 var(--mono); color: var(--bone); white-space: nowrap; }
+.pingring { position: absolute; z-index: 5; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; box-shadow: inset 0 0 0 1.6px var(--glow), 0 0 14px rgba(228,244,94,.35); }
+.copy { position: absolute; left: 24px; right: 24px; bottom: 30px; z-index: 5; display: flex; flex-direction: column; }
+.copy h2 { font-size: 46px; line-height: 1; margin: 26px 0 16px; }
+.copy p { font: 400 16px/1.5 var(--display); color: var(--reed); margin-bottom: 30px; }
+.copy p b { color: var(--bone); font-weight: 500; }
+
+/* access */
+.illo { position: relative; height: 236px; flex: none; }
+.illo svg { position: absolute; inset: 0; }
+.facts { display: flex; flex-direction: column; gap: 14px; margin-top: 24px; }
+.fact { display: flex; align-items: center; gap: 14px; font: 500 15px/1.3 var(--display); }
+.fact .g { width: 36px; height: 36px; border-radius: 12px; background: var(--dusk2); display: grid; place-items: center; color: var(--glow); flex: none; box-shadow: inset 0 0 0 1px var(--line); }
+.fact .g svg { width: 18px; height: 18px; }
+
+/* home */
+.hero { margin: 4px 16px 0; border-radius: 28px; padding: 24px 22px 18px; position: relative; overflow: hidden;
+  background: linear-gradient(155deg, #1D1B22 0%, #141318 70%); box-shadow: inset 0 0 0 1px #24212A; }
+.hero canvas { position: absolute; right: 0; top: 0; width: 220px; height: 150px; }
+.bal { display: flex; align-items: baseline; margin: 14px 0 8px; font: 600 50px/1 var(--display); font-variation-settings: 'opsz' 96; letter-spacing: -.035em; font-feature-settings: 'tnum'; position: relative; }
+.bal small { font-size: 26px; color: var(--reed); letter-spacing: -.01em; margin-left: 2px; }
+.bal .cur { font-size: 30px; font-weight: 500; color: var(--reed); margin-right: 4px; align-self: flex-start; margin-top: 6px; }
+.note { font: 400 13px/1.4 var(--display); color: var(--reed); position: relative; }
+.pend { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px dashed #3A3642; position: relative; }
+.pend .t { flex: 1; }
+.pend .h { font: 500 14px/1 var(--display); display: flex; align-items: center; gap: 8px; }
+.pend .v { font: 500 15px/1 var(--mono); color: var(--bone); margin-top: 8px; opacity: .85; }
+.pend .v span { font-family: var(--display); color: var(--reed); font-size: 13px; }
+.pill-btn { height: 36px; padding: 0 16px; border-radius: 18px; background: var(--glow); color: var(--gabi); font: 600 14px/36px var(--display); flex: none; }
+.hint { display: flex; align-items: center; gap: 12px; margin: 6px 16px 0; padding: 12px 14px; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line); font: 400 13px/1.35 var(--display); color: var(--reed); }
+.hint .ic { width: 20px; height: 20px; color: var(--bone); }
+.hint b { color: var(--bone); font-weight: 500; }
+.okb { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--glow); box-shadow: inset 0 0 0 1.5px rgba(228,244,94,.6); flex: none; }
+.okb .ic { width: 20px; height: 20px; }
+.fab { position: absolute; right: 16px; bottom: 120px; z-index: 7; height: 56px; padding: 0 20px 0 16px; border-radius: 18px; background: var(--glow); color: var(--gabi); display: flex; align-items: center; gap: 10px; font: 600 15px/1 var(--display); box-shadow: 0 8px 24px rgba(0,0,0,.45), 0 0 24px rgba(228,244,94,.14); }
+
+/* review */
+.ntf { margin: 8px 16px 0; background: var(--high); border-radius: 22px; padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start; position: relative; }
+.ntf .av { width: 32px; height: 32px; font-size: 13px; background: #3D3944; }
+.ntf .m { font: 400 13px/1 var(--display); color: var(--reed); display: flex; justify-content: space-between; }
+.ntf .b { font: 400 15px/1.4 var(--display); margin-top: 7px; }
+.wire { margin: 10px 0 10px 45px; display: flex; align-items: center; gap: 12px; font: 400 10.5px/1 var(--mono); letter-spacing: .16em; color: var(--reed); flex: none; }
+.wire::before { content: ''; width: 1px; height: 30px; background: linear-gradient(#4A4652, var(--glow)); }
+.amtf { margin: 0 16px; padding: 18px 20px 16px; border-radius: 22px; background: #15150F; box-shadow: inset 0 0 0 1px rgba(228,244,94,.28); }
+.amtf .top { display: flex; justify-content: space-between; align-items: center; }
+.amtf .big { font: 600 42px/1 var(--display); font-variation-settings: 'opsz' 96; letter-spacing: -.03em; margin-top: 14px; display: flex; align-items: baseline; gap: 6px; }
+.amtf .big .cur { font-size: 26px; color: var(--reed); font-weight: 500; }
+.amtf .big .caret { width: 2px; height: 36px; background: var(--glow); align-self: center; margin-left: 2px; }
+.rv { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px 0 10px; border-radius: 15px; box-shadow: inset 0 0 0 1px rgba(228,244,94,.55); font: 500 13px/1 var(--display); }
+.seg { display: flex; margin: 16px 16px 0; height: 44px; border-radius: 22px; box-shadow: inset 0 0 0 1px #3A3642; overflow: hidden; }
+.seg div { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font: 500 14px/1 var(--display); border-left: 1px solid #3A3642; }
+.seg div:first-child { border-left: 0; }
+.seg .on { background: var(--high); }
+.seg .ic { width: 18px; height: 18px; }
+.fld { position: relative; margin: 14px 16px 0; height: 56px; border-radius: 14px; box-shadow: inset 0 0 0 1px #3A3642; display: flex; align-items: center; padding: 0 16px; font: 400 16px/1 var(--display); }
+.fld label { position: absolute; top: -7px; left: 12px; padding: 0 4px; background: var(--gabi); font: 400 12px/14px var(--display); color: var(--reed); }
+.fld .ic { margin-left: auto; color: var(--reed); }
+.two { display: flex; gap: 12px; margin: 0 16px; }
+.two .fld { flex: 1; margin: 14px 0 0; }
+.src { display: flex; align-items: center; gap: 10px; margin: 18px 20px 0; font: 400 14px/1 var(--display); color: var(--reed); }
+.src .av { width: 24px; height: 24px; font-size: 11px; }
+.dock { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 16px 34px; background: linear-gradient(transparent, var(--gabi) 34%); z-index: 6; }
+.dock .ml { text-align: center; margin-top: 14px; font-size: 10.5px; }
+
+/* transactions */
+.ctx { background: var(--high); flex: none; }
+.row.sel { background: rgba(238,234,224,.055); }
+.row.sel::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: var(--glow); }
+.av.chk { background: var(--glow); color: var(--gabi); }
+.av.chk .ic { width: 24px; height: 24px; }
+
+/* insights */
+.pn { display: flex; align-items: center; gap: 14px; margin: 4px 16px 0; padding: 14px 16px; border-radius: 18px; box-shadow: inset 0 0 0 1px rgba(228,244,94,.3); background: #15150F; }
+.pn .h { font: 500 15px/1.25 var(--display); }
+.pn .s { font: 400 13px/1.3 var(--display); color: var(--reed); margin-top: 3px; }
+.pn .ic { color: var(--reed); margin-left: auto; }
+.blk { margin: 12px 16px 0; padding: 20px; border-radius: 24px; background: var(--dusk); }
+.blk .v { font: 600 38px/1 var(--display); font-variation-settings: 'opsz' 96; letter-spacing: -.03em; margin: 12px 0 6px; }
+.blk .v small { font-size: 22px; color: var(--reed); }
+.flow { display: grid; grid-template-columns: 76px 1fr auto; align-items: center; gap: 10px 12px; margin-top: 18px; font: 400 13.5px/1 var(--display); color: var(--reed); }
+.flow .tr { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.flow .tr i { display: block; height: 100%; border-radius: 4px; }
+.flow .amt { font-size: 13.5px; color: var(--bone); }
+.chart { position: relative; height: 104px; display: flex; align-items: flex-end; gap: 4px; margin-top: 18px; }
+.chart i { flex: 1; border-radius: 3px 3px 1px 1px; background: #3A3642; }
+.chart i.td { background: var(--bone); }
+.chart .avg { position: absolute; left: 0; right: 0; border-top: 1px dashed #6A6573; }
+.chart .avg span { position: absolute; right: 0; top: -22px; font: 500 11.5px/1 var(--mono); color: var(--bone); background: var(--dusk); padding: 3px 0 3px 6px; }
+.axis { display: flex; justify-content: space-between; margin-top: 8px; font: 400 11px/1 var(--mono); color: var(--reed); letter-spacing: .06em; }
+.bud { height: 10px; border-radius: 5px; background: var(--line); margin: 16px 0 10px; overflow: hidden; }
+.bud i { display: block; height: 100%; width: 82%; background: var(--bone); border-radius: 5px; }
+
+/* log */
+.priv { display: flex; align-items: center; gap: 12px; margin: 2px 16px 4px; padding: 12px 14px; border-radius: 16px; background: var(--dusk); font: 400 13.5px/1.35 var(--display); color: var(--reed); }
+.priv svg { width: 20px; height: 20px; color: var(--bone); flex: none; }
+.priv b { color: var(--bone); font-weight: 500; }
+.xp { margin: 2px 16px 6px; padding: 4px 0 16px; border-radius: 22px; background: var(--dusk); }
+.xp .row { padding: 10px 16px; }
+.kv { display: grid; grid-template-columns: 96px 1fr; gap: 10px 8px; padding: 4px 16px 0 72px; font: 400 14px/1.2 var(--display); }
+.kv dt { color: var(--reed); }
+.kv dd.no { color: var(--reed); font-style: italic; font-family: var(--serif); font-size: 16px; }
+.xp .say { margin: 14px 16px 0 72px; font: 400 13px/1.35 var(--display); color: var(--reed); }
+.xp .btn { height: 40px; margin: 14px 16px 0 72px; border-radius: 20px; font-size: 14px; }
+
+/* settings */
+.cap-card { margin: 4px 16px 0; padding: 18px; border-radius: 24px; background: linear-gradient(155deg, #1D1B22, #141318); box-shadow: inset 0 0 0 1px #24212A; display: flex; align-items: center; gap: 16px; position: relative; overflow: hidden; }
+.cap-card .mk { width: 48px; height: 48px; border-radius: 14px; background: var(--gabi); display: grid; place-items: center; flex: none; box-shadow: inset 0 0 0 1px var(--line); }
+.cap-card .mk svg { width: 30px; height: 30px; }
+.cap-card .h { font: 500 16px/1.25 var(--display); }
+.cap-card .s { font: 400 13.5px/1 var(--display); color: var(--reed); margin-top: 6px; display: flex; align-items: center; gap: 7px; }
+.cap-card .ic { color: var(--reed); margin-left: auto; }
+.set .row { min-height: 64px; padding: 8px 20px; }
+.set .row .ic.lead { color: var(--reed); }
+.pal { display: flex; gap: 6px; }
+.pal i { width: 20px; height: 20px; border-radius: 6px; box-shadow: inset 0 0 0 1px #3A3642; }
+.seg.s3 { margin: 6px 20px 4px; height: 40px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <filter id="noise"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0"/></filter>
+    <symbol id="mk" viewBox="0 0 100 100"><path fill="#EEEAE0" d="M18 86V46a32 32 0 0 1 64 0v40H66V46a16 16 0 0 0-32 0v40z"/><circle cx="50" cy="46" r="8" fill="#E4F45E"/></symbol>
+    <symbol id="phone" viewBox="0 0 20 20"><rect x="5.5" y="2.5" width="9" height="15" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="10" cy="10" r="1.9" fill="currentColor"/></symbol>
+    <symbol id="ring" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6.4" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol>
+    <symbol id="ripple" viewBox="0 0 20 20"><path d="M3 10a7 7 0 0 1 14 0" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 10a7 7 0 0 0 14 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="1.8 2.2"/><circle cx="10" cy="10" r="2.2" fill="currentColor"/></symbol>
+    <symbol id="sig" viewBox="0 0 16 16"><path d="M15 2v12H3z"/></symbol>
+    <symbol id="wifi" viewBox="0 0 16 16"><path d="M8 14 .6 5.2a11.5 11.5 0 0 1 14.8 0z"/></symbol>
+    <symbol id="bat" viewBox="0 0 16 16"><rect x="4.5" y="2" width="7" height="13" rx="1.4"/><rect x="6.5" y=".6" width="3" height="2" rx=".5"/></symbol>
+<symbol id="i-add" viewBox="0 -960 960 960"><path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z"/></symbol>
+<symbol id="i-arrow_back" viewBox="0 -960 960 960"><path d="m313-440 224 224-57 56-320-320 320-320 57 56-224 224h487v80H313Z"/></symbol>
+<symbol id="i-calendar_today" viewBox="0 -960 960 960"><path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Z"/></symbol>
+<symbol id="i-check" viewBox="0 -960 960 960"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></symbol>
+<symbol id="i-check_circle" viewBox="0 -960 960 960"><path d="m424-296 282-282-56-56-226 226-114-114-56 56 170 170Zm56 216q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></symbol>
+<symbol id="i-clear" viewBox="0 -960 960 960"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></symbol>
+<symbol id="i-delete" viewBox="0 -960 960 960"><path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/></symbol>
+<symbol id="i-expand_more" viewBox="0 -960 960 960"><path d="M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z"/></symbol>
+<symbol id="i-file_download" viewBox="0 -960 960 960"><path d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z"/></symbol>
+<symbol id="i-help" viewBox="0 -960 960 960"><path d="M513.5-254.5Q528-269 528-290t-14.5-35.5Q499-340 478-340t-35.5 14.5Q428-311 428-290t14.5 35.5Q457-240 478-240t35.5-14.5ZM442-394h74q0-33 7.5-52t42.5-52q26-26 41-49.5t15-56.5q0-56-41-86t-97-30q-57 0-92.5 30T342-618l66 26q5-18 22.5-39t53.5-21q32 0 48 17.5t16 38.5q0 20-12 37.5T506-526q-44 39-54 59t-10 73Zm38 314q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></symbol>
+<symbol id="i-home" viewBox="0 -960 960 960"><path d="M240-200h120v-240h240v240h120v-360L480-740 240-560v360Zm-80 80v-480l320-240 320 240v480H520v-240h-80v240H160Zm320-350Z"/></symbol>
+<symbol id="i-keyboard_arrow_right" viewBox="0 -960 960 960"><path d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z"/></symbol>
+<symbol id="i-list" viewBox="0 -960 960 960"><path d="M280-600v-80h560v80H280Zm0 160v-80h560v80H280Zm0 160v-80h560v80H280ZM160-600q-17 0-28.5-11.5T120-640q0-17 11.5-28.5T160-680q17 0 28.5 11.5T200-640q0 17-11.5 28.5T160-600Zm0 160q-17 0-28.5-11.5T120-480q0-17 11.5-28.5T160-520q17 0 28.5 11.5T200-480q0 17-11.5 28.5T160-440Zm0 160q-17 0-28.5-11.5T120-320q0-17 11.5-28.5T160-360q17 0 28.5 11.5T200-320q0 17-11.5 28.5T160-280Z"/></symbol>
+<symbol id="i-north_east" viewBox="0 -960 960 960"><path d="m216-160-56-56 464-464H360v-80h400v400h-80v-264L216-160Z"/></symbol>
+<symbol id="i-notifications_active" viewBox="0 -960 960 960"><path d="M80-560q0-100 44.5-183.5T244-882l47 64q-60 44-95.5 111T160-560H80Zm720 0q0-80-35.5-147T669-818l47-64q75 55 119.5 138.5T880-560h-80ZM160-200v-80h80v-280q0-83 50-147.5T420-792v-28q0-25 17.5-42.5T480-880q25 0 42.5 17.5T540-820v28q80 20 130 84.5T720-560v280h80v80H160Zm320-300Zm0 420q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-280h320v-280q0-66-47-113t-113-47q-66 0-113 47t-47 113v280Z"/></symbol>
+<symbol id="i-pending_actions" viewBox="0 -960 960 960"><path d="M538.5-138.5Q480-197 480-280t58.5-141.5Q597-480 680-480t141.5 58.5Q880-363 880-280t-58.5 141.5Q763-80 680-80t-141.5-58.5ZM747-185l28-28-75-75v-112h-40v128l87 87Zm-547 65q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h167q11-35 43-57.5t70-22.5q40 0 71.5 22.5T594-840h166q33 0 56.5 23.5T840-760v250q-18-13-38-22t-42-16v-212h-80v120H280v-120h-80v560h212q7 22 16 42t22 38H200Zm308.5-651.5Q520-783 520-800t-11.5-28.5Q497-840 480-840t-28.5 11.5Q440-817 440-800t11.5 28.5Q463-760 480-760t28.5-11.5Z"/></symbol>
+<symbol id="i-pie_chart" viewBox="0 -960 960 960"><path d="M520-520h278q-15-110-91.5-186.5T520-798v278Zm-80 358v-636q-121 15-200.5 105.5T160-480q0 122 79.5 212.5T440-162Zm80 0q110-14 187-91t91-187H520v278Zm-40-318Zm0 400q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 155.5 31.5t127 86q54.5 54.5 86 127T880-480q0 82-31.5 155T763-197.5q-54 54.5-127 86T480-80Z"/></symbol>
+<symbol id="i-schedule" viewBox="0 -960 960 960"><path d="m612-292 56-56-148-148v-184h-80v216l172 172ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-400Zm0 320q133 0 226.5-93.5T800-480q0-133-93.5-226.5T480-800q-133 0-226.5 93.5T160-480q0 133 93.5 226.5T480-160Z"/></symbol>
+<symbol id="i-search" viewBox="0 -960 960 960"><path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/></symbol>
+<symbol id="i-settings" viewBox="0 -960 960 960"><path d="m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z"/></symbol>
+<symbol id="i-south_west" viewBox="0 -960 960 960"><path d="M200-200v-400h80v264l464-464 56 56-464 464h264v80H200Z"/></symbol>
+<symbol id="i-swap_horiz" viewBox="0 -960 960 960"><path d="M280-160 80-360l200-200 56 57-103 103h287v80H233l103 103-56 57Zm400-240-56-57 103-103H440v-80h287L624-743l56-57 200 200-200 200Z"/></symbol>
+  </defs>
+</svg>
+
+<header class="head">
+  <span class="word" style="font-size:44px">not<span class="ti">ı<i></i></span>fly</span>
+  <span class="t"><b>●</b>&nbsp; Alitaptap · App screens · Android</span>
+</header>
+
+<main class="grid">
+
+<!-- 01 WELCOME -->
+<div class="cell" data-s="welcome">
+<section class="dev"><div class="scr">
+  <canvas class="night" data-seed="7" data-ping="286,256"></canvas>
+  <div class="fade"></div>
+  <div class="sb"><span>9:41</span><span class="sys"><svg><use href="#sig"/></svg><svg><use href="#wifi"/></svg><svg><use href="#bat"/></svg></span></div>
+  <div class="wl-top"><span class="word">not<span class="ti">ı<i></i></span>fly</span></div>
+  <svg class="ov"><path d="M200 196 L276 248" stroke="#8E8996" stroke-width="1" fill="none"/></svg>
+  <div class="pingring" style="left:286px;top:256px"></div>
+  <div class="tag" style="left:58px;top:181px"><svg class="ic s" style="width:12px;height:12px;color:var(--glow)"><use href="#ring"/></svg>₱1,250.00 · E-wallet</div>
+  <div class="copy">
+    <div class="steps"><i class="on"></i><i></i><i></i><i></i></div>
+    <h2 class="serif">Stop typing<br>your <em>expenses.</em></h2>
+    <p>Track payments from the apps you choose. Alerts are <b>read on this phone</b> and raw text is never uploaded.</p>
+    <div class="btn glow">Get started</div>
+    <div class="tbtn" style="margin-top:6px">I already have an account</div>
+  </div>
+  <div class="gh"></div>
+  <svg class="grain"><rect width="100%" height="100%" filter="url(#noise)"/></svg>
+</div><i class="cam"></i></section>
+<div class="cap"><span><b>01</b>Welcome</span>First run</div>
+</div>
+
+<!-- 02 ACCESS -->
+<div class="cell" data-s="access">
+<section class="dev"><div class="scr">
+  <div class="sb"><span>9:42</span><span class="sys"><svg><use href="#sig"/></svg><svg><use href="#wifi"/></svg><svg><use href="#bat"/></svg></span></div>
+  <div style="padding:14px 24px 0; flex:none"><div class="steps"><i class="done"></i><i class="done"></i><i class="on"></i><i></i></div></div>
+  <div class="illo">
+    <svg viewBox="0 0 412 236">
+      <defs>
+        <linearGradient id="fadeDown" x1="0" y1="0" x2="0" y2="1"><stop offset=".55" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+        <mask id="illoMask"><rect width="412" height="236" fill="url(#fadeDown)"/></mask>
+      </defs>
+      <g mask="url(#illoMask)" fill="none" stroke="#3A3642" stroke-width="1">
+        <path d="M126 146a80 80 0 0 1 160 0M86 146a120 120 0 0 1 240 0M46 146a160 160 0 0 1 320 0"/>
+        <path d="M126 146a80 80 0 0 0 160 0M86 146a120 120 0 0 0 240 0M46 146a160 160 0 0 0 320 0" stroke-dasharray="3 6"/>
+      </g>
+      <path d="M118 88 L178 118" stroke="#E4F45E" stroke-opacity=".5" stroke-dasharray="2 4"/>
+      <path d="M294 88 L234 118" stroke="#E4F45E" stroke-opacity=".5" stroke-dasharray="2 4"/>
+      <rect x="172" y="88" width="68" height="116" rx="14" fill="#17151B" stroke="#EEEAE0" stroke-width="2"/>
+      <rect x="182" y="106" width="48" height="14" rx="7" fill="#29262F"/>
+      <circle cx="191" cy="113" r="3" fill="#E4F45E"/>
+      <rect x="182" y="128" width="36" height="6" rx="3" fill="#29262F"/>
+      <circle cx="206" cy="168" r="9" fill="none" stroke="#E4F45E" stroke-width="2.2"/>
+      <g font-family="Bricolage Grotesque, Segoe UI" font-size="14" font-weight="600" text-anchor="middle">
+        <circle cx="108" cy="82" r="20" fill="#29262F" stroke="#E4F45E" stroke-opacity=".7" stroke-width="1.5"/><text x="108" y="87" fill="#EEEAE0">E</text>
+        <circle cx="304" cy="82" r="20" fill="#29262F" stroke="#E4F45E" stroke-opacity=".7" stroke-width="1.5"/><text x="304" y="87" fill="#EEEAE0">B</text>
+        <g opacity=".38"><circle cx="206" cy="26" r="18" fill="#29262F"/><text x="206" y="31" fill="#EEEAE0">M</text></g>
+        <g opacity=".38"><circle cx="352" cy="176" r="16" fill="#29262F"/><text x="352" y="181" fill="#EEEAE0" font-size="12">S</text></g>
+        <g opacity=".38"><circle cx="58" cy="170" r="16" fill="#29262F"/><text x="58" y="175" fill="#EEEAE0" font-size="12">G</text></g>
+      </g>
+    </svg>
+  </div>
+  <div style="padding:0 24px; flex:1; display:flex; flex-direction:column">
+    <h2 class="serif" style="font-size:42px; line-height:1.02">One permission<br><em>to grant.</em></h2>
+    <p style="font:400 16px/1.5 var(--display); color:var(--reed); margin-top:14px">Notification access lets Notifly read alerts only from the apps you allow.</p>
+    <div class="facts">
+      <div class="fact"><span class="g"><svg><use href="#phone"/></svg></span>Parsed on this phone</div>
+      <div class="fact"><span class="g"><svg><use href="#ripple"/></svg></span>Raw notification text is never uploaded</div>
+      <div class="fact"><span class="g"><svg><use href="#ring"/></svg></span>Nothing counts until you confirm it</div>
+    </div>
+    <div style="margin-top:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:34px">
+      <div class="ml" style="display:flex; align-items:center; gap:8px; justify-content:center; margin-bottom:8px; letter-spacing:.1em"><span class="rg" style="box-shadow: inset 0 0 0 2px var(--reed)"></span>Access not enabled yet</div>
+      <div class="btn glow">Grant access</div>
+      <div class="btn out">Skip — add manually</div>
+    </div>
+  </div>
+  <div class="gh"></div>
+  <svg class="grain"><rect width="100%" height="100%" filter="url(#noise)"/></svg>
+</div><i class="cam"></i></section>
+<div class="cap"><span><b>02</b>Notification access</span>One permission</div>
+</div>
+
+<!-- 03 ALLOWED APPS -->
+<div class="cell" data-s="apps">
+<section class="dev"><div class="scr">
+  <div class="sb"><span>9:43</span><span class="sys"><svg><use href="#sig"/></svg><svg><use href="#wifi"/></svg><svg><use href="#bat"/></svg></span></div>
+  <div class="bar back"><span class="ib"><svg class="ic"><use href="#i-arrow_back"/></svg></span><h1>Allowed apps</h1></div>
+  <div class="body">
+    <p style="padding:4px 20px 0; font:400 15px/1.45 var(--display); color:var(--reed)">Notifly reads notifications only from apps you switch on. You can change this anytime.</p>
+    <div style="margin:16px 16px 4px; height:52px; border-radius:26px; background:var(--dusk2); display:flex; align-items:center; gap:14px; padding:0 18px; color:var(--reed); font:400 16px/1 var(--display)"><svg class="ic"><use href="#i-search"/></svg>Search apps</div>
+    <div class="grp ml">Suggested · Finance</div>
+    <div class="row"><span class="av sq">E</span><div class="t"><div class="h">E-wallet</div><div class="s">Wallet · payment alerts</div></div><span class="sw on"></span></div>
+    <div class="row"><span class="av sq">S</span><div class="t"><div class="h">Savings bank</div><div class="s">Bank · transfer alerts</div></div><span class="sw on"></span></div>
+    <div class="row"><span class="av sq">C</span><div class="t"><div class="h">Credit card</div><div class="s">Card · purchase alerts</div></div><span class="sw on"></span></div>
+    <div class="row"><span class="av sq">D</span><div class="t"><div class="h">Digital bank</div><div class="s">Bank</div></div><span class="sw"></span></div>
+    <div class="grp ml">Other apps</div>
+    <div class="row"><span class="av sq" style="color:var(--reed)">M</span><div class="t"><div class="h">Messages</div><div class="s">SMS · bank texts</div></div><span class="sw"></span></div>
+    <div class="row"><span class="av sq" style="color:var(--reed)">F</span><div class="t"><div class="h">Food delivery</div><div class="s">Shopping</div></div><span class="sw"></span></div>
+  </div>
+  <div class="dock" style="padding-bottom:34px">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin:0 4px 14px"><span class="ml" style="margin:0; display:flex; gap:8px; align-items:center"><span class="dt"></span>3 apps allowed</span><span class="ml" style="margin:0">Step 4 of 4</span></div>
+    <div class="btn glow">Continue</div>
+  </div>
+  <div class="gh"></div>
+  <svg class="grain"><rect width="100%" height="100%" filter="url(#noise)"/></svg>
+</div><i class="cam"></i></section>
+<div class="cap"><span><b>03</b>Allowed apps</span>You choose the pings</div>
+</div>
+
+<!-- 04 HOME -->
+<div class="cell" data-s="home">
+<section class="dev"><div class="scr">
+  <div class="sb"><span>9:41</span><span class="sys"><svg><use href="#sig"/></svg><svg><use href="#wifi"/></svg><svg><use href="#bat"/></svg></span></div>
+  <div class="bar"><h1><span class="word">not<span class="ti">ı<i></i></span>fly</span></h1><span class="ib"><svg class="ic"><use href="#i-search"/></svg></span></div>
+  <div class="body">
+    <div class="hero">
+      <canvas class="specks" data-seed="11"></canvas>
+      <div class="ml" style="position:relative">Confirmed balance</div>
+      <div class="bal"><span class="cur">₱</span>24,180<small>.00</small></div>
+      <div class="note">Transfers and captures awaiting review are excluded.</div>
+      <div class="pend">
+        <span class="rg" style="width:18px;height:18px;box-shadow: inset 0 0 0 2.6px var(--glow), 0 0 12px rgba(228,244,94,.35)"></span>
+        <div class="t"><div class="h">Pending review</div><div class="v">−₱1,529.00 <span>· 3 waiting</span></div></div>
+        <span class="pill-btn">Review</span>
+      </div>
+    </div>
+    <div class="sec" style="padding-top:24px"><h3>Accounts</h3><span class="amt dim" style="font-size:13.5px">₱24,180.00</span></div>
+    <div class="row" style="min-height:64px"><span class="av sq">E</span><div class="t"><div class="h">E-wallet</div><div class="s">From captured transactions</div></div><span class="amt">₱6,420.50</span></div>
+    <div class="row" style="min-height:64px"><span class="av sq">S</span><div class="t"><div class="h">Savings bank</div><div class="s">Balance set Sep 20</div></div><span class="amt">₱17,759.50</span></div>
+    <div class="hint"><svg class="ic"><use href="#i-swap_horiz"/></svg><span><b>₱2,000.00</b> moved Savings bank → E-wallet. Not counted as spending.</span></div>
+    <div class="sec" style="padding-top:22px"><h3>Recent</h3><span style="font:500 14px/1 var(--display)">See all</span></div>
+    <div class="row"><span class="av"><svg class="ic"><use href="#i-north_east"/></svg></span><div class="t"><div class="h">Groceries</div><div class="s"><span class="rg"></span>E-wallet · 7:42 PM</div></div><span class="amt">−₱1,250.00</span><span class="okb"><svg class="ic"><use href="#i-check"/></svg></span></div>
+  </div>
+  <div class="fab"><svg class="ic"><use href="#i-add"/></svg>Add transaction</div>
+  <nav class="nav">
+    <div class="it on"><span class="pill"><svg class="ic"><use href="#i-home"/></svg></span>Home</div>
+    <div class="it"><span class="pill"><svg class="ic"><use href="#i-list"/></svg><i class="badge"></i></span>Transactions</div>
+    <div class="it"><span class="pill"><svg class="ic"><use href="#i-pie_chart"/></svg></span>Insights</div>
+    <div class="it"><span class="pill"><svg class="ic"><use href="#i-settings"/></svg></span>Settings</div>
+  </nav>
+  <div class="gh"></div>
+  <svg class="grain"><rect width="100%" height="100%" filter="url(#noise)"/></svg>
+</div><i class="cam"></i></section>
+<div class="cap"><span><b>04</b>Home</span>Pending kept apart</div>
+</div>
+
+<!-- 05 REVIEW -->
+<div class="cell" data-s="review">
+<section class="dev"><div class="scr">
+  <div class="sb"><span>9:44</span><span class="sys"><svg><use href="#sig"/></svg><svg><use href="#wifi"/></svg><svg><use href="#bat"/></svg></span></div>
+  <div class="bar back"><span class="ib"><svg class="ic"><use href="#i-arrow_back"/></svg></span><h1>Review transaction</h1><span class="ib"><svg class="ic"><use href="#i-delete"/></svg></span></div>
+  <div class="body">
+    <div class="ntf"><span class="av">E</span><div style="flex:1"><div class="m"><span>E-wallet · 7:42 PM</span><span class="ml" style="font-size:10px; letter-spacing:.12em">Device only</span></div><div class="b">You paid ₱1,250.00 at a grocery store.</div></div></div>
+    <div class="wire">PARSED ON THIS PHONE</div>
+    <div class="amtf">
+      <div class="top"><span class="ml">Amount (PHP)</span><span class="rv"><svg class="ic s" style="width:14px;height:14px;color:var(--glow)"><use href="#ring"/></svg>Needs review</span></div>
+      <div class="big"><span class="cur">₱</span>1,250.00<i class="caret"></i></div>
+    </div>
+    <div class="seg"><div class="on"><svg class="ic"><use href="#i-check"/></svg>Expense</div><div>Income</div><div>Transfer</div></div>
+    <div class="fld"><label>Description</label>Groceries</div>
+    <div class="fld"><label>Category</label>Pagkain<svg class="ic"><use href="#i-expand_more"/></svg></div>
+    <div class="two">
+      <div class="fld"><label>Date</label>Sep 26, 2026<svg class="ic"><use href="#i-calendar_today"/></svg></div>
+      <div class="fld" style="flex:.72"><label>Time</label>7:42 PM<svg class="ic"><use href="#i-schedule"/></svg></div>
+    </div>
+    <div class="src"><span class="av">E</span>Source: E-wallet</div>
+  </div>
+  <div class="dock">
+    <div class="btn glow"><svg class="ic"><use href="#i-check"/></svg>Confirm transaction</div>
+    <div class="ml">Balance unchanged until you confirm</div>
+  </div>
+  <div class="gh"></div>
+  <svg class="grain"><rect width="100%" height="100%" filter="url(#noise)"/></svg>
+</div><i class="cam"></i></section>
+<div class="cap"><span><b>05</b>Review</span>Ring → dot</div>
+</div>
+
+<!-- 06 TRANSACTIONS (selection) -->
+<div class="cell" data-s="transactions">
+<section class="dev"><div class="scr">
+  <div class="ctx">
+    <div class="sb"><span>9:46</span><span class="sys"><svg><use href="#sig"/></svg><svg><use href="#wifi"/></svg><svg><use href="#bat"/></svg></span></div>
+    <div class="bar back" style="padding-right:4px"><span class="ib"><svg class="ic"><use href="#i-clear"/></svg></span><h1 style="font-size:20px">2 selected</h1><span class="ib"><svg class="ic"><use href="#i-check"/></svg></span><span class="ib"><svg class="ic"><use href="#i-delete"/></svg></span></div>
+  </div>
+  <div class="chips" style="padding-top:14px">
+    <span class="chip"><svg class="ic"><use href="#i-list"/></svg>All</span>
+    <span class="chip sel"><svg class="ic"><use href="#i-check"/></svg>Needs review · 3</span>
+    <span class="chip"><svg class="ic"><use href="#i-south_west"/></svg>Income</span>
+    <span class="chip"><svg class="ic"><use href="#i-north_east"/></svg>Expense</span>
+  </div>
+  <div class="body">
+    <div class="grp ml" style="padding-top:14px">Today · Sep 26</div>
+    <div class="row sel"><span class="av chk"><svg class="ic"><use href="#i-check_circle"/></svg></span><div class="t"><div class="h">Groceries</div><div class="s"><span class="rg"></span>E-wallet · 7:42 PM</div></div><span class="amt">−₱1,250.00</span></div>
+    <div class="row sel"><span class="av chk"><svg class="ic"><use href="#i-check_circle"/></svg></span><div class="t"><div class="h">Mobile load</div><div class="s"><span class="rg"></span>E-wallet · 6:05 PM</div></div><span class="amt">−₱99.00</span></div>
+    <div class="row"><span class="av"><svg class="ic"><use href="#i-north_east"/></svg></span><div class="t"><div class="h">Commute</div><div class="s"><span class="rg"></span>E-wallet · 8:10 AM</div></div><span class="amt">−₱180.00</span></div>
+    <div class="grp ml">Yesterday · Sep 25</div>
+    <div class="row"><span class="av"><svg class="ic"><use href="#i-north_east"/></svg></span><div class="t"><div class="h">Electric bill</div><div class="s"><span class="dt"></span>Savings bank · 5:20 PM</div></div><span class="amt">−₱2,318.40</span></div>
+    <div class="row"><span class="av"><svg class="ic"><use href="#i-swap_horiz"/></svg></span><div class="t"><div class="h">To E-wallet</div><div class="s"><span class="dt"></span>Transfer · not counted</div></div><span class="amt dim">₱2,000.00</span></div>
+    <div class="row"><span class="av"><svg class="ic"><use href="#i-north_east"/></svg></span><div class="t"><div class="h">Lunch</div><div class="s"><span class="dt"></span>E-wallet · 12:18 PM</div></div><span class="amt">−₱165.00</span></div>
+    <div class="grp ml">Sep 24</div>
+    <div class="row"><span class="av"><svg class="ic"><use href="#i-south_west"/></svg></span><div class="t"><div class="h">Salary</div><div class="s"><span class="dt"></span>Savings bank · 9:00 AM</div></div><span class="amt pos">+₱28,000.00</span></div>
+  </div>
+  <nav class="nav">
+    <div class="it"><span class="pill"><svg class="ic"><use href="#i-home"/></svg></span>Home</div>
+    <div class="it on"><span class="pill"><svg class="ic"><use href="#i-list"/></svg><i class="badge"></i></span>Transactions</div>
+    <div class="it"><span class="pill"><svg class="ic"><use href="#i-pie_chart"/></svg></span>Insights</div>
+    <div class="it"><span class="pill"><svg class="ic"><use href="#i-settings"/></svg></span>Settings</div>
+  </nav>
+  <div class="gh"></div>
+  <svg class="grain"><rect width="100%" height="100%" filter="url(#noise)"/></svg>
+</div><i class="cam"></i></section>
+<div class="cap"><span><b>06</b>Transactions</span>Bulk check</div>
+</div>
+
+<!-- 07 INSIGHTS -->
+<div class="cell" data-s="insights">
+<section class="dev"><div class="scr">
+  <div class="sb"><span>9:48</span><span class="sys"><svg><use href="#sig"/></svg><svg><use href="#wifi"/></svg><svg><use href="#bat"/></svg></span></div>
+  <div class="bar"><h1>Insights</h1></div>
+  <div class="chips" style="padding-top:0"><span class="chip">7 days</span><span class="chip sel"><svg class="ic"><use href="#i-check"/></svg>30 days</span><span class="chip">90 days</span></div>
+  <div class="body">
+    <div class="pn"><span class="rg" style="width:16px;height:16px;box-shadow: inset 0 0 0 2.4px var(--glow)"></span><div><div class="h">3 awaiting review aren't counted</div><div class="s">Confirm them to include them here</div></div><svg class="ic"><use href="#i-keyboard_arrow_right"/></svg></div>
+    <div class="blk">
+      <div class="ml">Net cash flow · last 30 days</div>
+      <div class="v"><span style="color:var(--kraft)">+₱8,420</span><small>.00</small></div>
+      <div style="font:400 13px/1 var(--display); color:var(--reed)">Previous 30 days: +₱6,105.00</div>
+      <div class="flow">
+        <span>Money in</span><span class="tr"><i style="width:100%; background:var(--kraft)"></i></span><span class="amt">₱36,000.00</span>
+        <span>Money out</span><span class="tr"><i style="width:77%; background:#6A6573"></i></span><span class="amt">₱27,580.00</span>
+      </div>
+    </div>
+    <div class="blk">
+      <div style="display:flex; justify-content:space-between; align-items:baseline"><h3 style="font:600 18px/1 var(--display)">Daily spending</h3><span class="ml" style="font-size:11px">Pace</span></div>
+      <div class="chart" id="chart"><div class="avg" style="bottom:36px"><span>₱919/day</span></div></div>
+      <div class="axis"><span>Aug 28</span><span>Sep 12</span><span style="color:var(--bone)">Today</span></div>
+    </div>
+    <div class="blk">
+      <div style="display:flex; justify-content:space-between; align-items:baseline"><h3 style="font:600 18px/1 var(--display)">Monthly budget</h3><span style="font:500 14px/1 var(--display)">Edit</span></div>
+      <div class="bud"><i></i></div>
+      <div style="display:flex; justify-content:space-between; font:400 13.5px/1 var(--display); color:var(--reed)"><span><span class="amt" style="color:var(--bone); font-size:13.5px">₱26,300.00</span> of ₱32,000.00</span><span>₱1,140/day left</span></div>
+    </div>
+  </div>
+  <nav class="nav">
+    <div class="it"><span class="pill"><svg class="ic"><use href="#i-home"/></svg></span>Home</div>
+    <div class="it"><span class="pill"><svg class="ic"><use href="#i-list"/></svg><i class="badge"></i></span>Transactions</div>
+    <div class="it on"><span class="pill"><svg class="ic"><use href="#i-pie_chart"/></svg></span>Insights</div>
+    <div class="it"><span class="pill"><svg class="ic"><use href="#i-settings"/></svg></span>Settings</div>
+  </nav>
+  <div class="gh"></div>
+  <svg class="grain"><rect width="100%" height="100%" filter="url(#noise)"/></svg>
+</div><i class="cam"></i></section>
+<div class="cap"><span><b>07</b>Insights</span>Confirmed only</div>
+</div>
+
+<!-- 08 LOG -->
+<div class="cell" data-s="log">
+<section class="dev"><div class="scr">
+  <div class="sb"><span>9:50</span><span class="sys"><svg><use href="#sig"/></svg><svg><use href="#wifi"/></svg><svg><use href="#bat"/></svg></span></div>
+  <div class="bar back"><span class="ib"><svg class="ic"><use href="#i-arrow_back"/></svg></span><h1>Notification log</h1><span class="ib"><svg class="ic"><use href="#i-delete"/></svg></span></div>
+  <div class="priv"><svg><use href="#phone"/></svg><span>Raw text <b>never leaves this phone</b> and is removed after 24 hours.</span></div>
+  <div class="chips" style="padding-top:12px"><span class="chip sel"><svg class="ic"><use href="#i-check"/></svg>All</span><span class="chip"><svg class="ic"><use href="#i-check"/></svg>Parsed</span><span class="chip"><svg class="ic"><use href="#i-pending_actions"/></svg>Needs review</span><span class="chip"><svg class="ic"><use href="#i-help"/></svg>Not recognised</span></div>
+  <div class="body">
+    <div class="row"><span class="av sq">E</span><div class="t"><div class="h">E-wallet · <span style="color:var(--glow)">Needs review</span></div><div class="s">7:42 PM · ₱1,250.00</div></div><svg class="ic" style="color:var(--glow)"><use href="#i-pending_actions"/></svg></div>
+    <div class="xp">
+      <div class="row"><span class="av sq" style="background:#3D3944">M</span><div class="t"><div class="h">Messages · <span class="dim">Not recognised</span></div><div class="s">5:18 PM</div></div><svg class="ic dim"><use href="#i-help"/></svg></div>
+      <dl class="kv">
+        <dt>Amount</dt><dd class="no">Not identified</dd>
+        <dt>Direction</dt><dd class="no">Not identified</dd>
+        <dt>Merchant</dt><dd class="no">Not available</dd>
+        <dt>Source</dt><dd>Messages</dd>
+      </dl>
+      <p class="say">No amount found, so nothing was added.</p>
+      <div class="btn out"><svg class="ic s"><use href="#i-add"/></svg>Create transaction manually</div>
+    </div>
+    <div class="row"><span class="av sq">E</span><div class="t"><div class="h">E-wallet · Parsed</div><div class="s">6:05 PM · ₱99.00</div></div><svg class="ic"><use href="#i-check"/></svg></div>
+    <div class="row"><span class="av sq">C</span><div class="t"><div class="h">Credit card · <span style="color:var(--mute)">Ignored</span></div><div class="s">3:30 PM · promotional</div></div><svg class="ic" style="color:var(--mute)"><use href="#i-clear"/></svg></div>
+    <div class="row"><span class="av sq">E</span><div class="t"><div class="h">E-wallet · Parsed</div><div class="s">8:10 AM · ₱180.00</div></div><svg class="ic"><use href="#i-check"/></svg></div>
+  </div>
+  <div class="gh"></div>
+  <svg class="grain"><rect width="100%" height="100%" filter="url(#noise)"/></svg>
+</div><i class="cam"></i></section>
+<div class="cap"><span><b>08</b>Notification log</span>No amount, no transaction</div>
+</div>
+
+<!-- 09 SETTINGS -->
+<div class="cell" data-s="settings">
+<section class="dev"><div class="scr">
+  <div class="sb"><span>9:52</span><span class="sys"><svg><use href="#sig"/></svg><svg><use href="#wifi"/></svg><svg><use href="#bat"/></svg></span></div>
+  <div class="bar"><h1>Settings</h1></div>
+  <div class="body set">
+    <div class="grp ml" style="padding-top:6px">Capture</div>
+    <div class="cap-card">
+      <span class="mk"><svg><use href="#mk"/></svg></span>
+      <div><div class="h">Notification access on</div><div class="s"><span class="dt"></span>Listener connected</div></div>
+      <svg class="ic"><use href="#i-keyboard_arrow_right"/></svg>
+    </div>
+    <div class="row" style="margin-top:6px"><div class="t"><div class="h">Allowed apps</div><div class="s">3 apps · choose which notifications Notifly reads</div></div><svg class="ic dim"><use href="#i-keyboard_arrow_right"/></svg></div>
+    <div class="row"><div class="t"><div class="h">Finance apps</div><div class="s">Detect transfers between your accounts</div></div><svg class="ic dim"><use href="#i-keyboard_arrow_right"/></svg></div>
+    <div class="grp ml">Appearance</div>
+    <div class="seg s3"><div>System</div><div class="on"><svg class="ic"><use href="#i-check"/></svg>Dark</div><div>Light</div></div>
+    <div class="row"><div class="t"><div class="h">Color palette</div><div class="s">Alitaptap · Gabi and Glow</div></div><span class="pal"><i style="background:#0F0E12"></i><i style="background:#29262F"></i><i style="background:#EEEAE0"></i><i style="background:#E4F45E"></i></span></div>
+    <div class="grp ml">Security</div>
+    <div class="row"><div class="t"><div class="h">App PIN</div><div class="s">Asked every time you open Notifly</div></div><span class="sw on"></span></div>
+    <div class="row"><div class="t"><div class="h">Unlock with biometrics</div><div class="s">Fingerprint or face instead of the PIN</div></div><span class="sw"></span></div>
+    <div class="grp ml">Support &amp; privacy</div>
+    <div class="row"><div class="t"><div class="h">Send crash reports</div><div class="s">Never includes notification text</div></div><span class="sw on"></span></div>
+  </div>
+  <nav class="nav">
+    <div class="it"><span class="pill"><svg class="ic"><use href="#i-home"/></svg></span>Home</div>
+    <div class="it"><span class="pill"><svg class="ic"><use href="#i-list"/></svg><i class="badge"></i></span>Transactions</div>
+    <div class="it"><span class="pill"><svg class="ic"><use href="#i-pie_chart"/></svg></span>Insights</div>
+    <div class="it on"><span class="pill"><svg class="ic"><use href="#i-settings"/></svg></span>Settings</div>
+  </nav>
+  <div class="gh"></div>
+  <svg class="grain"><rect width="100%" height="100%" filter="url(#noise)"/></svg>
+</div><i class="cam"></i></section>
+<div class="cap"><span><b>09</b>Settings</span>Capture, controlled</div>
+</div>
+
+</main>
+
+<script>
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function gauss(r) { return Math.sqrt(-2 * Math.log(r() + 1e-9)) * Math.cos(2 * Math.PI * r()); }
+function surface(c) {
+  const W = c.clientWidth, H = c.clientHeight, d = window.devicePixelRatio || 1;
+  c.width = W * d; c.height = H * d;
+  const g = c.getContext('2d'); g.scale(d, d);
+  return [g, W, H];
+}
+
+function drawNight(c) {
+  const [g, W, H] = surface(c), r = rng(+c.dataset.seed), hz = H * 0.66;
+  const [px, py] = c.dataset.ping.split(',').map(Number);
+  let sky = g.createLinearGradient(0, 0, 0, hz);
+  sky.addColorStop(0, '#0B0A0E'); sky.addColorStop(1, '#1D1B22');
+  g.fillStyle = sky; g.fillRect(0, 0, W, hz);
+  let water = g.createLinearGradient(0, hz, 0, H);
+  water.addColorStop(0, '#16141B'); water.addColorStop(1, '#0F0E12');
+  g.fillStyle = water; g.fillRect(0, hz, W, H - hz);
+
+  const trees = [];
+  for (let x = -30; x < W + 40; x += 30 + r() * 26) trees.push({ x, h: 60 + r() * 70, w: 34 + r() * 34 });
+  for (let x = -20; x < W + 20; x += 10) trees.push({ x, h: 20 + r() * 14, w: 20 });
+  function canopy(ctx, mirror) {
+    ctx.fillStyle = '#060508';
+    for (const t of trees) for (let k = 0; k < 16; k++) {
+      const cx = t.x + gauss(r) * t.w * .45, cy = hz - t.h * (0.35 + r() * .6), rad = 8 + r() * t.w * .45;
+      ctx.beginPath(); ctx.arc(cx, mirror ? 2 * hz - cy : cy, rad, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  canopy(g, false);
+  g.save(); g.globalAlpha = .45; g.filter = 'blur(3px)'; canopy(g, true); g.restore();
+  g.fillStyle = '#060508'; g.fillRect(0, hz - 2, W, 4);
+  g.globalAlpha = .06; g.fillStyle = '#EEEAE0';
+  for (let i = 0; i < 40; i++) g.fillRect(r() * W, hz + 6 + r() * (H - hz), 16 + r() * 70, 1);
+  g.globalAlpha = 1;
+
+  const flies = [];
+  for (const f of [0.14, 0.42, 0.78]) {
+    const cx = W * f, cy = hz - 58 - r() * 26, n = 26 + Math.floor(r() * 18);
+    for (let i = 0; i < n; i++) flies.push({ x: cx + gauss(r) * 38, y: cy + gauss(r) * 20, s: .7 + r() * 1.5, a: .35 + r() * .65 });
+  }
+  for (let i = 0; i < 22; i++) flies.push({ x: r() * W, y: 90 + r() * (hz - 80), s: .6 + r(), a: .25 + r() * .4 });
+  flies.push({ x: px, y: py, s: 2.6, a: 1 });
+  g.fillStyle = '#E4F45E'; g.shadowColor = 'rgba(228,244,94,.95)';
+  for (const f of flies) {
+    if (f.y > hz - 4) continue;
+    g.globalAlpha = f.a; g.shadowBlur = 6 + f.s * 5;
+    g.beginPath(); g.arc(f.x, f.y, f.s, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = f.a * .16; g.shadowBlur = 4;
+    g.beginPath(); g.ellipse(f.x, 2 * hz - f.y + 6, f.s * .9, f.s * 1.8, 0, 0, Math.PI * 2); g.fill();
+  }
+  g.globalAlpha = 1; g.shadowBlur = 0;
+}
+
+function drawSpecks(c) {
+  const [g, W, H] = surface(c), r = rng(+c.dataset.seed);
+  const halo = g.createRadialGradient(W * .78, H * .3, 0, W * .78, H * .3, W * .7);
+  halo.addColorStop(0, 'rgba(228,244,94,.07)'); halo.addColorStop(1, 'rgba(228,244,94,0)');
+  g.fillStyle = halo; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#E4F45E'; g.shadowColor = 'rgba(228,244,94,.9)';
+  for (let i = 0; i < 26; i++) {
+    const x = W * .78 + gauss(r) * 44, y = H * .32 + gauss(r) * 26, s = .5 + r() * 1.3;
+    g.globalAlpha = .2 + r() * .55; g.shadowBlur = 4 + s * 4;
+    g.beginPath(); g.arc(x, y, s, 0, Math.PI * 2); g.fill();
+  }
+}
+
+function drawChart() {
+  const el = document.getElementById('chart'), r = rng(3);
+  for (let i = 0; i < 30; i++) {
+    const b = document.createElement('i');
+    const v = i === 29 ? .34 : Math.min(1, Math.max(.12, .42 + gauss(r) * .2 + (i % 7 === 5 ? .3 : 0)));
+    b.style.height = (v * 100) + '%';
+    if (i === 29) b.className = 'td';
+    el.appendChild(b);
+  }
+}
+
+const s = new URLSearchParams(location.search).get('s');
+if (s) {
+  document.body.classList.add('single');
+  document.querySelector('.cell[data-s="' + s + '"]').classList.add('show');
+}
+document.fonts.ready.then(() => {
+  document.querySelectorAll('canvas.night').forEach(drawNight);
+  document.querySelectorAll('canvas.specks').forEach(drawSpecks);
+  drawChart();
+});
+</script>
+</body>
+</html>

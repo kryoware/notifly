@@ -102,6 +102,31 @@ class NotificationParserTest {
     }
 
     @Test
+    fun `possessive finance counterparty is a transfer`() {
+        val p = assertIs<ParseOutcome.Parsed>(parser.parse(
+            "You received PHP 500 from My BDO account.", listOf("BDO Digital Banking"),
+        ))
+        assertEquals(TransactionType.TRANSFER, p.draft.type)
+        assertEquals(50_000L, p.draft.amountMinor)
+        assertEquals(true, p.draft.inbound)
+        assertTrue(p.draft.needsReview)
+    }
+
+    @Test
+    fun `received payment keeps inbound direction but conflicting verbs remain ambiguous`() {
+        val finance = listOf("BDO Digital Banking")
+        val p = assertIs<ParseOutcome.Parsed>(parser.parse("Payment received from BDO. PHP 500.", finance))
+        assertEquals(TransactionType.TRANSFER, p.draft.type)
+        assertEquals(true, p.draft.inbound)
+        assertEquals(Confidence.HIGH, p.draft.directionConfidence)
+        assertTrue(p.draft.needsReview)
+        val ambiguous = assertIs<ParseOutcome.Parsed>(parser.parse("Received PHP 500 from BDO and sent PHP 500.", finance))
+        assertEquals(null, ambiguous.draft.inbound)
+        assertEquals(Confidence.LOW, ambiguous.draft.directionConfidence)
+        assertIs<ParseOutcome.Unrecognized>(parser.parse("Payment received from BDO", finance))
+    }
+
+    @Test
     fun `naming another finance app is a likely transfer`() {
         val finance = listOf("MariBank", "BDO Digital Banking")
         val p = assertIs<ParseOutcome.Parsed>(parser.parse("You sent PHP 500.00 to MARIBANK ****1234.", finance))

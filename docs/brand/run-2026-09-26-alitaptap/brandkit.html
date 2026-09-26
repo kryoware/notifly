@@ -1,0 +1,377 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=block" rel="stylesheet">
+<style>
+  :root {
+    --gabi: #0F0E12; --dusk: #17151B; --dusk2: #1E1C23; --high: #29262F; --line: #2F2C35;
+    --reed: #8E8996; --mute: #5C5864; --bone: #EEEAE0; --kraft: #E4DAC7; --kraftFlap: #D8CCB4;
+    --glow: #E4F45E; --glowSoft: rgba(228, 244, 94, .32);
+    --display: 'Bricolage Grotesque', 'Segoe UI', sans-serif;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --mono: 'IBM Plex Mono', Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1200px; background: #09080B; overflow: hidden; }
+  body { padding: 40px 40px 64px; font-family: var(--display); color: var(--bone); -webkit-font-smoothing: antialiased; position: relative; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 16px; height: 100%; }
+  .p { position: relative; background: var(--dusk); border-radius: 4px; overflow: hidden; }
+  .lbl { position: absolute; top: 20px; left: 22px; font: 500 11px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--reed); z-index: 5; }
+  .lbl b { color: var(--bone); font-weight: 500; margin-right: 10px; }
+  .num { position: absolute; top: 20px; right: 22px; font: 400 11px/1 var(--mono); color: var(--mute); letter-spacing: .12em; z-index: 5; }
+  .peso { font-family: var(--display); }
+  .foot { position: absolute; bottom: 26px; left: 40px; right: 40px; display: flex; justify-content: space-between; font: 400 11px/1 var(--mono); letter-spacing: .18em; text-transform: uppercase; color: #4D4955; }
+  .foot i { font-style: normal; color: var(--glow); }
+  .grain { position: absolute; inset: 0; pointer-events: none; opacity: .07; mix-blend-mode: overlay; z-index: 20; }
+
+  /* wordmark: dotless i + a round tittle so the dot can carry the accent */
+  .word { font: 600 92px/1 var(--display); font-variation-settings: 'opsz' 32; letter-spacing: -.03em; color: var(--bone); white-space: nowrap; }
+  .ti { position: relative; }
+  .ti i { position: absolute; left: 50%; top: .16em; width: .15em; height: .15em; border-radius: 50%; background: var(--glow); transform: translateX(-54%); box-shadow: 0 0 .14em rgba(228, 244, 94, .55); }
+
+  /* 01 cover */
+  .cover { background: radial-gradient(60% 70% at 22% 48%, #1D1B16 0%, var(--gabi) 70%); display: flex; flex-direction: column; justify-content: center; padding-left: 62px; }
+  .lockup { display: flex; align-items: center; gap: 26px; margin-top: 4px; }
+  .cover .sub { margin-top: 34px; font: 400 12.5px/1 var(--mono); letter-spacing: .14em; color: var(--reed); text-transform: uppercase; }
+  .cover .sub i { font-style: normal; color: var(--glow); }
+
+  /* 02 construction */
+  .cons { background: var(--gabi); }
+  .cons svg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -58%); }
+  .cons .cap { position: absolute; left: 22px; bottom: 20px; font: 400 11px/1.7 var(--mono); color: var(--reed); letter-spacing: .05em; }
+  .cons .cap span { color: var(--glow); }
+
+  /* 03 surface */
+  .surf { background: var(--dusk2); }
+  .phone { position: absolute; left: 64px; top: 50px; width: 476px; height: 420px; border-radius: 44px; background: #050506; padding: 9px; box-shadow: 0 30px 60px rgba(0,0,0,.5), inset 0 0 0 1px #34303A; }
+  .screen { width: 100%; height: 100%; border-radius: 36px; background: var(--gabi); padding: 16px 18px; overflow: hidden; }
+  .status { display: flex; justify-content: space-between; font: 500 12.5px/1 var(--display); color: var(--bone); padding: 2px 12px 16px; }
+  .ntf { background: var(--high); border-radius: 22px; padding: 14px 16px; display: flex; gap: 12px; align-items: center; }
+  .ntf .av { width: 30px; height: 30px; border-radius: 50%; background: #3D3944; font: 600 13px/30px var(--display); text-align: center; color: var(--bone); flex: none; }
+  .ntf .t { font: 500 12px/1 var(--display); color: var(--reed); }
+  .ntf .b { font: 500 15px/1 var(--display); color: var(--bone); margin-top: 6px; }
+  .wire { margin: 10px 0 10px 30px; display: flex; align-items: center; gap: 12px; font: 400 10px/1 var(--mono); letter-spacing: .16em; color: var(--reed); }
+  .wire::before { content: ''; width: 1px; height: 30px; background: linear-gradient(#4A4652, var(--glow)); }
+  .draft { border-radius: 22px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; background: #15150F; box-shadow: inset 0 0 0 1px rgba(228, 244, 94, .28); }
+  .draft .ic { width: 32px; height: 32px; border-radius: 10px; background: var(--gabi); display: grid; place-items: center; color: var(--glow); flex: none; box-shadow: inset 0 0 0 1px var(--line); }
+  .draft .amt { font: 600 19px/1 var(--display); letter-spacing: -.01em; }
+  .draft .who { font: 400 12px/1 var(--display); color: var(--reed); margin-top: 6px; }
+  .draft .go { margin-left: auto; height: 32px; padding: 0 16px; border-radius: 16px; background: var(--glow); color: var(--gabi); font: 600 13px/32px var(--display); }
+  .still { margin: 16px 6px 0; display: flex; justify-content: space-between; align-items: baseline; font: 400 12px/1 var(--display); color: var(--reed); }
+  .still b { font: 600 17px/1 var(--display); color: var(--bone); letter-spacing: -.01em; }
+
+  /* 04 essence */
+  .ess { background: var(--bone); color: var(--gabi); }
+  .ess .lbl { color: #7B7669; } .ess .lbl b { color: var(--gabi); } .ess .num { color: #A6A091; }
+  .ess h2 { position: absolute; left: 44px; bottom: 44px; font: 400 76px/.98 var(--serif); letter-spacing: -.02em; }
+  .ess h2 em { font-style: italic; }
+  .ess svg { position: absolute; right: 28px; bottom: 30px; }
+
+  /* 05 colour */
+  .col { background: var(--dusk); }
+  .discs { position: absolute; left: 34px; right: 34px; top: 74px; display: flex; align-items: flex-end; gap: 22px; }
+  .disc { display: flex; flex-direction: column; gap: 14px; }
+  .disc .c { border-radius: 50%; }
+  .disc .n { font: 500 11px/1.6 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--bone); }
+  .disc .n span { display: block; color: var(--mute); font-weight: 400; letter-spacing: .08em; }
+  .col .rule { position: absolute; left: 34px; right: 34px; bottom: 62px; height: 6px; display: flex; gap: 3px; }
+  .col .rule div { height: 100%; border-radius: 3px; }
+  .col .cap { position: absolute; left: 34px; bottom: 26px; font: italic 400 20px/1 var(--serif); color: var(--bone); }
+  .col .cap2 { position: absolute; right: 34px; bottom: 30px; font: 400 10.5px/1 var(--mono); letter-spacing: .14em; color: var(--mute); }
+
+  /* 06 type */
+  .typ { background: var(--gabi); }
+  .typ .aa { position: absolute; left: 34px; top: 30px; font: 500 200px/1 var(--display); letter-spacing: -.06em; }
+  .typ .aa em { font: italic 400 200px/1 var(--serif); letter-spacing: -.02em; color: var(--glow); }
+  .typ .roles { position: absolute; right: 26px; top: 74px; text-align: right; font: 400 11px/2.1 var(--mono); letter-spacing: .14em; color: var(--reed); text-transform: uppercase; }
+  .typ .roles b { color: var(--bone); font-weight: 500; }
+  .typ .figs { position: absolute; left: 34px; right: 26px; bottom: 26px; border-top: 1px solid var(--line); padding-top: 20px; display: flex; justify-content: space-between; align-items: baseline; }
+  .typ .figs .f { font: 400 38px/1 var(--mono); letter-spacing: -.02em; }
+  .typ .figs .f .peso { font-weight: 500; }
+  .typ .figs .f span.c { color: var(--mute); }
+  .typ .figs .t { font: 400 10.5px/1 var(--mono); letter-spacing: .14em; color: var(--reed); }
+
+  /* 07 print */
+  .prn { background: #1A1816; }
+  .env { position: absolute; width: 300px; height: 190px; border-radius: 3px; background: var(--kraft); overflow: hidden; }
+  .env::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 104px; background: var(--kraftFlap); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+  .env::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(115deg, rgba(0,0,0,.018) 0 2px, transparent 2px 5px); }
+  .env.back { left: 262px; top: 48px; transform: rotate(7deg); box-shadow: 0 18px 34px rgba(0,0,0,.5); filter: brightness(.9); }
+  .env.front { left: 70px; top: 134px; transform: rotate(-4deg); box-shadow: 0 26px 46px rgba(0,0,0,.55); z-index: 2; }
+  .env .seal { position: absolute; left: 50%; top: 104px; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: var(--glow); z-index: 2; box-shadow: 0 1px 2px rgba(0,0,0,.25), inset 0 -2px 3px rgba(0,0,0,.12); }
+  .env .hand { position: absolute; left: 20px; bottom: 16px; z-index: 2; color: #2A2620; }
+  .env .hand .w { font: italic 400 30px/1 var(--serif); }
+  .env .hand .a { font: 500 10.5px/1 var(--mono); letter-spacing: .14em; margin-top: 6px; color: #6F6655; }
+  .env svg { position: absolute; right: 16px; bottom: 16px; z-index: 2; }
+  .env.back .hand { left: auto; right: 20px; text-align: right; }
+
+  /* 08 image */
+  .img { background: var(--gabi); }
+  .img canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .img .tag { position: absolute; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px 0 10px; border-radius: 15px; background: rgba(15,14,18,.78); box-shadow: inset 0 0 0 1px rgba(228,244,94,.35); backdrop-filter: blur(6px); font: 500 12.5px/1 var(--display); color: var(--bone); white-space: nowrap; }
+  .img .tag em { font-style: normal; color: var(--reed); font-weight: 400; }
+  .img .lead { position: absolute; height: 1px; background: linear-gradient(90deg, rgba(228,244,94,.8), rgba(228,244,94,.2)); transform-origin: 0 0; }
+  .img .ringmark { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; color: var(--glow); filter: drop-shadow(0 0 6px rgba(228,244,94,.8)); }
+  .img .cap { position: absolute; left: 22px; bottom: 20px; font: italic 400 20px/1 var(--serif); color: var(--bone); z-index: 3; }
+
+  /* 09 system */
+  .sys { background: var(--dusk2); }
+  .icons { position: absolute; left: 30px; top: 66px; display: flex; align-items: flex-end; gap: 18px; }
+  .ico { border-radius: 26%; display: grid; place-items: center; flex: none; }
+  .ico.n { background: var(--gabi); box-shadow: inset 0 0 0 1px var(--line); }
+  .ico.g { background: var(--glow); }
+  .ico.b { background: var(--bone); }
+  .chips { position: absolute; left: 30px; top: 224px; display: flex; gap: 10px; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px 0 11px; border-radius: 17px; font: 500 13px/1 var(--display); white-space: nowrap; }
+  .chip svg { width: 18px; height: 18px; }
+  .chip.rv { box-shadow: inset 0 0 0 1px rgba(228,244,94,.55); color: var(--bone); }
+  .chip.rv svg, .chip.ok svg { color: var(--glow); }
+  .chip.ok { background: var(--high); color: var(--bone); }
+  .chip.dv { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--reed); }
+  .chip.dv svg { color: var(--reed); }
+  .sys .flow { position: absolute; left: 30px; right: 26px; bottom: 22px; display: flex; justify-content: space-between; align-items: center; font: 500 11px/1 var(--mono); letter-spacing: .2em; color: var(--reed); }
+  .sys .flow b { color: var(--bone); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="mk" viewBox="0 0 100 100">
+      <path fill="var(--a, #EEEAE0)" d="M18 86V46a32 32 0 0 1 64 0v40H66V46a16 16 0 0 0-32 0v40z"/>
+      <circle cx="50" cy="46" r="8" fill="var(--d, #E4F45E)"/>
+    </symbol>
+    <symbol id="mkr" viewBox="0 0 100 100">
+      <path fill="var(--a, #EEEAE0)" d="M18 86V46a32 32 0 0 1 64 0v40H66V46a16 16 0 0 0-32 0v40z"/>
+      <circle cx="50" cy="46" r="6.2" fill="none" stroke="var(--d, #E4F45E)" stroke-width="3.6"/>
+    </symbol>
+    <symbol id="ring" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6.4" fill="none" stroke="currentColor" stroke-width="2.4"/></symbol>
+    <symbol id="dot" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.6" fill="currentColor"/></symbol>
+    <symbol id="phone" viewBox="0 0 20 20"><rect x="5.5" y="2.5" width="9" height="15" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="10" cy="10" r="1.9" fill="currentColor"/></symbol>
+    <filter id="noise"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0"/></filter>
+  </defs>
+</svg>
+
+<div class="grid">
+
+  <!-- 01 MARK -->
+  <section class="p cover">
+    <div class="lbl"><b>01</b>Mark</div><div class="num">/09</div>
+    <div class="lockup">
+      <svg width="116" height="116" viewBox="0 0 100 100">
+        <path fill="#EEEAE0" d="M18 86V46a32 32 0 0 1 64 0v40H66V46a16 16 0 0 0-32 0v40z"/>
+        <circle cx="50" cy="46" r="8" fill="#E4F45E" style="filter: drop-shadow(0 0 6px rgba(228,244,94,.75))"/>
+      </svg>
+      <span class="word">not<span class="ti">ı<i></i></span>fly</span>
+    </div>
+    <div class="sub">Personal finance · from the pings you <i>choose</i></div>
+  </section>
+
+  <!-- 02 CONSTRUCTION -->
+  <section class="p cons">
+    <div class="lbl"><b>02</b>Construction</div><div class="num">1 : 2 : 4</div>
+    <svg width="290" height="264" viewBox="-6 2 112 102">
+      <g stroke="#2A2730" stroke-width=".25">
+        <path d="M-6 14H106M-6 30H106M-6 46H106M-6 62H106M-6 78H106M-6 94H106"/>
+        <path d="M2 2V104M18 2V104M34 2V104M50 2V104M66 2V104M82 2V104M98 2V104"/>
+      </g>
+      <path fill="#EEEAE0" fill-opacity=".94" d="M18 86V46a32 32 0 0 1 64 0v40H66V46a16 16 0 0 0-32 0v40z"/>
+      <circle cx="50" cy="46" r="8" fill="#E4F45E"/>
+      <!-- the half of the ripple the mark refuses to broadcast -->
+      <g fill="none" stroke="#8E8996" stroke-width=".35" stroke-dasharray="1.2 1.4">
+        <path d="M34 46a16 16 0 0 0 32 0"/>
+        <path d="M18 46a32 32 0 0 0 64 0" stroke-opacity=".6"/>
+        <path d="M2 46a48 48 0 0 0 96 0" stroke-opacity=".35"/>
+      </g>
+      <path d="M2 46a48 48 0 0 1 96 0" fill="none" stroke="#E4F45E" stroke-opacity=".35" stroke-width=".35" stroke-dasharray="1.2 1.4"/>
+      <path d="M-6 86H106" stroke="#E4F45E" stroke-width=".4"/>
+      <g stroke="#8E8996" stroke-width=".3">
+        <path d="M50 96H98"/>
+        <path d="M50 94.5v3M58 94.5v3M66 94.5v3M82 94.5v3M98 94.5v3"/>
+      </g>
+      <g font-family="IBM Plex Mono, monospace" font-size="3" fill="#8E8996" text-anchor="middle">
+        <text x="54" y="101.5">r</text><text x="62" y="101.5">2r</text><text x="74" y="101.5">4r</text><text x="90" y="101.5">6r</text>
+      </g>
+      <text x="-4" y="90.5" font-family="IBM Plex Mono, monospace" font-size="3" fill="#E4F45E" fill-opacity=".8" letter-spacing=".3">GROUND</text>
+    </svg>
+    <div class="cap">A ping, grounded. Half a ripple, held under one roof —<br><span>notification text stays on the phone.</span></div>
+  </section>
+
+  <!-- 03 SURFACE -->
+  <section class="p surf">
+    <div class="lbl"><b>03</b>Surface</div><div class="num">Android</div>
+    <div class="phone"><div class="screen">
+      <div class="status"><span>9:41</span><span>82%</span></div>
+      <div class="ntf">
+        <div class="av">E</div>
+        <div><div class="t">E-wallet · now</div><div class="b">You received <span class="peso">₱</span>1,250.00</div></div>
+      </div>
+      <div class="wire">READ ON THIS PHONE</div>
+      <div class="draft">
+        <div class="ic"><svg width="18" height="18"><use href="#ring"/></svg></div>
+        <div><div class="amt">+<span class="peso">₱</span>1,250.00</div><div class="who">Waiting for your check</div></div>
+        <div class="go">Review</div>
+      </div>
+      <div class="still"><span>Balance, unchanged until you confirm</span><b><span class="peso">₱</span>24,180.00</b></div>
+    </div></div>
+  </section>
+
+  <!-- 04 ESSENCE -->
+  <section class="p ess">
+    <div class="lbl"><b>04</b>Essence</div><div class="num">/09</div>
+    <h2>Every ping,<br><em>accounted for.</em></h2>
+    <svg width="44" height="44" style="--a:#0F0E12;--d:#0F0E12"><use href="#mk"/></svg>
+  </section>
+
+  <!-- 05 COLOUR -->
+  <section class="p col">
+    <div class="lbl"><b>05</b>Colour</div><div class="num">Alitaptap</div>
+    <div class="discs">
+      <div class="disc"><div class="c" style="width:150px;height:150px;background:var(--gabi);box-shadow:inset 0 0 0 1px var(--line)"></div><div class="n">Gabi<span>0F0E12</span></div></div>
+      <div class="disc"><div class="c" style="width:112px;height:112px;background:var(--high)"></div><div class="n">Dusk<span>29262F</span></div></div>
+      <div class="disc"><div class="c" style="width:84px;height:84px;background:var(--bone)"></div><div class="n">Bone<span>EEEAE0</span></div></div>
+      <div class="disc"><div class="c" style="width:40px;height:40px;background:var(--glow);box-shadow:0 0 22px rgba(228,244,94,.55)"></div><div class="n">Glow<span>E4F45E</span></div></div>
+    </div>
+    <div class="rule">
+      <div style="flex:64;background:var(--gabi);box-shadow:inset 0 0 0 1px var(--line)"></div>
+      <div style="flex:20;background:var(--high)"></div>
+      <div style="flex:12;background:var(--bone)"></div>
+      <div style="flex:4;background:var(--glow)"></div>
+    </div>
+    <div class="cap">Light is rare. Spend it on what matters.</div>
+    <div class="cap2">64 · 20 · 12 · 4</div>
+  </section>
+
+  <!-- 06 TYPE -->
+  <section class="p typ">
+    <div class="lbl"><b>06</b>Type</div>
+    <div class="aa">A<em>a</em></div>
+    <div class="roles"><b>Display</b> · Bricolage Grotesque<br><b>Voice</b> · Instrument Serif<br><b>Figures</b> · IBM Plex Mono</div>
+    <div class="figs">
+      <div class="f"><span class="peso">₱</span>24,180<span class="c">.00</span></div>
+      <div class="t">TABULAR · CENTAVO-EXACT</div>
+    </div>
+  </section>
+
+  <!-- 07 PRINT -->
+  <section class="p prn">
+    <div class="lbl"><b>07</b>Print</div><div class="num">Sobre</div>
+    <div class="env back">
+      <div class="hand"><div class="w">Pamasahe</div><div class="a"><span class="peso">₱</span>1,500 / BUWAN</div></div>
+    </div>
+    <div class="env front">
+      <div class="seal"></div>
+      <div class="hand"><div class="w">Pagkain</div><div class="a"><span class="peso">₱</span>4,000 / BUWAN</div></div>
+      <svg width="26" height="26" style="--a:#2A2620;--d:#2A2620"><use href="#mk"/></svg>
+    </div>
+  </section>
+
+  <!-- 08 IMAGE -->
+  <section class="p img" id="imgp">
+    <canvas id="night"></canvas>
+    <div class="lbl"><b>08</b>Image</div><div class="num">After dark</div>
+    <svg class="ringmark" id="rm"><use href="#ring"/></svg>
+    <div class="lead" id="ld"></div>
+    <div class="tag" id="tg"><svg width="16" height="16" style="color:var(--glow)"><use href="#ring"/></svg><span><span class="peso">₱</span>1,250.00 <em>· waiting</em></span></div>
+    <div class="cap">Caught here. Checked by you.</div>
+  </section>
+
+  <!-- 09 SYSTEM -->
+  <section class="p sys">
+    <div class="lbl"><b>09</b>System</div><div class="num">States</div>
+    <div class="icons">
+      <div class="ico n" style="width:116px;height:116px"><svg width="70" height="70"><use href="#mk"/></svg></div>
+      <div class="ico g" style="width:116px;height:116px"><svg width="70" height="70" style="--a:#0F0E12;--d:#0F0E12"><use href="#mk"/></svg></div>
+      <div class="ico n" style="width:64px;height:64px"><svg width="38" height="38"><use href="#mk"/></svg></div>
+      <div class="ico n" style="width:40px;height:40px"><svg width="24" height="24"><use href="#mk"/></svg></div>
+      <div class="ico n" style="width:26px;height:26px"><svg width="16" height="16"><use href="#mk"/></svg></div>
+    </div>
+    <div class="chips">
+      <span class="chip rv"><svg><use href="#ring"/></svg>Needs review</span>
+      <span class="chip ok"><svg><use href="#dot"/></svg>Confirmed</span>
+      <span class="chip dv"><svg><use href="#phone"/></svg>Read on-device</span>
+    </div>
+    <div class="flow"><span><b>CATCH</b> · CHECK · KEEP</span><span>RING → DOT</span></div>
+  </section>
+
+</div>
+
+<div class="foot"><span>Notifly — Identity 02</span><span><i>●</i> Alitaptap · 2026</span></div>
+<svg class="grain" width="100%" height="100%"><rect width="100%" height="100%" filter="url(#noise)"/></svg>
+
+<script>
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function gauss(r) { return Math.sqrt(-2 * Math.log(r() + 1e-9)) * Math.cos(2 * Math.PI * r()); }
+
+function drawNight() {
+  const panel = document.getElementById('imgp'), c = document.getElementById('night');
+  const W = panel.clientWidth, H = panel.clientHeight, d = window.devicePixelRatio || 1;
+  c.width = W * d; c.height = H * d;
+  const g = c.getContext('2d'); g.scale(d, d);
+  const r = rng(7), hz = H * 0.62;
+
+  let sky = g.createLinearGradient(0, 0, 0, hz);
+  sky.addColorStop(0, '#0B0A0E'); sky.addColorStop(1, '#1B1920');
+  g.fillStyle = sky; g.fillRect(0, 0, W, hz);
+  let water = g.createLinearGradient(0, hz, 0, H);
+  water.addColorStop(0, '#16141B'); water.addColorStop(1, '#09080B');
+  g.fillStyle = water; g.fillRect(0, hz, W, H - hz);
+
+  // mangrove canopy: overlapping blobs sitting on the waterline
+  const trees = [];
+  for (let x = -30; x < W + 40; x += 34 + r() * 30) trees.push({ x, h: 70 + r() * 70, w: 40 + r() * 40 });
+  function canopy(ctx, mirror) {
+    ctx.fillStyle = '#060508';
+    for (const t of trees) {
+      for (let k = 0; k < 16; k++) {
+        const cx = t.x + gauss(r) * t.w * .45, cy = hz - t.h * (0.35 + r() * .6), rad = 10 + r() * t.w * .45;
+        ctx.beginPath(); ctx.arc(cx, mirror ? 2 * hz - cy : cy, rad, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+  // low continuous root band so the canopy sits on the water
+  for (let x = -20; x < W + 20; x += 10) trees.push({ x, h: 22 + r() * 16, w: 22 });
+  canopy(g, false);
+  g.save(); g.globalAlpha = .45; g.filter = 'blur(3px)'; canopy(g, true); g.restore();
+  g.fillStyle = '#060508'; g.fillRect(0, hz - 2, W, 4);
+
+  // water streaks
+  g.globalAlpha = .06; g.fillStyle = '#EEEAE0';
+  for (let i = 0; i < 60; i++) { const y = hz + 6 + r() * (H - hz); g.fillRect(r() * W, y, 20 + r() * 90, 1); }
+  g.globalAlpha = 1;
+
+  // fireflies clustered in the canopy
+  const clusters = [0.16, 0.38, 0.6, 0.84].map(f => ({ x: W * f, y: hz - 60 - r() * 30, n: 34 + Math.floor(r() * 26) }));
+  const flies = [];
+  for (const cl of clusters) for (let i = 0; i < cl.n; i++) flies.push({ x: cl.x + gauss(r) * 46, y: cl.y + gauss(r) * 24, s: .7 + r() * 1.6, a: .35 + r() * .65 });
+  for (let i = 0; i < 26; i++) flies.push({ x: r() * W, y: 60 + r() * (hz - 40), s: .6 + r(), a: .25 + r() * .4 });
+  g.fillStyle = '#E4F45E'; g.shadowColor = 'rgba(228,244,94,.95)';
+  for (const f of flies) {
+    if (f.y > hz - 4) continue;
+    g.globalAlpha = f.a; g.shadowBlur = 6 + f.s * 5;
+    g.beginPath(); g.arc(f.x, f.y, f.s, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = f.a * .16; g.shadowBlur = 4;
+    g.beginPath(); g.ellipse(f.x, 2 * hz - f.y + 6, f.s * .9, f.s * 1.8, 0, 0, Math.PI * 2); g.fill();
+  }
+  g.globalAlpha = 1; g.shadowBlur = 0;
+
+  // film grain
+  const img = g.getImageData(0, 0, c.width, c.height), px = img.data;
+  for (let i = 0; i < px.length; i += 4) { const n = (r() - .5) * 14; px[i] += n; px[i + 1] += n; px[i + 2] += n; }
+  g.putImageData(img, 0, 0);
+
+  // one light still waiting for review, called out
+  const rx = W * 0.70, ry = hz - 116, tx = W * 0.40, ty = 64;
+  const rm = document.getElementById('rm'); rm.style.left = rx + 'px'; rm.style.top = ry + 'px';
+  const tg = document.getElementById('tg'); tg.style.left = tx + 'px'; tg.style.top = ty + 'px';
+  const ex = tx + tg.offsetWidth, ey = ty + 15, dx = rx - 10 - ex, dy = ry - 6 - ey;
+  const ld = document.getElementById('ld');
+  ld.style.left = ex + 'px'; ld.style.top = ey + 'px'; ld.style.width = Math.hypot(dx, dy) + 'px';
+  ld.style.transform = 'rotate(' + Math.atan2(dy, dx) + 'rad)';
+}
+document.fonts.ready.then(drawNight);
+</script>
+</body>
+</html>

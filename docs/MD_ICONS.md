@@ -14,5 +14,5 @@ Access source vector files (SVGs), raw web font files, and Android Vector Drawab
 
 ```
 
-* **Android (Jetpack Compose)**: Include `androidx.compose.material:material-icons-extended` in `build.gradle` or use Material 3 icon components.
+* **Android / Compose Multiplatform**: Add the icon name to `NAMES` in `tools/download_symbols.py`, rerun `python tools/download_symbols.py`, and use the generated `shared/src/commonMain/composeResources/drawable/symbol_*.xml` resource with `Icon(painterResource(Res.drawable.symbol_name), contentDescription = "Action")`. Import `org.jetbrains.compose.resources.painterResource` and the resources from `notifly.shared.generated.resources`. Do not add the legacy Material Icons dependency or use `Icons.Default`.
 * **Flutter**: Use the official `material_symbols_icons` package from pub.dev.

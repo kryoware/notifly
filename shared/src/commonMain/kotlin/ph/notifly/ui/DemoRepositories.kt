@@ -70,7 +70,7 @@ class DemoCaptures : CaptureRepository {
         RawCapture(3, "GCash", Clock.System.now(), "Your balance is PHP 9120.40.", CaptureResult.UNRECOGNIZED, reason = "Balance notice without a transaction verb. No transaction created."),
     ))
     override fun observeLog(filter: CaptureResult?) = rows.map { list ->
-        list.filter { it.result != CaptureResult.IGNORED && (filter == null || it.result == filter) }.sortedByDescending { it.capturedAt }
+        list.filter { filter == null || it.result == filter }.sortedByDescending { it.capturedAt }
     }
     override suspend fun record(capture: RawCapture): Long {
         val id = (rows.value.maxOfOrNull { it.id } ?: 0) + 1

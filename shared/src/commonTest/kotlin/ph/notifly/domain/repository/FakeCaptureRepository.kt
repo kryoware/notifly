@@ -24,7 +24,7 @@ class FakeCaptureRepository(
 
     override fun observeLog(filter: CaptureResult?): Flow<List<RawCapture>> =
         store.map { list ->
-            val filtered = list.filter { it.result != CaptureResult.IGNORED && (filter == null || it.result == filter) }
+            val filtered = list.filter { filter == null || it.result == filter }
             filtered.sortedByDescending { it.capturedAt }
         }
 

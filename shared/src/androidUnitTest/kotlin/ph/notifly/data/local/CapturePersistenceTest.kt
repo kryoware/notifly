@@ -17,6 +17,23 @@ import kotlin.time.Duration.Companion.seconds
 
 @RunWith(RobolectricTestRunner::class)
 class CapturePersistenceTest {
+    @Test fun legacyIgnoredCapturesRemainVisibleAndClearable() = runTest {
+        val db = Room.inMemoryDatabaseBuilder<AppDatabase>(ApplicationProvider.getApplicationContext())
+            .setDriver(AndroidSQLiteDriver()).build()
+        try {
+            val captures = CaptureRepositoryImpl(db.rawCaptureDao())
+            db.rawCaptureDao().record(RawCapture(sourceApp = "wallet", capturedAt = Clock.System.now(),
+                body = "legacy text", result = CaptureResult.IGNORED, reason = "Ignored").toEntity())
+            val row = captures.observeLog().first().single()
+            assertEquals(CaptureResult.IGNORED, row.result)
+            assertNull(row.body)
+            assertEquals(listOf(row), captures.observeLog(CaptureResult.IGNORED).first())
+            assertTrue(captures.observeLog(CaptureResult.PARSED).first().isEmpty())
+            captures.clearLog()
+            assertTrue(db.rawCaptureDao().observeLog(null).first().isEmpty())
+        } finally { db.close() }
+    }
+
     @Test fun revokingRetentionHidesAndErasesBodiesAndPreventsNewRetention() = runTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val file = java.io.File.createTempFile("retain", ".preferences_pb").also { it.delete() }
