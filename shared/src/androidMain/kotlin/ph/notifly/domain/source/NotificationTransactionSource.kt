@@ -12,9 +12,11 @@ import ph.notifly.domain.model.CaptureResult
 import ph.notifly.domain.model.RawCapture
 import ph.notifly.domain.model.Transaction
 import ph.notifly.domain.model.TransactionStatus
+import ph.notifly.domain.model.TransactionType
 import kotlin.time.Clock
 import java.security.MessageDigest
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 class NotificationTransactionSource(
     private val context: Context,
@@ -47,7 +49,8 @@ class NotificationTransactionSource(
         if (body.isBlank()) return
         val now = Clock.System.now()
         val fingerprint = digest("${event.key}\u0000$body")
-        val id = when (val result = parser.parse(body)) {
+        val otherFinanceApps = allowList.observeAll().first().filter { it.finance && it.packageName != event.sourceApp }.map { it.label }
+        val id = when (val result = parser.parse(body, otherFinanceApps)) {
             is ParseOutcome.Unrecognized -> captures.record(RawCapture(sourceApp = sourceAppLabel, capturedAt = now, body = body,
                 result = CaptureResult.UNRECOGNIZED, reason = result.reason, fingerprint = fingerprint))
             is ParseOutcome.Parsed -> {
@@ -56,9 +59,9 @@ class NotificationTransactionSource(
                     result = if (draft.needsReview) CaptureResult.NEEDS_REVIEW else CaptureResult.PARSED,
                     matchedAmount = draft.matchedAmount, matchedDirection = draft.matchedDirection,
                     reason = result.reason, fingerprint = fingerprint), Transaction(
-                    title = draft.merchant ?: "Payment from ${event.sourceApp}", amountMinor = draft.amountMinor,
+                    title = draft.merchant ?: "Payment from $sourceAppLabel", amountMinor = draft.amountMinor,
                     currency = draft.currency, type = draft.type, status = TransactionStatus.NEEDS_REVIEW,
-                    category = "Other", occurredAt = now, sourceApp = event.sourceApp, captureId = null))
+                    category = if (draft.type == TransactionType.TRANSFER) "Transfer" else "Other", occurredAt = now, sourceApp = event.sourceApp, captureId = null))
             }
         }
         if (id != -1L) allowList.incrementCapturedCount(event.sourceApp)

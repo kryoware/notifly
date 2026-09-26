@@ -38,7 +38,12 @@ class ExpressiveControlsTest {
     }
 
     @Test fun collapsedFabKeepsItsName() {
-        val model = HomeModel(DemoTransactions())
+        val store = object : DataStore<Preferences> {
+            override val data = flowOf(emptyPreferences())
+            override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
+                transform(emptyPreferences())
+        }
+        val model = HomeModel(DemoTransactions(), DemoAllowList(), AppPreferences(store))
         compose.setContent { NotiflyTheme { HomeScreen(model) } }
         compose.waitUntil { model.state.value.rows.isNotEmpty() }
         compose.onNodeWithText("Add transaction").assertExists()

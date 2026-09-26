@@ -75,7 +75,8 @@ fun TransactionRow(
     val sourceApp = transaction.sourceApp?.let { appLabels[it] ?: it }
     val sender = sourceApp ?: "Manual"
     val occurredOn = transaction.occurredAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
-    val supportingText = transaction.title + if (needsReview) " · Needs review" else ""
+    val supportingText = listOfNotNull(transaction.category.takeIf { it.isNotBlank() }, "Needs review".takeIf { needsReview })
+        .joinToString(" · ")
     val leading: @Composable () -> Unit = {
         Crossfade(selected, label = "avatar") { checked ->
             if (checked) Icon(painterResource(Res.drawable.symbol_check_circle), contentDescription = null,
@@ -88,10 +89,10 @@ fun TransactionRow(
         label = "selection",
     )
     val colors = ListItemDefaults.colors(containerColor = container, selectedContainerColor = container)
-    val supporting: @Composable () -> Unit = {
+    val supporting: (@Composable () -> Unit)? = if (supportingText.isEmpty()) null else { {
             Text(supportingText, style = MaterialTheme.typography.bodySmall,
                 color = if (needsReview) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
-    }
+    } }
     val trailing: @Composable () -> Unit = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Column(horizontalAlignment = Alignment.End) {
@@ -112,11 +113,11 @@ fun TransactionRow(
     if (selectionMode) {
         ListItem(checked = selected, onCheckedChange = { onToggleSelection() }, modifier = rowModifier, colors = colors,
             leadingContent = leading, supportingContent = supporting, trailingContent = trailing,
-            content = { Text(sender, style = MaterialTheme.typography.titleMedium) })
+            content = { Text(transaction.title, style = MaterialTheme.typography.titleMedium) })
     } else {
         ListItem(onClick = open, onLongClick = onLongClick, onLongClickLabel = "Select transaction",
             modifier = rowModifier, colors = colors, leadingContent = leading, supportingContent = supporting,
-            trailingContent = trailing, content = { Text(sender, style = MaterialTheme.typography.titleMedium) })
+            trailingContent = trailing, content = { Text(transaction.title, style = MaterialTheme.typography.titleMedium) })
     }
 }
 
@@ -127,6 +128,10 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
     val pendingTotal = s.rows.filter { it.status == TransactionStatus.NEEDS_REVIEW }
         .sumOf { if (it.type == TransactionType.INCOME) it.amountMinor else -it.amountMinor }
     val listState = rememberLazyListState()
+    var editingAccount by remember { mutableStateOf<AccountBalance?>(null) }
+    editingAccount?.let { account ->
+        BalanceDialog(account, dismiss = { editingAccount = null }) { model.setBalance(account.app.packageName, it); editingAccount = null }
+    }
     Scaffold(
         topBar = { TopAppBar(title = { Text(if (demo) "Notifly · Demo" else "Notifly") }) },
         snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) },
@@ -169,6 +174,12 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
                 )
             }
         }
+        if (s.accounts.isNotEmpty()) {
+            item { AccountsHeader(s.accounts.sumOf { it.estimate }) }
+            items(s.accounts, key = { "account:" + it.app.packageName }) { account ->
+                AccountRow(account) { editingAccount = account }
+            }
+        }
         item { Text("Recent", style = MaterialTheme.typography.titleLarge) }
         items(s.rows.take(5), key = { it.id }) { t ->
             TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") },
@@ -178,6 +189,63 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
         if (s.rows.size > 5) item { TextButton(onClick = { model.navigate("transactions") }) { Text("See all transactions") } }
     }
     }
+}
+
+@Composable
+private fun AccountsHeader(total: Long) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Accounts", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text(money(total), style = MaterialTheme.typography.titleMedium)
+        }
+        Text("Estimated from confirmed transactions; transfers aren't counted. Tap an account to enter its actual balance.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun AccountRow(account: AccountBalance, edit: () -> Unit) {
+    val source = account.manual?.let { "Balance of ${money(it.minor)} set ${it.setAt.toLocalDateTime(TimeZone.currentSystemDefault()).date}" }
+        ?: "From captured transactions"
+    ListItem(
+        onClick = edit,
+        leadingContent = { AppIcon(account.app.packageName, account.app.label) },
+        supportingContent = { Text(source, style = MaterialTheme.typography.bodySmall) },
+        trailingContent = { Text(money(account.estimate), style = MaterialTheme.typography.titleMedium) },
+        content = { Text(account.app.label, style = MaterialTheme.typography.titleMedium) },
+    )
+}
+
+@Composable
+private fun BalanceDialog(account: AccountBalance, dismiss: () -> Unit, save: (Long?) -> Unit) {
+    var text by remember { mutableStateOf(amountText(account.estimate.coerceAtLeast(0L))) }
+    var invalid by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("${account.app.label} balance") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Enter what the app shows now. Confirmed transactions from here on are added to it.")
+                OutlinedTextField(
+                    value = text, onValueChange = { text = it; invalid = false },
+                    label = { Text("Balance") }, prefix = { Text("₱") }, singleLine = true, isError = invalid,
+                    supportingText = if (invalid) { { Text("Enter an amount with at most two decimal places.") } } else null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = {
+            // parseAmountMinor rejects zero, which is a real balance here.
+            val minor = parseAmountMinor(text) ?: 0L.takeIf { Regex("""0+(\.0{1,2})?""").matches(text.trim()) }
+            if (minor == null) invalid = true else save(minor)
+        }) { Text("Save") } },
+        dismissButton = {
+            Row {
+                if (account.manual != null) TextButton(onClick = { save(null) }) { Text("Reset") }
+                TextButton(onClick = dismiss) { Text("Cancel") }
+            }
+        },
+    )
 }
 
 private fun TransactionFilter.display(): String = when (this) {
@@ -560,6 +628,12 @@ internal fun SettingsRow(
     count: Int = 1,
 ) {
     val shapes = ListItemDefaults.segmentedShapes(index = index, count = count)
+    // Default segmented container is `surface`, which vanishes against the screen; only checked rows got a fill.
+    val colors = ListItemDefaults.segmentedColors(
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        selectedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+        selectedContentColor = MaterialTheme.colorScheme.onSurface,
+    )
     val supporting: (@Composable () -> Unit)? = subtitle?.let { { Text(it, color = subtitleColor) } }
     val trailing: (@Composable () -> Unit)? = when {
         checked != null -> { { Switch(checked = checked, onCheckedChange = null) } }
@@ -569,13 +643,13 @@ internal fun SettingsRow(
     }
     when {
         checked != null && onCheckedChange != null -> SegmentedListItem(
-            checked = checked, onCheckedChange = onCheckedChange, shapes = shapes,
+            checked = checked, onCheckedChange = onCheckedChange, shapes = shapes, colors = colors,
             modifier = Modifier.fillMaxWidth(), supportingContent = supporting, trailingContent = trailing,
             content = { Text(title) })
         onClick != null -> SegmentedListItem(
-            onClick = onClick, shapes = shapes, modifier = Modifier.fillMaxWidth(),
+            onClick = onClick, shapes = shapes, colors = colors, modifier = Modifier.fillMaxWidth(),
             supportingContent = supporting, trailingContent = trailing, content = { Text(title) })
-        else -> SegmentedListItem(shapes = shapes, modifier = Modifier.fillMaxWidth(),
+        else -> SegmentedListItem(shapes = shapes, colors = colors, modifier = Modifier.fillMaxWidth(),
             supportingContent = supporting, trailingContent = trailing, content = { Text(title) })
     }
 }
@@ -746,12 +820,16 @@ fun AllowListScreen(model: AllowListModel, onboarding: Boolean = false) {
                 } }
             },
         )
+    val plain = ListItemDefaults.colors().let {
+        ListItemDefaults.colors(selectedContainerColor = it.containerColor, selectedContentColor = it.contentColor)
+    }
     LazyColumn(Modifier.weight(1f)) {
         items(s.apps, key = { it.packageName }, contentType = { "app" }) { app ->
             val checked = with(model) { app.isChecked() }
             ListItem(
                 checked = checked,
                 onCheckedChange = { model.toggle(app) },
+                colors = plain,
                 leadingContent = { AppIcon(app.packageName, app.label) },
                 content = { Text(app.label) },
                 supportingContent = { Text("${app.kind} · ${app.capturedCount} captures") },

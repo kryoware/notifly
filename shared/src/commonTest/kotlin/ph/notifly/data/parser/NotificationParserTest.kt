@@ -100,4 +100,20 @@ class NotificationParserTest {
         assertEquals(25_000L, p.draft.amountMinor)
         assertEquals(TransactionType.EXPENSE, p.draft.type)
     }
+
+    @Test
+    fun `naming another finance app is a likely transfer`() {
+        val finance = listOf("MariBank", "BDO Digital Banking")
+        val p = assertIs<ParseOutcome.Parsed>(parser.parse("You sent PHP 500.00 to MARIBANK ****1234.", finance))
+        assertEquals(TransactionType.TRANSFER, p.draft.type)
+        assertTrue(p.draft.needsReview)
+        assertTrue("MariBank" in p.reason)
+        val partial = assertIs<ParseOutcome.Parsed>(parser.parse("You received PHP 500.00 from BDO.", finance))
+        assertEquals(TransactionType.TRANSFER, partial.draft.type)
+        // "bank" alone is too generic to count, and a word inside another word is not a mention.
+        val generic = assertIs<ParseOutcome.Parsed>(parser.parse("Paid PHP 1,200 to LANDBANK.", finance))
+        assertEquals(TransactionType.EXPENSE, generic.draft.type)
+        val unrelated = assertIs<ParseOutcome.Parsed>(parser.parse("You paid PHP 250.00 to BDOUGHNUTS.", finance))
+        assertEquals(TransactionType.EXPENSE, unrelated.draft.type)
+    }
 }

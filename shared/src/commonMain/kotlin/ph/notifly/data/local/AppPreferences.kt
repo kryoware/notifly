@@ -30,6 +30,10 @@ sealed interface PinResult {
 
 private const val MAX_PIN_FAILURES = 5
 private val PIN_LOCKOUT = 30.seconds
+private const val ACCOUNT_BALANCE_PREFIX = "account_balance:"
+
+/** A balance the user typed in for a finance app; transactions after [setAt] are applied on top of it. */
+data class ManualBalance(val minor: Long, val setAt: Instant)
 
 class AppPreferences(private val store: DataStore<Preferences>) {
     private val paletteKey = stringPreferencesKey("palette")
@@ -58,6 +62,14 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     val pinSet = data.map { it[pinHashKey] != null }
     val biometricUnlock = data.map { it[pinHashKey] != null && (it[biometricKey] ?: false) }
     val monthlyBudget = data.map { it[monthlyBudgetKey] }
+    /** Keyed by package name; each value is stored as `minor@epochMillis`. */
+    val accountBalances = data.map { prefs ->
+        prefs.asMap().entries.filter { it.key.name.startsWith(ACCOUNT_BALANCE_PREFIX) }.mapNotNull { (key, value) ->
+            val (minor, at) = (value as String).split('@').takeIf { it.size == 2 } ?: return@mapNotNull null
+            key.name.removePrefix(ACCOUNT_BALANCE_PREFIX) to
+                ManualBalance(minor.toLongOrNull() ?: return@mapNotNull null, Instant.fromEpochMilliseconds(at.toLongOrNull() ?: return@mapNotNull null))
+        }.toMap()
+    }
     suspend fun setPalette(value: NotiflyPalette) { store.edit { it[paletteKey] = value.name } }
     suspend fun setThemeMode(value: ThemeMode) { store.edit { it[themeModeKey] = value.name } }
     suspend fun completeOnboarding() { store.edit { it[onboardingKey] = true } }
@@ -66,6 +78,10 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     suspend fun setKeepRawText(value: Boolean) { store.edit { it[retentionKey] = value } }
     suspend fun setCrashReporting(value: Boolean) { store.edit { it[crashReportingKey] = value } }
     suspend fun setMonthlyBudget(minor: Long?) { store.edit { if (minor == null) it.remove(monthlyBudgetKey) else it[monthlyBudgetKey] = minor } }
+    suspend fun setAccountBalance(packageName: String, balance: ManualBalance?) {
+        val key = stringPreferencesKey(ACCOUNT_BALANCE_PREFIX + packageName)
+        store.edit { if (balance == null) it.remove(key) else it[key] = "${balance.minor}@${balance.setAt.toEpochMilliseconds()}" }
+    }
 
     /** Stores only a salted PBKDF2 hash of [pin]; the PIN itself is never persisted. */
     suspend fun setPin(pin: String) {

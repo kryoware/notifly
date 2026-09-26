@@ -42,7 +42,7 @@ open class ScreenModel : ViewModel() {
     fun navigate(route: String) = work { mutableEvents.emit(UiEvent.Navigate(route)) }
 }
 
-data class LedgerState(val rows: List<Transaction> = emptyList(), val net: Long = 0L)
+data class LedgerState(val rows: List<Transaction> = emptyList(), val net: Long = 0L, val accounts: List<AccountBalance> = emptyList())
 data class InsightsState(
     val days: Int = INSIGHT_WINDOWS.first(),
     val windows: List<WindowInsights> = emptyList(),
@@ -52,9 +52,17 @@ data class InsightsState(
 ) {
     val selected get() = windows.firstOrNull { it.days == days }
 }
-class HomeModel(private val repository: TransactionRepository) : ScreenModel() {
-    val state = combine(repository.observeAll(), repository.observeConfirmedNetMinor()) { rows, net -> LedgerState(rows, net) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LedgerState())
+class HomeModel(
+    private val repository: TransactionRepository,
+    apps: AllowListRepository,
+    private val preferences: AppPreferences,
+) : ScreenModel() {
+    val state = combine(repository.observeAll(), repository.observeConfirmedNetMinor(), apps.observeAll(), preferences.accountBalances) {
+        rows, net, allowed, manual -> LedgerState(rows, net, accountBalances(allowed, rows, manual))
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LedgerState())
+    fun setBalance(packageName: String, minor: Long?) = work {
+        preferences.setAccountBalance(packageName, minor?.let { ph.notifly.data.local.ManualBalance(it, Clock.System.now()) })
+    }
     fun confirm(t: Transaction) = work {
         repository.upsert(t.copy(status = TransactionStatus.CONFIRMED))
         mutableEvents.emit(UiEvent.Message("Transaction confirmed", undo = t))

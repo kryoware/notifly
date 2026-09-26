@@ -22,8 +22,10 @@ class NotificationParser {
     private val holdWords = listOf("hold", "pre-auth", "preauth", "authorization hold", "may differ")
     private val balanceWords = listOf("balance is", "available balance", "current balance", "as of")
     private val selfTransferHints = listOf("your own", "to your", "own account", "savings ending", "between your")
+    private val genericNameWords = setOf("bank", "app", "mobile", "online", "digital", "pay", "wallet", "savings")
 
-    fun parse(body: String): ParseOutcome {
+    /** [financeApps] are labels of the user's other finance apps; naming one marks the draft as a likely transfer. */
+    fun parse(body: String, financeApps: Collection<String> = emptyList()): ParseOutcome {
         val text = body.trim()
         if (text.isEmpty()) return ParseOutcome.Unrecognized("Empty notification body.")
 
@@ -46,7 +48,8 @@ class NotificationParser {
             return ParseOutcome.Unrecognized(why)
         }
 
-        val isSelfTransfer = selfTransferHints.any { lower.contains(it) }
+        val mentionedApp = mentionedApp(text, financeApps)
+        val isSelfTransfer = mentionedApp != null || selfTransferHints.any { lower.contains(it) }
 
         // Both directions present is genuinely ambiguous — do not silently pick one.
         val ambiguousDirection = inWord != null && outWord != null
@@ -60,6 +63,8 @@ class NotificationParser {
         val merchant = extractMerchant(text)
 
         val reason = when {
+            mentionedApp != null ->
+                "Mentions $mentionedApp, another of your finance apps. Probably a transfer — counting it would double your spending."
             isSelfTransfer ->
                 "Destination looks like another account of yours. Probably a transfer — counting it would double your spending."
             isHold ->
@@ -97,6 +102,12 @@ class NotificationParser {
         val whole = parts[0].toLong()
         val frac = if (parts.size > 1) parts[1].padEnd(2, '0').take(2).toLong() else 0L
         return whole * 100 + frac
+    }
+
+    /** Whole label or any distinctive word of it, so "BDO" in the text matches "BDO Digital". */
+    private fun mentionedApp(text: String, financeApps: Collection<String>): String? = financeApps.firstOrNull { label ->
+        (label.split(Regex("[^A-Za-z0-9]+")).filter { it.length >= 3 && it.lowercase() !in genericNameWords } + label.trim())
+            .any { Regex("""\b${Regex.escape(it)}\b""", RegexOption.IGNORE_CASE).containsMatchIn(text) }
     }
 
     /** Takes the token run after "to"/"from". Deliberately crude — merchant is low-stakes. */

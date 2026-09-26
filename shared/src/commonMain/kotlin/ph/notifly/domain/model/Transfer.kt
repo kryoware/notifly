@@ -7,12 +7,13 @@ val TRANSFER_WINDOW = 2.minutes
 
 /**
  * True when [this] and [other] look like the two notifications a single transfer between the
- * user's own accounts produces: same amount and currency, opposite directions, different source
- * apps, both still awaiting review, and close enough in time.
+ * user's own accounts produces: same amount and currency, opposite directions (or a leg the parser
+ * already flagged as a transfer), different source apps, both still awaiting review, and close
+ * enough in time.
  */
 fun Transaction.isTransferPairWith(other: Transaction): Boolean =
     status == TransactionStatus.NEEDS_REVIEW && other.status == TransactionStatus.NEEDS_REVIEW &&
         amountMinor == other.amountMinor && currency == other.currency &&
         sourceApp != null && other.sourceApp != null && sourceApp != other.sourceApp &&
-        setOf(type, other.type) == setOf(TransactionType.INCOME, TransactionType.EXPENSE) &&
+        setOf(type, other.type).let { it == setOf(TransactionType.INCOME, TransactionType.EXPENSE) || TransactionType.TRANSFER in it } &&
         (occurredAt - other.occurredAt).absoluteValue <= TRANSFER_WINDOW

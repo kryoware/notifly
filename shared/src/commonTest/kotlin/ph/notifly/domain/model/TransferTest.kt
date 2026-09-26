@@ -32,6 +32,11 @@ class TransferTest {
         val b = draft(TransactionType.EXPENSE, "com.maribank", occurredAt = BASE + 30.seconds)
         assertFalse(a.isTransferPairWith(b))
     }
+    @Test fun matchesParserFlaggedTransferLeg() {
+        val a = draft(TransactionType.TRANSFER, "com.maya")
+        assertTrue(a.isTransferPairWith(draft(TransactionType.INCOME, "com.maribank", occurredAt = BASE + 30.seconds)))
+        assertTrue(a.isTransferPairWith(draft(TransactionType.TRANSFER, "com.maribank", occurredAt = BASE + 30.seconds)))
+    }
     @Test fun rejectsOutsideWindow() {
         val a = draft(TransactionType.EXPENSE, "com.maya")
         val b = draft(TransactionType.INCOME, "com.maribank", occurredAt = BASE + 2.minutes + 1.seconds)

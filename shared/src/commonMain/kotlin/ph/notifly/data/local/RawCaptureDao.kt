@@ -68,7 +68,9 @@ interface RawCaptureDao {
             insertTransaction(incoming.toEntity())
             return id
         }
-        val (from, to) = if (incoming.type == TransactionType.EXPENSE) incoming to candidate else candidate to incoming
+        // Two parser-flagged legs carry no direction; the earlier notification is taken as the sender.
+        val (from, to) = if (incoming.type == TransactionType.EXPENSE || candidate.type == TransactionType.INCOME)
+            incoming to candidate else candidate to incoming
         val fromLabel = from.captureId?.let { sourceAppFor(it) } ?: from.sourceApp.orEmpty()
         val toLabel = to.captureId?.let { sourceAppFor(it) } ?: to.sourceApp.orEmpty()
         mergeIntoTransfer(candidate.id, TransactionType.TRANSFER.name, "Transfer", "$fromLabel → $toLabel")
