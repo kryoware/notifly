@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Matches the app manifest; without it SentryInitProvider crashes the test process on a missing DSN. -->
+        <meta-data android:name="io.sentry.auto-init" android:value="false" />
+    </application>
+</manifest>
