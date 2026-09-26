@@ -33,7 +33,7 @@ data class WindowInsights(
     val dailyAverage get() = current.spent / days
 }
 
-data class MonthInsights(val flow: CashFlow, val day: Int, val length: Int) {
+data class MonthInsights(val flow: CashFlow, val day: Int, val length: Int, val categories: Map<String, Long> = emptyMap()) {
     val daysLeft get() = length - day + 1
     /** Straight-line projection of month-to-date spending. */
     val projected get() = flow.spent * length / day
@@ -81,5 +81,7 @@ fun monthInsights(rows: List<Transaction>, today: LocalDate, zone: TimeZone): Mo
     val first = LocalDate(today.year, today.month, 1)
     val length = first.plus(1, DateTimeUnit.MONTH).minus(1, DateTimeUnit.DAY).day
     val month = rows.confirmedByDate(zone).filter { (date, _) -> date in first..today }.map { it.second }
-    return MonthInsights(cashFlow(month), today.day, length)
+    val categories = month.filter { it.type == TransactionType.EXPENSE }
+        .groupBy { it.category }.mapValues { (_, rows) -> rows.sumOf { it.amountMinor } }
+    return MonthInsights(cashFlow(month), today.day, length, categories)
 }

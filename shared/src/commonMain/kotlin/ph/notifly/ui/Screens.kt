@@ -30,6 +30,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -40,6 +42,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import kotlin.math.abs
 import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -53,6 +56,7 @@ import ph.notifly.ui.theme.accents
 
 private val CATEGORIES = listOf("Income", "Food", "Transport", "Bills", "Shopping", "Transfer", "Other")
 private val FAB_CLEARANCE = 88.dp
+private const val SWIPE_THRESHOLD = 0.5f
 
 @Composable
 fun TransactionRow(
@@ -304,14 +308,14 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
         }
     ) { padding ->
     Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
-        SingleChoiceSegmentedButtonRow(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)) {
-            TransactionFilter.entries.forEachIndexed { index, f ->
-                SegmentedButton(
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TransactionFilter.entries.forEach { f ->
+                FilterChip(
                     selected = s.filter == f,
                     onClick = { model.filter(f) },
-                    shape = SegmentedButtonDefaults.itemShape(index, TransactionFilter.entries.size),
-                    icon = { Icon(painterResource(f.icon()), contentDescription = null, Modifier.size(SegmentedButtonDefaults.IconSize)) },
                     label = { Text(f.display()) },
+                    leadingIcon = { Icon(painterResource(f.icon()), contentDescription = null, Modifier.size(FilterChipDefaults.IconSize)) },
                 )
             }
         }
@@ -353,9 +357,15 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                                 SwipeToDismissBoxValue.EndToStart -> { model.delete(t); true }
                                 SwipeToDismissBoxValue.Settled -> false
                             }
-                        })
+                        }, positionalThreshold = { it * SWIPE_THRESHOLD })
+                        // Swipe state is saveable and LazyColumn restores it by key, so an undone delete
+                        // (same id) would come back already dismissed.
+                        LaunchedEffect(t) {
+                            if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) dismissState.reset()
+                        }
                         SwipeToDismissBox(
                             state = dismissState,
+                            enableDismissFromStartToEnd = t.status == TransactionStatus.NEEDS_REVIEW,
                             modifier = Modifier.semantics {
                                 customActions = buildList {
                                     if (t.status == TransactionStatus.NEEDS_REVIEW)
@@ -365,14 +375,18 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                             },
                             backgroundContent = {
                                 val toConfirm = dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+                                var width by remember { mutableFloatStateOf(0f) }
+                                val offset = try { dismissState.requireOffset() } catch (_: IllegalStateException) { 0f }
+                                val fraction = if (width == 0f) 0f else (abs(offset) / (width * SWIPE_THRESHOLD)).coerceIn(0f, 1f)
+                                val scheme = MaterialTheme.colorScheme
                                 Box(
-                                    Modifier.fillMaxSize().clip(MaterialTheme.shapes.large)
-                                        .background(if (toConfirm) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer)
+                                    Modifier.fillMaxSize().onSizeChanged { width = it.width.toFloat() }.clip(MaterialTheme.shapes.large)
+                                        .background(if (toConfirm) scheme.primaryContainer else lerp(scheme.errorContainer, scheme.error, fraction))
                                         .padding(horizontal = 24.dp),
                                     contentAlignment = if (toConfirm) Alignment.CenterStart else Alignment.CenterEnd,
                                 ) { Icon(if (toConfirm) painterResource(Res.drawable.symbol_check) else painterResource(Res.drawable.symbol_delete),
-                                    contentDescription = null, tint = if (toConfirm) MaterialTheme.colorScheme.onPrimaryContainer
-                                    else MaterialTheme.colorScheme.onErrorContainer) }
+                                    contentDescription = null, tint = if (toConfirm) scheme.onPrimaryContainer
+                                    else lerp(scheme.onErrorContainer, scheme.onError, fraction)) }
                             },
                             content = { row() },
                         )
@@ -681,6 +695,13 @@ fun SettingsScreen(
             }
         }
 
+        item { SettingsSection("General") }
+        item {
+            SettingsGroup {
+                SettingsRow("Category budgets", "Set a monthly limit for each spending category", onClick = { model.navigate("budgets") })
+            }
+        }
+
         item { SettingsSection("Security") }
         item {
             var pinDialog by remember { mutableStateOf(false) }
@@ -702,39 +723,45 @@ fun SettingsScreen(
         item { SettingsSection("Appearance") }
         item {
             SettingsGroup {
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Text("Theme mode", style = MaterialTheme.typography.titleMedium)
-                    SingleChoiceSegmentedButtonRow(Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp)) {
-                        ThemeMode.entries.forEachIndexed { index, mode ->
-                            SegmentedButton(
-                                selected = s.themeMode == mode,
-                                onClick = { model.themeMode(mode) },
-                                shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
-                                label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) },
-                            )
+                Surface(shape = ListItemDefaults.segmentedShapes(index = 0, count = 2).shape,
+                    color = MaterialTheme.colorScheme.surfaceContainer) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Text("Theme mode", style = MaterialTheme.typography.titleMedium)
+                        SingleChoiceSegmentedButtonRow(Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp)) {
+                            ThemeMode.entries.forEachIndexed { index, mode ->
+                                SegmentedButton(
+                                    selected = s.themeMode == mode,
+                                    onClick = { model.themeMode(mode) },
+                                    shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
+                                    label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                                )
+                            }
                         }
                     }
                 }
-                var expanded by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = !expanded },
-                    modifier = Modifier.padding(16.dp),
-                ) {
-                    OutlinedTextField(
-                        value = "${s.palette.name} · ${s.palette.hint}",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Color palette") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-                    )
-                    ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        NotiflyPalette.entries.forEach { palette ->
-                            DropdownMenuItem(
-                                text = { Text("${palette.name} · ${palette.hint}") },
-                                onClick = { expanded = false; model.palette(palette) },
-                            )
+                Surface(shape = ListItemDefaults.segmentedShapes(index = 1, count = 2).shape,
+                    color = MaterialTheme.colorScheme.surfaceContainer) {
+                    var expanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = expanded,
+                        onExpandedChange = { expanded = !expanded },
+                        modifier = Modifier.padding(16.dp),
+                    ) {
+                        OutlinedTextField(
+                            value = "${s.palette.name} · ${s.palette.hint}",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Color palette") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                        )
+                        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            NotiflyPalette.entries.forEach { palette ->
+                                DropdownMenuItem(
+                                    text = { Text("${palette.name} · ${palette.hint}") },
+                                    onClick = { expanded = false; model.palette(palette) },
+                                )
+                            }
                         }
                     }
                 }
@@ -797,6 +824,35 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun BudgetsScreen(model: BudgetsModel) {
+    val budgets by model.state.collectAsState()
+    var editing by remember { mutableStateOf<String?>(null) }
+    // Keeps budgets for categories that were since dropped from the list reachable, so they can be removed.
+    val categories = ((CATEGORIES - setOf("Income", "Transfer")) + budgets.keys.sorted()).distinct()
+    LazyColumn(
+        Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(bottom = 24.dp),
+    ) {
+        item {
+            Text("Limits reset on the 1st of each month. Only confirmed expenses count toward them.",
+                Modifier.padding(vertical = 8.dp))
+        }
+        item {
+            SettingsGroup {
+                categories.forEachIndexed { index, category ->
+                    SettingsRow(category, budgets[category]?.let { "${money(it)} per month" } ?: "No budget",
+                        onClick = { editing = category }, index = index, count = categories.size)
+                }
+            }
+        }
+    }
+    editing?.let { category ->
+        BudgetDialog(budgets[category], dismiss = { editing = null }, title = "$category budget",
+            message = "How much do you plan to spend on $category each month?") { model.budget(category, it); editing = null }
     }
 }
 

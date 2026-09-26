@@ -47,6 +47,7 @@ class InsightsTest {
     @Test fun monthProjectsSpendingAndSplitsRemainingBudget() {
         val m = monthInsights(rows, today, zone)
         assertEquals(CashFlow(income = 300_000, spent = 134_999), m.flow)
+        assertEquals(mapOf("Food" to 129_999L, "Transport" to 5_000L), m.categories)
         assertEquals(30, m.length)
         assertEquals(5, m.daysLeft)
         assertEquals(134_999L * 30 / 26, m.projected)

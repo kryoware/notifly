@@ -105,6 +105,8 @@ fun NotiflyApp(
                 composable("settings") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle)
                     AppDestination(if (demo) "Settings · Demo" else "Settings", snackbar) {
                         SettingsScreen(m, permissionAvailable, requestPermission, versionName, isDebugBuild, biometricAvailable, authenticateBiometric) } }
+                composable("budgets") { val m = viewModel { BudgetsModel(preferences) }; Events(m, handle)
+                    AppDestination("Category budgets", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { BudgetsScreen(m) } }
                 composable("allow-list") { val m = viewModel { AllowListModel(apps) }; Events(m, handle)
                     AppDestination("Allowed apps", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { AllowListScreen(m) } }
                 composable("choose-apps") { val m = viewModel { AllowListModel(apps) }; Events(m, handle)

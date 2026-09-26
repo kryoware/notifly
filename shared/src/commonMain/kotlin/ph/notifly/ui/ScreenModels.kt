@@ -49,6 +49,7 @@ data class InsightsState(
     val month: MonthInsights? = null,
     val budget: Long? = null,
     val pending: Int = 0,
+    val categoryBudgets: Map<String, Long> = emptyMap(),
 ) {
     val selected get() = windows.firstOrNull { it.days == days }
 }
@@ -70,14 +71,18 @@ class HomeModel(
 }
 class InsightsModel(repository: TransactionRepository, private val preferences: AppPreferences) : ScreenModel() {
     private val days = MutableStateFlow(INSIGHT_WINDOWS.first())
-    val state = combine(repository.observeAll(), days, preferences.monthlyBudget) { rows, d, budget ->
+    val state = combine(repository.observeAll(), days, preferences.monthlyBudget, preferences.categoryBudgets) { rows, d, budget, categoryBudgets ->
         val zone = TimeZone.currentSystemDefault()
         val today = Clock.System.now().toLocalDateTime(zone).date
         InsightsState(d, INSIGHT_WINDOWS.map { windowInsights(rows, today, it, zone) }, monthInsights(rows, today, zone),
-            budget, rows.count { it.status == TransactionStatus.NEEDS_REVIEW })
+            budget, rows.count { it.status == TransactionStatus.NEEDS_REVIEW }, categoryBudgets)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InsightsState())
     fun days(value: Int) { days.value = value }
     fun budget(minor: Long?) = work { preferences.setMonthlyBudget(minor) }
+}
+class BudgetsModel(private val preferences: AppPreferences) : ScreenModel() {
+    val state = preferences.categoryBudgets.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+    fun budget(category: String, minor: Long?) = work { preferences.setCategoryBudget(category, minor) }
 }
 enum class TransactionFilter { ALL, NEEDS_REVIEW, INCOME, EXPENSE, TRANSFER }
 data class TransactionsState(val rows: List<Transaction> = emptyList(), val filter: TransactionFilter = TransactionFilter.ALL)

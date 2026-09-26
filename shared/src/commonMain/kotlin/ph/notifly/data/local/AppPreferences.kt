@@ -30,6 +30,7 @@ sealed interface PinResult {
 
 private const val MAX_PIN_FAILURES = 5
 private val PIN_LOCKOUT = 30.seconds
+private const val CATEGORY_BUDGET_PREFIX = "category_budget_minor:"
 private const val ACCOUNT_BALANCE_PREFIX = "account_balance:"
 
 /** A balance the user typed in for a finance app; transactions after [setAt] are applied on top of it. */
@@ -62,6 +63,11 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     val pinSet = data.map { it[pinHashKey] != null }
     val biometricUnlock = data.map { it[pinHashKey] != null && (it[biometricKey] ?: false) }
     val monthlyBudget = data.map { it[monthlyBudgetKey] }
+    /** Monthly limit per spending category, keyed by category name. */
+    val categoryBudgets = data.map { prefs ->
+        prefs.asMap().entries.filter { it.key.name.startsWith(CATEGORY_BUDGET_PREFIX) }
+            .associate { it.key.name.removePrefix(CATEGORY_BUDGET_PREFIX) to it.value as Long }
+    }
     /** Keyed by package name; each value is stored as `minor@epochMillis`. */
     val accountBalances = data.map { prefs ->
         prefs.asMap().entries.filter { it.key.name.startsWith(ACCOUNT_BALANCE_PREFIX) }.mapNotNull { (key, value) ->
@@ -81,6 +87,10 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     suspend fun setAccountBalance(packageName: String, balance: ManualBalance?) {
         val key = stringPreferencesKey(ACCOUNT_BALANCE_PREFIX + packageName)
         store.edit { if (balance == null) it.remove(key) else it[key] = "${balance.minor}@${balance.setAt.toEpochMilliseconds()}" }
+    }
+    suspend fun setCategoryBudget(category: String, minor: Long?) {
+        val key = longPreferencesKey(CATEGORY_BUDGET_PREFIX + category)
+        store.edit { if (minor == null) it.remove(key) else it[key] = minor }
     }
 
     /** Stores only a salted PBKDF2 hash of [pin]; the PIN itself is never persisted. */

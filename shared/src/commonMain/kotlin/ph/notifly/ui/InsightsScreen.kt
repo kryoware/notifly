@@ -65,6 +65,9 @@ fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyM
         item { DailySpendingCard(w) }
         item { PaceCard(s.windows, s.days, model::days) }
         s.month?.let { month -> item { BudgetCard(month, s.budget) { editingBudget = true } } }
+        s.month?.takeIf { s.categoryBudgets.isNotEmpty() }?.let { month ->
+            item { CategoryBudgetCard(month, s.categoryBudgets) { model.navigate("budgets") } }
+        }
         item { CategoryCard(w) }
         if (w.largest.isNotEmpty()) {
             item { Text("Largest expenses · last ${w.days} days", style = MaterialTheme.typography.titleMedium) }
@@ -288,15 +291,48 @@ private fun CategoryCard(w: WindowInsights) {
 }
 
 @Composable
-private fun BudgetDialog(current: Long?, dismiss: () -> Unit, save: (Long?) -> Unit) {
+private fun CategoryBudgetCard(m: MonthInsights, budgets: Map<String, Long>, manage: () -> Unit) {
+    val rows = budgets.entries.map { (category, budget) -> Triple(category, m.categories[category] ?: 0L, budget) }
+        .sortedByDescending { (_, spent, budget) -> spent * 1000 / budget }
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Category budgets · this month", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                TextButton(onClick = manage) { Text("Manage") }
+            }
+            rows.forEach { (category, spent, budget) ->
+                val over = spent > budget
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(category, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        Text("${money(spent)} of ${money(budget)}", style = MaterialTheme.typography.titleSmall)
+                    }
+                    LinearProgressIndicator(progress = { ratio(spent, budget) }, modifier = Modifier.fillMaxWidth(),
+                        color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                    Text(if (over) "Over by ${money(spent - budget)}" else "${money(budget - spent)} left",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun BudgetDialog(
+    current: Long?, dismiss: () -> Unit,
+    title: String = "Monthly budget",
+    message: String = "How much do you plan to spend each month? Transfers don't count toward it.",
+    save: (Long?) -> Unit,
+) {
     var text by remember { mutableStateOf(current?.let(::amountText).orEmpty()) }
     var invalid by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = dismiss,
-        title = { Text("Monthly budget") },
+        title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("How much do you plan to spend each month? Transfers don't count toward it.")
+                Text(message)
                 OutlinedTextField(
                     value = text, onValueChange = { text = it; invalid = false },
                     label = { Text("Amount") }, prefix = { Text("₱") }, singleLine = true, isError = invalid,
