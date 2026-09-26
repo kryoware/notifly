@@ -2,7 +2,7 @@
 agp = "9.3.3"
 kotlin = "2.4.0"
 ksp = "2.3.12"
-composeMultiplatform = "1.11.0"
+composeMultiplatform = "1.13.0-alpha01"
 coroutines = "1.10.2"
 androidxLifecycle = "2.9.4"
 androidxNavigation = "2.9.0"
@@ -14,13 +14,15 @@ koin = "4.1.1"
 kotlinxDatetime = "0.7.1"
 robolectric = "4.17"
 androidxTestCore = "1.7.0"
-compileSdk = "36"
+compileSdk = "37"
 minSdk = "26"
 targetSdk = "36"
 sentry = "8.57.0"
 sentryPlugin = "6.22.0"
 
 [libraries]
+compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "composeMultiplatform" }
+compose-material3-navigation-suite = { module = "org.jetbrains.compose.material3:material3-adaptive-navigation-suite", version.ref = "composeMultiplatform" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }

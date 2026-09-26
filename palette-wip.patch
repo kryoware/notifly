@@ -1,0 +1,36 @@
+diff --git a/shared/src/commonMain/kotlin/ph/notifly/ui/theme/Color.kt b/shared/src/commonMain/kotlin/ph/notifly/ui/theme/Color.kt
+index 062a988..af73f94 100644
+--- a/shared/src/commonMain/kotlin/ph/notifly/ui/theme/Color.kt
++++ b/shared/src/commonMain/kotlin/ph/notifly/ui/theme/Color.kt
+@@ -9,14 +9,14 @@ import androidx.compose.ui.graphics.Color
+  * Generated from the Figma file's `M3 Color` collection, which aliases `M3 Tones`.
+  * File key: BTqrcTY3MPDY5WeDng5dzi
+  *
+- * Do NOT hand-edit hex values here. Change them in Figma and regenerate, so the
+- * design file stays the single source of truth.
++ * Do not hand-edit the four generated light schemes. Change them in Figma and
++ * regenerate so the design file stays their source of truth.
+  *
+- * Only light schemes exist today. Dark schemes need a second tonal ramp in Figma
+- * (tones 20/30/80 for accents, 4/6/12/17/22/24 for neutrals).
++ * The dark schemes and the palettes below the authored-section marker are kept
++ * here by hand. Colour literals belong in this file only.
+  */
+ 
+-enum class NotiflyPalette { Evergreen, Indigo, Slate, Clay }
++enum class NotiflyPalette { Evergreen, Indigo, Slate, Clay, Voyager, Cosmos, Canyon, Marigold, Vanta }
+ 
+ val NotiflyPalette.hint: String
+     get() = when (this) {
+@@ -24,6 +24,11 @@ val NotiflyPalette.hint: String
+         NotiflyPalette.Indigo -> "Purple"
+         NotiflyPalette.Slate -> "Blue"
+         NotiflyPalette.Clay -> "Terracotta"
++        NotiflyPalette.Voyager -> "Deep blue"
++        NotiflyPalette.Cosmos -> "Plum"
++        NotiflyPalette.Canyon -> "Orange"
++        NotiflyPalette.Marigold -> "Gold"
++        NotiflyPalette.Vanta -> "Black"
+     }
+ 
+ /** MD3 has no income/expense roles. These ride alongside the scheme. */

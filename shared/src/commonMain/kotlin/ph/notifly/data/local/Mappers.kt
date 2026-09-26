@@ -21,6 +21,8 @@ fun TransactionEntity.toDomain() = Transaction(
     sourceApp = sourceApp,
     captureId = captureId,
     note = note,
+    fromApp = fromApp,
+    toApp = toApp,
 )
 
 fun Transaction.toEntity() = TransactionEntity(
@@ -36,6 +38,8 @@ fun Transaction.toEntity() = TransactionEntity(
     sourceApp = sourceApp,
     captureId = captureId,
     note = note,
+    fromApp = fromApp,
+    toApp = toApp,
 )
 
 fun RawCaptureEntity.toDomain() = RawCapture(
@@ -68,6 +72,7 @@ fun AllowedAppEntity.toDomain() = AllowedApp(
     kind = kind,
     listening = listening,
     capturedCount = capturedCount,
+    finance = finance,
 )
 
 fun AllowedApp.toEntity() = AllowedAppEntity(
@@ -76,4 +81,5 @@ fun AllowedApp.toEntity() = AllowedAppEntity(
     kind = kind,
     listening = listening,
     capturedCount = capturedCount,
+    finance = finance,
 )

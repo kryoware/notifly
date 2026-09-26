@@ -20,6 +20,9 @@ class AllowListRepositoryImpl(
     override suspend fun setListening(packageName: String, listening: Boolean) =
         dao.setListening(packageName, listening)
 
+    override suspend fun setFinance(packageName: String, finance: Boolean) =
+        dao.setFinance(packageName, finance)
+
     override suspend fun incrementCapturedCount(packageName: String) =
         dao.incrementCapturedCount(packageName)
 }

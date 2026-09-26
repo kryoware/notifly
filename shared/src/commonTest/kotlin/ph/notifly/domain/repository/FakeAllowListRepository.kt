@@ -23,6 +23,10 @@ class FakeAllowListRepository : AllowListRepository {
         }
     }
 
+    override suspend fun setFinance(packageName: String, finance: Boolean) {
+        store.update { list -> list.map { if (it.packageName == packageName) it.copy(finance = finance) else it } }
+    }
+
     override suspend fun incrementCapturedCount(packageName: String) {
         store.update { list ->
             list.map {

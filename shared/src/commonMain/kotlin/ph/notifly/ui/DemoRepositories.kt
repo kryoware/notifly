@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.map
 import ph.notifly.domain.model.*
 import ph.notifly.domain.repository.*
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 /** Isolated, explicitly selected demo data; never inserted into the user's ledger. */
 class DemoTransactions : TransactionRepository {
@@ -17,6 +18,11 @@ class DemoTransactions : TransactionRepository {
     private var nextId = 3L
     override fun observeAll() = rows
     override fun observeByStatus(status: TransactionStatus) = rows.map { it.filter { t -> t.status == status } }
+    override fun observeConfirmedSince(since: Instant, limit: Int) = rows.map { values ->
+        values.filter { it.status == TransactionStatus.CONFIRMED && it.occurredAt >= since }
+            .sortedWith(compareByDescending<Transaction> { it.occurredAt }.thenByDescending { it.createdAt })
+            .take(limit)
+    }
     override suspend fun byId(id: Long) = rows.value.find { it.id == id }
     override suspend fun upsert(transaction: Transaction): Long {
         val id = transaction.id.takeIf { it != 0L } ?: nextId++
@@ -34,14 +40,17 @@ class DemoTransactions : TransactionRepository {
 
 class DemoAllowList : AllowListRepository {
     private val rows = MutableStateFlow(listOf(
-        AllowedApp("com.globe.gcash.android", "GCash", "Wallet", true),
-        AllowedApp("com.paymaya", "Maya", "Wallet", true),
+        AllowedApp("com.globe.gcash.android", "GCash", "Wallet", true, finance = true),
+        AllowedApp("com.paymaya", "Maya", "Wallet", true, finance = true),
         AllowedApp("com.bpi.ng.app", "BPI Mobile", "Bank", false),
     ))
     override fun observeAll() = rows
     override suspend fun isAllowed(packageName: String) = rows.value.any { it.packageName == packageName && it.listening }
     override suspend fun setListening(packageName: String, listening: Boolean) {
         rows.value = rows.value.map { if (it.packageName == packageName) it.copy(listening = listening) else it }
+    }
+    override suspend fun setFinance(packageName: String, finance: Boolean) {
+        rows.value = rows.value.map { if (it.packageName == packageName) it.copy(finance = finance) else it }
     }
     override suspend fun incrementCapturedCount(packageName: String) {
         rows.value = rows.value.map { if (it.packageName == packageName) it.copy(capturedCount = it.capturedCount + 1) else it }
@@ -59,9 +68,10 @@ class DemoCaptures : CaptureRepository {
         RawCapture(1, "GCash", Clock.System.now(), "You received PHP 480.00 from ACME CORP.", CaptureResult.PARSED, "PHP 480.00", "received", "Matched an amount and an income keyword. Still requires your confirmation."),
         RawCapture(2, "Maya", Clock.System.now(), "PHP 500.00 hold placed by SHELL.", CaptureResult.NEEDS_REVIEW, "PHP 500.00", "hold", "Possible pre-authorisation. Check the final amount before confirming."),
         RawCapture(3, "GCash", Clock.System.now(), "Your balance is PHP 9120.40.", CaptureResult.UNRECOGNIZED, reason = "Balance notice without a transaction verb. No transaction created."),
-        RawCapture(4, "Shopee", Clock.System.now(), null, CaptureResult.IGNORED, reason = "App is not on your allow-list. Its body was not read."),
     ))
-    override fun observeLog(filter: CaptureResult?) = rows.map { list -> list.filter { filter == null || it.result == filter }.sortedByDescending { it.capturedAt } }
+    override fun observeLog(filter: CaptureResult?) = rows.map { list ->
+        list.filter { filter == null || it.result == filter }.sortedByDescending { it.capturedAt }
+    }
     override suspend fun record(capture: RawCapture): Long {
         val id = (rows.value.maxOfOrNull { it.id } ?: 0) + 1
         rows.value = rows.value + capture.copy(id = id)

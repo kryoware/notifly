@@ -11,13 +11,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ph.notifly.ui.SettingsModel
 
-/** Side-by-side inspection of generated Figma roles; horizontally scroll on phones. */
+/** Inspect all palettes in both modes; horizontally scroll on phones. */
 @Composable
 fun ThemeGallery(model: SettingsModel) {
     Row(Modifier.fillMaxSize().horizontalScroll(rememberScrollState()).padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         NotiflyPalette.entries.forEach { palette ->
-            NotiflyTheme(palette) {
+            listOf(ThemeMode.LIGHT, ThemeMode.DARK).forEach { mode ->
+            NotiflyTheme(palette, mode) {
                 val c = MaterialTheme.colorScheme
                 val a = MaterialTheme.accents
                 val roles = listOf(
@@ -53,8 +54,15 @@ fun ThemeGallery(model: SettingsModel) {
                 )
                 Surface(Modifier.width(280.dp)) {
                     Column(Modifier.verticalScroll(rememberScrollState()).padding(12.dp)) {
-                        Text(palette.name, style = MaterialTheme.typography.headlineSmall)
+                        Text("${palette.name} · ${mode.name.lowercase()}", style = MaterialTheme.typography.headlineSmall)
                         Button(onClick = { model.palette(palette) }) { Text("Use ${palette.name}") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(selected = true, onClick = {}, label = { Text("Selected") })
+                            FilterChip(selected = false, onClick = {}, enabled = false, label = { Text("Disabled") })
+                        }
+                        OutlinedTextField(value = "", onValueChange = {}, label = { Text("Invalid field") },
+                            isError = true, supportingText = { Text("Example error") })
+                        ListItem(headlineContent = { Text("Example row") }, trailingContent = { Switch(true, onCheckedChange = null) })
                         roles.forEach { (name, color) ->
                             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Surface(Modifier.size(32.dp), color = color, border = BorderStroke(1.dp, c.outline)) {}
@@ -63,6 +71,7 @@ fun ThemeGallery(model: SettingsModel) {
                         }
                     }
                 }
+            }
             }
         }
     }

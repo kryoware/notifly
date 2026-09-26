@@ -4,11 +4,15 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.*
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import ph.notifly.domain.model.AllowedApp
 import ph.notifly.domain.model.TransactionStatus
+import ph.notifly.domain.repository.FakeAllowListRepository
 import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -29,6 +33,16 @@ class ScreenModelsTest {
             assertEquals("GCash", saved.sourceApp)
             captures.redactBodies()
             assertTrue(captures.observeLog().first().all { it.body == null })
+        } finally { Dispatchers.resetMain() }
+    }
+    @Test fun editingCapturedTransactionShowsLinkedRawText() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val transactions = DemoTransactions()
+            transactions.upsert(transactions.byId(2)!!.copy(captureId = 2))
+            val editor = EditorModel(transactions, 2, DemoCaptures())
+            runCurrent()
+            assertEquals("PHP 500.00 hold placed by SHELL.", editor.state.value.sourceText)
         } finally { Dispatchers.resetMain() }
     }
     @Test fun onboardingCapsAtFourthPage() {
@@ -107,6 +121,98 @@ class ScreenModelsTest {
             assertEquals(TransactionStatus.NEEDS_REVIEW, repository.byId(2)?.status)
             model.viewModelScope.cancel()
             runCurrent()
+        } finally { Dispatchers.resetMain() }
+    }
+    @Test fun bulkActionsConfirmPendingAndDeleteSelectedRows() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val repository = DemoTransactions()
+            val model = TransactionsModel(repository)
+            val rows = repository.observeAll().first()
+            model.confirmAll(rows)
+            runCurrent()
+            assertTrue(repository.observeAll().first().all { it.status == TransactionStatus.CONFIRMED })
+            model.deleteAll(rows)
+            runCurrent()
+            assertTrue(repository.observeAll().first().isEmpty())
+            model.viewModelScope.cancel()
+            runCurrent()
+        } finally { Dispatchers.resetMain() }
+    }
+    @Test fun transferFilterShowsOnlyTransfers() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val repository = DemoTransactions()
+            repository.upsert(repository.byId(2)!!.copy(id = 0,
+                type = ph.notifly.domain.model.TransactionType.TRANSFER, status = TransactionStatus.NEEDS_REVIEW))
+            val model = TransactionsModel(repository)
+            val states = mutableListOf<TransactionsState>()
+            val job = launch { model.state.collect { states.add(it) } }
+            runCurrent()
+            model.filter(TransactionFilter.TRANSFER)
+            runCurrent()
+            val rows = states.last().rows
+            assertTrue(rows.isNotEmpty())
+            assertTrue(rows.all { it.type == ph.notifly.domain.model.TransactionType.TRANSFER })
+            job.cancelAndJoin()
+            model.viewModelScope.cancel()
+            advanceUntilIdle()
+        } finally { Dispatchers.resetMain() }
+    }
+    @Test fun allowListPinsListeningAppsAtTopAndKeepsOrderStableAfterToggle() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val repository = DemoAllowList()
+            val model = AllowListModel(repository)
+            val states = mutableListOf<AllowListState>()
+            val job = launch { model.state.collect { states.add(it) } }
+            runCurrent()
+            val initial = states.last().apps.map { it.packageName }
+            assertEquals(listOf("com.globe.gcash.android", "com.paymaya", "com.bpi.ng.app"), initial)
+            model.toggle(repository.observeAll().first().first { it.packageName == "com.bpi.ng.app" })
+            runCurrent()
+            assertEquals(initial, states.last().apps.map { it.packageName })
+            assertTrue(states.last().apps.first { it.packageName == "com.bpi.ng.app" }.listening)
+            job.cancelAndJoin()
+            model.viewModelScope.cancel()
+            advanceUntilIdle()
+        } finally { Dispatchers.resetMain() }
+    }
+    @Test fun allowListSearchFiltersCaseInsensitively() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val model = AllowListModel(DemoAllowList())
+            val states = mutableListOf<AllowListState>()
+            val job = launch { model.state.collect { states.add(it) } }
+            runCurrent()
+            model.search("may")
+            advanceTimeBy(200)
+            runCurrent()
+            assertEquals(listOf("Maya"), states.last().apps.map { it.label })
+            job.cancelAndJoin()
+            model.viewModelScope.cancel()
+            advanceUntilIdle()
+        } finally { Dispatchers.resetMain() }
+    }
+    @Test fun financeAllowListShowsOnlyListeningAppsAndTogglesFinance() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val repository = FakeAllowListRepository()
+            repository.seed(AllowedApp("com.maya", "Maya", "Wallet", listening = true), AllowedApp("com.game", "Game", "Other", listening = false))
+            val model = AllowListModel(repository, finance = true)
+            val states = mutableListOf<AllowListState>()
+            val job = launch { model.state.collect { states.add(it) } }
+            runCurrent()
+            assertEquals(listOf("com.maya"), states.last().apps.map { it.packageName })
+            assertFalse(with(model) { states.last().apps.single().isChecked() })
+            model.toggle(states.last().apps.single())
+            runCurrent()
+            val maya = repository.observeAll().first().first { it.packageName == "com.maya" }
+            assertTrue(maya.finance)
+            assertTrue(maya.listening)
+            job.cancelAndJoin()
+            model.viewModelScope.cancel()
+            advanceUntilIdle()
         } finally { Dispatchers.resetMain() }
     }
 }

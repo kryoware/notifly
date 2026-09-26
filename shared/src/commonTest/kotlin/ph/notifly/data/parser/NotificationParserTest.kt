@@ -100,4 +100,50 @@ class NotificationParserTest {
         assertEquals(25_000L, p.draft.amountMinor)
         assertEquals(TransactionType.EXPENSE, p.draft.type)
     }
+
+    @Test
+    fun `possessive finance counterparty is a transfer`() {
+        val p = assertIs<ParseOutcome.Parsed>(parser.parse(
+            "You received PHP 500 from My BDO account.", listOf("BDO Digital Banking"),
+        ))
+        assertEquals(TransactionType.TRANSFER, p.draft.type)
+        assertEquals(50_000L, p.draft.amountMinor)
+        assertEquals(true, p.draft.inbound)
+        assertTrue(p.draft.needsReview)
+    }
+
+    @Test
+    fun `received payment keeps inbound direction but conflicting verbs remain ambiguous`() {
+        val finance = listOf("BDO Digital Banking")
+        val p = assertIs<ParseOutcome.Parsed>(parser.parse("Payment received from BDO. PHP 500.", finance))
+        assertEquals(TransactionType.TRANSFER, p.draft.type)
+        assertEquals(true, p.draft.inbound)
+        assertEquals(Confidence.HIGH, p.draft.directionConfidence)
+        assertTrue(p.draft.needsReview)
+        val ambiguous = assertIs<ParseOutcome.Parsed>(parser.parse("Received PHP 500 from BDO and sent PHP 500.", finance))
+        assertEquals(null, ambiguous.draft.inbound)
+        assertEquals(Confidence.LOW, ambiguous.draft.directionConfidence)
+        assertIs<ParseOutcome.Unrecognized>(parser.parse("Payment received from BDO", finance))
+    }
+
+    @Test
+    fun `naming another finance app is a likely transfer`() {
+        val finance = listOf("MariBank", "BDO Digital Banking")
+        val p = assertIs<ParseOutcome.Parsed>(parser.parse("You sent PHP 500.00 to MARIBANK ****1234.", finance))
+        assertEquals(TransactionType.TRANSFER, p.draft.type)
+        assertTrue(p.draft.needsReview)
+        assertTrue("MariBank" in p.reason)
+        assertEquals(false, p.draft.inbound)
+        val partial = assertIs<ParseOutcome.Parsed>(parser.parse("You received PHP 500.00 from BDO.", finance))
+        assertEquals(TransactionType.TRANSFER, partial.draft.type)
+        assertEquals(true, partial.draft.inbound)
+        // Only the counterparty counts; a finance app named elsewhere is just a place.
+        val place = assertIs<ParseOutcome.Parsed>(parser.parse("You paid PHP 250.00 to JOLLIBEE at BDO Mall.", finance))
+        assertEquals(TransactionType.EXPENSE, place.draft.type)
+        // "bank" alone is too generic to count, and a word inside another word is not a mention.
+        val generic = assertIs<ParseOutcome.Parsed>(parser.parse("Paid PHP 1,200 to LANDBANK.", finance))
+        assertEquals(TransactionType.EXPENSE, generic.draft.type)
+        val unrelated = assertIs<ParseOutcome.Parsed>(parser.parse("You paid PHP 250.00 to BDOUGHNUTS.", finance))
+        assertEquals(TransactionType.EXPENSE, unrelated.draft.type)
+    }
 }

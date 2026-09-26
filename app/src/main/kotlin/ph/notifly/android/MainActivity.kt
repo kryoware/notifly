@@ -3,7 +3,11 @@ package ph.notifly.android
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
+import android.hardware.biometrics.BiometricManager
+import android.hardware.biometrics.BiometricPrompt
+import android.os.Build
 import android.os.Bundle
+import android.os.CancellationSignal
 import android.os.PowerManager
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
@@ -24,6 +28,23 @@ class MainActivity : ComponentActivity() {
     private val installedApps: ph.notifly.data.local.InstalledApps by inject()
     private val available = mutableStateOf(false)
     private val batteryExempt = mutableStateOf(false)
+    private val biometricAvailable = mutableStateOf(false)
+    // ponytail: framework BiometricPrompt needs API 30 for BIOMETRIC_STRONG; API 26–29 get PIN only. androidx.biometric if older devices matter.
+    /**
+     * Prompts for strong biometrics on API 30+, calling [onSuccess] only after authentication succeeds.
+     * Earlier APIs do nothing; cancellation and unsuccessful authentication do not invoke the callback.
+     */
+    private fun authenticate(onSuccess: () -> Unit) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        BiometricPrompt.Builder(this)
+            .setTitle("Unlock Notifly")
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            .setNegativeButton("Use PIN", mainExecutor) { _, _ -> }
+            .build()
+            .authenticate(CancellationSignal(), mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = onSuccess()
+            })
+    }
     private fun openSystemSettings(action: String) {
         try { startActivity(Intent(action)) }
         catch (_: ActivityNotFoundException) {
@@ -42,6 +63,8 @@ class MainActivity : ComponentActivity() {
                 requestBatteryExemption = { openSystemSettings(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS) },
                 versionName = BuildConfig.VERSION_NAME,
                 isDebugBuild = BuildConfig.DEBUG,
+                biometricAvailable = biometricAvailable.value,
+                authenticateBiometric = ::authenticate,
             )
         }
     }
@@ -49,6 +72,8 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         available.value = source.isAvailable()
         batteryExempt.value = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+        biometricAvailable.value = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            getSystemService(BiometricManager::class.java).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
         if (available.value) NotificationListenerService.requestRebind(ComponentName(this, NotificationCaptureService::class.java))
         lifecycleScope.launch {
             try { installedApps.refresh() }

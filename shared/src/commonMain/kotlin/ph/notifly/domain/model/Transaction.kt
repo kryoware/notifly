@@ -24,4 +24,7 @@ data class Transaction(
     val sourceApp: String?,         // null for manual entries
     val captureId: Long?,           // links back to the RawCapture that produced it
     val note: String = "",
+    // TRANSFER only: packages the money left and reached. One side is set per captured leg, both once merged.
+    val fromApp: String? = null,
+    val toApp: String? = null,
 )

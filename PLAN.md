@@ -11,7 +11,7 @@ means the interaction, not a pixel copy.
 
 Cheap, and catches token mistakes before they're baked into twenty screens.
 
-- [x] A debug screen or `@Preview` rendering all four palettes side by side
+- [x] A debug screen rendering all four palettes in light and dark side by side
 - [x] Swatches for every role plus `accents.income` / `accents.expense`
 - [ ] Compare against the Theming page in the Figma file
 - [x] Palette choice persists via DataStore
@@ -154,3 +154,33 @@ manual entry. That's a product decision, not a coding task.
 > Read CLAUDE.md and PLAN.md. Work Phase 0 only. Get `./gradlew :app:assembleDebug`
 > succeeding — fix version resolution first, then compilation. Tell me every
 > version you changed and why. Don't start Phase 1.
+
+---
+
+## Material 3 Expressive compliance audit
+
+Source baseline: Compose Multiplatform, Material 3, and adaptive navigation
+suite `1.13.0-alpha01`; Android artifact maps to Material 3
+`1.5.0-alpha27`. Newer Android-only APIs are outside this shared-source
+baseline. [Release](https://github.com/JetBrains/compose-multiplatform/releases/tag/v1.13.0-alpha01)
+
+- [x] Set compile SDK 37; retain min SDK 26, target SDK 36, Kotlin and AGP.
+- [x] Use `MaterialExpressiveTheme` defaults for typography, shape, and motion; remove fixed navigation transition timings.
+- [x] Generate complete light/dark schemes and semantic roles from the four existing primary seeds with local Material Color Utilities tooling.
+- [x] Show eight palette/mode combinations and representative selected, disabled, and error controls in Theme Gallery.
+- [x] Use interactive Material list items for transaction selection, grouped settings, and the home review prompt.
+- [x] Name the expanded/collapsed add FAB, attach field errors, focus invalid fields, and make onboarding scrollable.
+- [x] Use `TimePickerDialog` with input toggle and device clock format; preserve UTC date conversion.
+- [x] Give Transactions its contextual top app bar and confirm bulk deletion.
+- [x] Use scrollable filter chips and replace spending progress bars with amount list rows.
+- [x] Consume scaffold padding and let each destination's scaffold own its FAB and snackbar.
+- [x] Match swipe icon foregrounds to containers and expose equivalent accessibility actions.
+- [x] Announce log expansion state and use the grouped toggle row for retention.
+- [x] Replace legacy extended icons with official Material Symbols SVG resources and add tooltips to icon-only actions.
+- [x] Check text/container contrast in all eight schemes, including selected and semantic roles.
+- [x] Add and compile focused Android Compose tests for selection, FAB labels, editor/auth errors, picker, bulk delete, and log semantics.
+- [x] Run `:shared:testDebugUnitTest`, `:app:lintDebug`, `:app:assembleDebug`, and `:app:assembleRelease`; dependency resolution contains Material 3 and navigation suite `1.13.0-alpha01` with AndroidX Material 3 `1.5.0-alpha27`.
+- [ ] Run the focused Compose tests on a device or emulator.
+- [ ] Review every screen at narrow phone, landscape, and tablet sizes; 100%/200% fonts; light/dark; RTL; keyboard open; gesture/three-button navigation.
+- [ ] Verify TalkBack labels, state announcements, keyboard focus, and minimum 48dp targets on a device.
+- [x] Final source review: interaction modifiers and extended Material Icons are absent; controls use Material components and application slot content.

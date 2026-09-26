@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AllowedAppDao {
-    @Query("SELECT * FROM allowed_apps")
+    @Query("SELECT * FROM allowed_apps ORDER BY label COLLATE NOCASE")
     fun observeAll(): Flow<List<AllowedAppEntity>>
 
     @Query("SELECT EXISTS(SELECT 1 FROM allowed_apps WHERE packageName = :packageName AND listening = 1)")
@@ -22,6 +22,9 @@ interface AllowedAppDao {
 
     @Query("UPDATE allowed_apps SET listening = :listening WHERE packageName = :packageName")
     suspend fun setListening(packageName: String, listening: Boolean)
+
+    @Query("UPDATE allowed_apps SET finance = :finance WHERE packageName = :packageName")
+    suspend fun setFinance(packageName: String, finance: Boolean)
 
     @Query("UPDATE allowed_apps SET capturedCount = capturedCount + 1 WHERE packageName = :packageName")
     suspend fun incrementCapturedCount(packageName: String)

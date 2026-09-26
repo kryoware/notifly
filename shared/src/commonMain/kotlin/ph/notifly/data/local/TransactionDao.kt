@@ -13,6 +13,13 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE status = :status ORDER BY occurredAtMillis DESC")
     fun observeByStatus(status: String): Flow<List<TransactionEntity>>
 
+    /**
+     * Observes confirmed rows at or after [sinceMillis] (Unix epoch milliseconds), ordered by
+     * occurrence then creation, newest first. [limit] is a row cap; zero returns none, negative is unlimited.
+     */
+    @Query("SELECT * FROM transactions WHERE status = 'CONFIRMED' AND occurredAtMillis >= :sinceMillis ORDER BY occurredAtMillis DESC, createdAtMillis DESC LIMIT :limit")
+    fun observeConfirmedSince(sinceMillis: Long, limit: Int): Flow<List<TransactionEntity>>
+
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun byId(id: Long): TransactionEntity?
 

@@ -10,7 +10,7 @@ import kotlinx.coroutines.IO
 
 @Database(
     entities = [TransactionEntity::class, RawCaptureEntity::class, AllowedAppEntity::class, PendingChangeEntity::class, CaptureReceiptEntity::class],
-    version = 5,
+    version = 8,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -26,6 +26,22 @@ expect object AppDatabaseConstructor : RoomDatabaseConstructor<AppDatabase> {
 }
 
 val databaseMigrations = arrayOf(
+    object : androidx.room.migration.Migration(7, 8) {
+        override fun migrate(connection: androidx.sqlite.SQLiteConnection) {
+            connection.prepare("ALTER TABLE transactions ADD COLUMN fromApp TEXT").use { it.step() }
+            connection.prepare("ALTER TABLE transactions ADD COLUMN toApp TEXT").use { it.step() }
+        }
+    },
+    object : androidx.room.migration.Migration(6, 7) {
+        override fun migrate(connection: androidx.sqlite.SQLiteConnection) {
+            connection.prepare("ALTER TABLE allowed_apps ADD COLUMN finance INTEGER NOT NULL DEFAULT 0").use { it.step() }
+        }
+    },
+    object : androidx.room.migration.Migration(5, 6) {
+        override fun migrate(connection: androidx.sqlite.SQLiteConnection) {
+            connection.prepare("CREATE INDEX IF NOT EXISTS index_transactions_status_occurredAtMillis_createdAtMillis ON transactions(status, occurredAtMillis, createdAtMillis)").use { it.step() }
+        }
+    },
     object : androidx.room.migration.Migration(4, 5) {
         override fun migrate(connection: androidx.sqlite.SQLiteConnection) {
             connection.prepare("ALTER TABLE transactions ADD COLUMN createdAtMillis INTEGER NOT NULL DEFAULT 0").use { it.step() }

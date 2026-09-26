@@ -22,8 +22,16 @@ class NotificationParser {
     private val holdWords = listOf("hold", "pre-auth", "preauth", "authorization hold", "may differ")
     private val balanceWords = listOf("balance is", "available balance", "current balance", "as of")
     private val selfTransferHints = listOf("your own", "to your", "own account", "savings ending", "between your")
+    private val genericNameWords = setOf("bank", "app", "mobile", "online", "digital", "pay", "wallet", "savings")
 
-    fun parse(body: String): ParseOutcome {
+    /**
+     * Parses the first matching PHP amount into minor units. Empty text, a missing amount, or
+     * no recognized transaction or hold wording returns [ParseOutcome.Unrecognized].
+     * [financeApps] are labels of the user's other finance apps; one named as the counterparty marks a likely transfer.
+     *
+     * @throws NumberFormatException if the matched amount's whole-number portion cannot fit in a Long.
+     */
+    fun parse(body: String, financeApps: Collection<String> = emptyList()): ParseOutcome {
         val text = body.trim()
         if (text.isEmpty()) return ParseOutcome.Unrecognized("Empty notification body.")
 
@@ -34,7 +42,8 @@ class NotificationParser {
 
         val lower = text.lowercase()
         val inWord = inbound.firstOrNull { lower.contains(it) }
-        val outWord = outbound.firstOrNull { lower.contains(it) }
+        // "Payment" is a noun in incoming payments; actual outbound verbs still conflict.
+        val outWord = outbound.firstOrNull { lower.contains(it) && (it != "payment" || inWord == null) }
         val isHold = holdWords.any { lower.contains(it) }
 
         if (inWord == null && outWord == null && !isHold) {
@@ -46,7 +55,9 @@ class NotificationParser {
             return ParseOutcome.Unrecognized(why)
         }
 
-        val isSelfTransfer = selfTransferHints.any { lower.contains(it) }
+        val merchant = extractMerchant(text)
+        val mentionedApp = merchant?.let { mentionedApp(it, financeApps) }
+        val isSelfTransfer = mentionedApp != null || selfTransferHints.any { lower.contains(it) }
 
         // Both directions present is genuinely ambiguous — do not silently pick one.
         val ambiguousDirection = inWord != null && outWord != null
@@ -57,9 +68,9 @@ class NotificationParser {
             else -> TransactionType.EXPENSE
         }
 
-        val merchant = extractMerchant(text)
-
         val reason = when {
+            mentionedApp != null ->
+                "Mentions $mentionedApp, another of your finance apps. Probably a transfer — counting it would double your spending."
             isSelfTransfer ->
                 "Destination looks like another account of yours. Probably a transfer — counting it would double your spending."
             isHold ->
@@ -86,6 +97,7 @@ class NotificationParser {
                 Confidence.HIGH
             },
             merchantConfidence = if (merchant == null) Confidence.LOW else Confidence.HIGH,
+            inbound = if (ambiguousDirection) null else inWord?.let { true } ?: outWord?.let { false },
         )
         return ParseOutcome.Parsed(draft, reason)
     }
@@ -97,6 +109,16 @@ class NotificationParser {
         val whole = parts[0].toLong()
         val frac = if (parts.size > 1) parts[1].padEnd(2, '0').take(2).toLong() else 0L
         return whole * 100 + frac
+    }
+
+    /**
+     * Whole label or a distinctive word leading the counterparty, optionally after possessives.
+     * "My BDO account" matches "BDO Digital"
+     * but "JOLLIBEE at BDO Mall" does not.
+     */
+    private fun mentionedApp(counterparty: String, financeApps: Collection<String>): String? = financeApps.firstOrNull { label ->
+        (label.split(Regex("[^A-Za-z0-9]+")).filter { it.length >= 3 && it.lowercase() !in genericNameWords } + label.trim())
+            .any { Regex("""^(?:(?:my|your|own)\s+)*${Regex.escape(it)}\b""", RegexOption.IGNORE_CASE).containsMatchIn(counterparty) }
     }
 
     /** Takes the token run after "to"/"from". Deliberately crude — merchant is low-stakes. */

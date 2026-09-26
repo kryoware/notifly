@@ -27,8 +27,8 @@ kotlin {
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.materialIconsExtended)
+            implementation(libs.compose.material3)
+            implementation(libs.compose.material3.navigation.suite)
             implementation(compose.components.resources)
 
             implementation(libs.kotlinx.coroutines.core)
@@ -56,6 +56,10 @@ kotlin {
             implementation(libs.androidx.test.core)
             implementation(libs.sqlite.framework)
         }
+        androidInstrumentedTest.dependencies {
+            implementation("androidx.compose.ui:ui-test-junit4:1.13.0-alpha02")
+            implementation("androidx.test.ext:junit:1.3.0")
+        }
     }
 }
 
@@ -64,6 +68,7 @@ room {
 }
 
 dependencies {
+    add("debugImplementation", "androidx.compose.ui:ui-test-manifest:1.13.0-alpha02")
     // Room's KSP processor must be added for every target that uses the DB.
     add("kspAndroid", libs.room.compiler)
     // add("kspIosX64", libs.room.compiler)
@@ -74,7 +79,10 @@ dependencies {
 android {
     namespace = "ph.notifly.shared"
     compileSdk = libs.versions.compileSdk.get().toInt()
-    defaultConfig { minSdk = libs.versions.minSdk.get().toInt() }
+    defaultConfig {
+        minSdk = libs.versions.minSdk.get().toInt()
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

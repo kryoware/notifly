@@ -15,6 +15,8 @@ data class TransactionDraft(
     val amountConfidence: Confidence,
     val directionConfidence: Confidence,
     val merchantConfidence: Confidence,
+    /** Whether wording says money came in, or null when unclear. For a TRANSFER this is which end the app is. */
+    val inbound: Boolean? = null,
 ) {
     /** Anything less than fully confident goes to the review queue. */
     val needsReview: Boolean
