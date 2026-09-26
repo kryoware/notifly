@@ -83,6 +83,8 @@ class AppPreferencesTest {
         repeat(4) { assertEquals(PinResult.Wrong, prefs.verifyPin("000000", now)) }
         assertEquals(PinResult.LockedFor(30), prefs.verifyPin("000000", now))
         assertEquals(PinResult.LockedFor(30), prefs.verifyPin("123456", now))
+        assertEquals(30L, prefs.lockoutSeconds(now))
+        assertEquals(0L, prefs.lockoutSeconds(now + kotlin.time.Duration.parse("31s")))
         assertEquals(PinResult.Ok, prefs.verifyPin("123456", now + kotlin.time.Duration.parse("31s")))
         prefs.clearPin()
         assertEquals(false, prefs.pinSet.first())

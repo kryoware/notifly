@@ -154,7 +154,7 @@ fun NotiflyApp(
                 destinations(Modifier.fillMaxSize())
             }
             // Overlay rather than replace, so the NavHost and its back stack survive a lock.
-            if (locked) LockScreen({ preferences.verifyPin(it) }, onUnlock = { unlocked = true },
+            if (locked) LockScreen({ preferences.verifyPin(it) }, { preferences.lockoutSeconds() }, onUnlock = { unlocked = true },
                 biometric = biometricAvailable && biometricUnlock, authenticateBiometric = authenticateBiometric)
         }
     }

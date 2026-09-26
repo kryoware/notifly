@@ -18,4 +18,6 @@ data class TransactionEntity(
     val sourceApp: String?,
     val captureId: Long?,
     val note: String,
+    val fromApp: String? = null,
+    val toApp: String? = null,
 )

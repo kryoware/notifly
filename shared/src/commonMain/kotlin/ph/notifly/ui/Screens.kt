@@ -228,7 +228,7 @@ private fun AccountRow(account: AccountBalance, edit: () -> Unit) {
 /** Edits a nonnegative balance in minor units; reset passes null to [save]. The caller dismisses after saving. */
 @Composable
 private fun BalanceDialog(account: AccountBalance, dismiss: () -> Unit, save: (Long?) -> Unit) {
-    var text by remember { mutableStateOf(amountText(account.estimate.coerceAtLeast(0L))) }
+    var text by remember { mutableStateOf(amountText(account.estimate)) }
     var invalid by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = dismiss,
@@ -245,9 +245,10 @@ private fun BalanceDialog(account: AccountBalance, dismiss: () -> Unit, save: (L
             }
         },
         confirmButton = { TextButton(onClick = {
-            // parseAmountMinor rejects zero, which is a real balance here.
-            val minor = parseAmountMinor(text) ?: 0L.takeIf { Regex("""0+(\.0{1,2})?""").matches(text.trim()) }
-            if (minor == null) invalid = true else save(minor)
+            // parseAmountMinor rejects zero and negatives, both real balances here.
+            val magnitude = text.trim().removePrefix("-")
+            val minor = parseAmountMinor(magnitude) ?: 0L.takeIf { Regex("""0+(\.0{1,2})?""").matches(magnitude) }
+            if (minor == null) invalid = true else save(if (text.trim().startsWith("-")) -minor else minor)
         }) { Text("Save") } },
         dismissButton = {
             Row {

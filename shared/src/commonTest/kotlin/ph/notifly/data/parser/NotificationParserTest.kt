@@ -108,8 +108,13 @@ class NotificationParserTest {
         assertEquals(TransactionType.TRANSFER, p.draft.type)
         assertTrue(p.draft.needsReview)
         assertTrue("MariBank" in p.reason)
+        assertEquals(false, p.draft.inbound)
         val partial = assertIs<ParseOutcome.Parsed>(parser.parse("You received PHP 500.00 from BDO.", finance))
         assertEquals(TransactionType.TRANSFER, partial.draft.type)
+        assertEquals(true, partial.draft.inbound)
+        // Only the counterparty counts; a finance app named elsewhere is just a place.
+        val place = assertIs<ParseOutcome.Parsed>(parser.parse("You paid PHP 250.00 to JOLLIBEE at BDO Mall.", finance))
+        assertEquals(TransactionType.EXPENSE, place.draft.type)
         // "bank" alone is too generic to count, and a word inside another word is not a mention.
         val generic = assertIs<ParseOutcome.Parsed>(parser.parse("Paid PHP 1,200 to LANDBANK.", finance))
         assertEquals(TransactionType.EXPENSE, generic.draft.type)

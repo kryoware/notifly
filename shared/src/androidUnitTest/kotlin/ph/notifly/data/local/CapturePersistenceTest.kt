@@ -90,8 +90,39 @@ class CapturePersistenceTest {
             assertEquals("TRANSFER", rows.single().type)
             assertEquals("NEEDS_REVIEW", rows.single().status)
             assertEquals("Maya → MariBank", rows.single().title)
+            assertEquals("com.maya" to "com.maribank", rows.single().fromApp to rows.single().toApp)
             assertEquals(2, captures.observeLog().first().size)
             assertEquals(0L, db.transactionDao().observeConfirmedNetMinor().first())
+        } finally { db.close() }
+    }
+    @Test fun mergedTransferIsNotMatchedAgain() = runTest {
+        val db = transferDb("com.maya", "com.maribank", "com.gcash")
+        try {
+            val captures = CaptureRepositoryImpl(db.rawCaptureDao())
+            val now = Clock.System.now()
+            listOf(
+                leg("Maya", "com.maya", TransactionType.EXPENSE, 50000, now, "third-1"),
+                leg("MariBank", "com.maribank", TransactionType.INCOME, 50000, now + 30.seconds, "third-2"),
+                leg("GCash", "com.gcash", TransactionType.INCOME, 50000, now + 60.seconds, "third-3"),
+            ).forEach { (c, t) -> captures.recordParsed(c, t) }
+            val rows = db.transactionDao().observeAll().first()
+            assertEquals(2, rows.size)
+            assertEquals(1, rows.count { it.title == "Maya → MariBank" })
+        } finally { db.close() }
+    }
+    @Test fun flaggedTransferLegKeepsItsDirection() = runTest {
+        val db = transferDb()
+        try {
+            val captures = CaptureRepositoryImpl(db.rawCaptureDao())
+            val now = Clock.System.now()
+            val (c1, t1) = leg("MariBank", "com.maribank", TransactionType.EXPENSE, 50000, now, "flagged-1")
+            val (c2, t2) = leg("Maya", "com.maya", TransactionType.TRANSFER, 50000, now + 30.seconds, "flagged-2")
+            captures.recordParsed(c1, t1)
+            captures.recordParsed(c2, t2.copy(fromApp = "com.maya"))
+            assertEquals(2, db.transactionDao().observeAll().first().size)
+            val (c3, t3) = leg("MariBank", "com.maribank", TransactionType.INCOME, 50000, now + 45.seconds, "flagged-3")
+            captures.recordParsed(c3, t3)
+            assertEquals("Maya → MariBank", db.transactionDao().observeAll().first().single { it.type == "TRANSFER" }.title)
         } finally { db.close() }
     }
     @Test fun sameDirectionDoesNotMerge() = runTest {

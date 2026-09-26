@@ -10,18 +10,23 @@ data class AccountBalance(val app: AllowedApp, val estimate: Long, val manual: M
 
 /**
  * Confirmed income minus spending captured from each finance app, on top of the balance the user
- * entered (only transactions after it count). Transfers record just one app, not which side the
- * money left, so they are left out.
+ * entered (only transactions after it count). A transfer moves money out of its `fromApp` and into
+ * its `toApp`; an end that is not known leaves that account alone.
  */
 fun accountBalances(apps: List<AllowedApp>, rows: List<Transaction>, manual: Map<String, ManualBalance>) =
     apps.filter { it.finance }.map { app ->
         val base = manual[app.packageName]
-        val net = rows.filter { it.sourceApp == app.packageName && it.status == TransactionStatus.CONFIRMED &&
-            (base == null || it.occurredAt > base.setAt) }
-            .sumOf { when (it.type) {
-                TransactionType.INCOME -> it.amountMinor
-                TransactionType.EXPENSE -> -it.amountMinor
-                TransactionType.TRANSFER -> 0L
+        val pkg = app.packageName
+        val net = rows.filter { it.status == TransactionStatus.CONFIRMED && (base == null || it.occurredAt > base.setAt) }
+            .sumOf { when {
+                it.type == TransactionType.TRANSFER -> when (pkg) {
+                    it.toApp -> it.amountMinor
+                    it.fromApp -> -it.amountMinor
+                    else -> 0L
+                }
+                it.sourceApp != pkg -> 0L
+                it.type == TransactionType.INCOME -> it.amountMinor
+                else -> -it.amountMinor
             } }
         AccountBalance(app, (base?.minor ?: 0L) + net, base)
     }

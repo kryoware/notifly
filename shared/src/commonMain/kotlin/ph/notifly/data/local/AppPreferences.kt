@@ -125,6 +125,11 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     }
     /** Stores the biometric opt-in; [biometricUnlock] remains false until a PIN hash is present. */
     suspend fun setBiometricUnlock(value: Boolean) { store.edit { it[biometricKey] = value } }
+    /** Seconds left on a PIN lockout, rounded up, or 0. Biometric unlock must honour it too. */
+    suspend fun lockoutSeconds(now: Instant = Clock.System.now()): Long {
+        val left = (data.first()[pinLockedUntilKey] ?: 0L) - now.toEpochMilliseconds()
+        return if (left > 0) (left + 999) / 1000 else 0L
+    }
     /**
      * Checks [pin]; every [MAX_PIN_FAILURES] consecutive misses locks entry for [PIN_LOCKOUT].
      * [now] determines lockout expiry; remaining seconds are rounded up. A match clears failures.
@@ -135,10 +140,9 @@ class AppPreferences(private val store: DataStore<Preferences>) {
      * @throws IllegalArgumentException if a stored hash or salt cannot be decoded from Base64.
      */
     suspend fun verifyPin(pin: String, now: Instant = Clock.System.now()): PinResult {
+        lockoutSeconds(now).takeIf { it > 0 }?.let { return PinResult.LockedFor(it) }
         val prefs = data.first()
-        val lockedUntil = prefs[pinLockedUntilKey] ?: 0L
         val nowMillis = now.toEpochMilliseconds()
-        if (nowMillis < lockedUntil) return PinResult.LockedFor((lockedUntil - nowMillis + 999) / 1000)
         val hash = prefs[pinHashKey]?.let { Base64.decode(it) } ?: return PinResult.Ok
         val salt = Base64.decode(prefs[pinSaltKey] ?: return PinResult.Ok)
         val matches = withContext(Dispatchers.Default) { constantTimeEquals(pbkdf2(pin, salt), hash) }

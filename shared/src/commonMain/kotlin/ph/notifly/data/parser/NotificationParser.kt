@@ -27,7 +27,7 @@ class NotificationParser {
     /**
      * Parses the first matching PHP amount into minor units. Empty text, a missing amount, or
      * no recognized transaction or hold wording returns [ParseOutcome.Unrecognized].
-     * [financeApps] are labels of the user's other finance apps; naming one marks the draft as a likely transfer.
+     * [financeApps] are labels of the user's other finance apps; one named as the counterparty marks a likely transfer.
      *
      * @throws NumberFormatException if the matched amount's whole-number portion cannot fit in a Long.
      */
@@ -54,7 +54,8 @@ class NotificationParser {
             return ParseOutcome.Unrecognized(why)
         }
 
-        val mentionedApp = mentionedApp(text, financeApps)
+        val merchant = extractMerchant(text)
+        val mentionedApp = merchant?.let { mentionedApp(it, financeApps) }
         val isSelfTransfer = mentionedApp != null || selfTransferHints.any { lower.contains(it) }
 
         // Both directions present is genuinely ambiguous — do not silently pick one.
@@ -65,8 +66,6 @@ class NotificationParser {
             inWord != null && outWord == null -> TransactionType.INCOME
             else -> TransactionType.EXPENSE
         }
-
-        val merchant = extractMerchant(text)
 
         val reason = when {
             mentionedApp != null ->
@@ -97,6 +96,7 @@ class NotificationParser {
                 Confidence.HIGH
             },
             merchantConfidence = if (merchant == null) Confidence.LOW else Confidence.HIGH,
+            inbound = if (ambiguousDirection) null else inWord?.let { true } ?: outWord?.let { false },
         )
         return ParseOutcome.Parsed(draft, reason)
     }
@@ -110,10 +110,13 @@ class NotificationParser {
         return whole * 100 + frac
     }
 
-    /** Whole label or any distinctive word of it, so "BDO" in the text matches "BDO Digital". */
-    private fun mentionedApp(text: String, financeApps: Collection<String>): String? = financeApps.firstOrNull { label ->
+    /**
+     * Whole label or any distinctive word of it leading the counterparty, so "BDO" matches "BDO Digital"
+     * but "JOLLIBEE at BDO Mall" does not.
+     */
+    private fun mentionedApp(counterparty: String, financeApps: Collection<String>): String? = financeApps.firstOrNull { label ->
         (label.split(Regex("[^A-Za-z0-9]+")).filter { it.length >= 3 && it.lowercase() !in genericNameWords } + label.trim())
-            .any { Regex("""\b${Regex.escape(it)}\b""", RegexOption.IGNORE_CASE).containsMatchIn(text) }
+            .any { Regex("""^${Regex.escape(it)}\b""", RegexOption.IGNORE_CASE).containsMatchIn(counterparty) }
     }
 
     /** Takes the token run after "to"/"from". Deliberately crude — merchant is low-stakes. */

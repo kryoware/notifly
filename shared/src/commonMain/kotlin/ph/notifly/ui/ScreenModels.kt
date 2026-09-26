@@ -3,6 +3,7 @@ package ph.notifly.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import ph.notifly.data.local.AppPreferences
@@ -14,10 +15,14 @@ import ph.notifly.domain.repository.*
 import ph.notifly.ui.theme.NotiflyPalette
 import ph.notifly.ui.theme.ThemeMode
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.atTime
+import kotlinx.datetime.plus
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import org.koin.core.context.GlobalContext
@@ -70,11 +75,22 @@ class HomeModel(
         mutableEvents.emit(UiEvent.Message("Transaction confirmed", undo = t))
     }
 }
+/** Today's local date, re-emitted when the day changes. */
+private fun localToday() = flow {
+    while (true) {
+        val zone = TimeZone.currentSystemDefault()
+        val now = Clock.System.now()
+        val today = now.toLocalDateTime(zone).date
+        emit(today)
+        // Capped: Android's delay clock pauses in deep sleep, so a single sleep until midnight can overshoot.
+        delay(minOf(today.plus(1, DateTimeUnit.DAY).atStartOfDayIn(zone) - now, 1.minutes))
+    }
+}.distinctUntilChanged()
+
 class InsightsModel(repository: TransactionRepository, private val preferences: AppPreferences) : ScreenModel() {
     private val days = MutableStateFlow(INSIGHT_WINDOWS.first())
-    val state = combine(repository.observeAll(), days, preferences.monthlyBudget, preferences.categoryBudgets) { rows, d, budget, categoryBudgets ->
+    val state = combine(repository.observeAll(), days, preferences.monthlyBudget, preferences.categoryBudgets, localToday()) { rows, d, budget, categoryBudgets, today ->
         val zone = TimeZone.currentSystemDefault()
-        val today = Clock.System.now().toLocalDateTime(zone).date
         InsightsState(d, INSIGHT_WINDOWS.map { windowInsights(rows, today, it, zone) }, monthInsights(rows, today, zone),
             budget, rows.count { it.status == TransactionStatus.NEEDS_REVIEW }, categoryBudgets)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InsightsState())

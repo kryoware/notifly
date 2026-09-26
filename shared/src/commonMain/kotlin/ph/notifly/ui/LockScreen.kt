@@ -63,6 +63,7 @@ internal fun PinDialog(setup: Boolean, onDismiss: () -> Unit, onDone: (String) -
 @Composable
 fun LockScreen(
     verify: suspend (String) -> PinResult,
+    lockoutSeconds: suspend () -> Long,
     onUnlock: () -> Unit,
     biometric: Boolean,
     authenticateBiometric: (onSuccess: () -> Unit) -> Unit,
@@ -70,10 +71,14 @@ fun LockScreen(
     val pin = rememberTextFieldState()
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val biometricUnlock: () -> Unit = { scope.launch {
+        val seconds = lockoutSeconds()
+        if (seconds > 0) error = "Too many attempts. Try again in ${seconds}s." else onUnlock()
+    } }
     // The lock is composed on ON_STOP, and a prompt raised while backgrounded is dropped; wait for resume, prompt once per lock.
     val resumed = LocalLifecycleOwner.current.lifecycle.currentStateAsState().value == Lifecycle.State.RESUMED
     var prompted by remember { mutableStateOf(false) }
-    LaunchedEffect(biometric, resumed) { if (biometric && resumed && !prompted) { prompted = true; authenticateBiometric(onUnlock) } }
+    LaunchedEffect(biometric, resumed) { if (biometric && resumed && !prompted) { prompted = true; authenticateBiometric(biometricUnlock) } }
     val submit: () -> Unit = { if (pin.text.length == PIN_LENGTH) scope.launch {
         error = when (val result = verify(pin.text.toString())) {
             PinResult.Ok -> { onUnlock(); null }
@@ -89,7 +94,7 @@ fun LockScreen(
             Text("Notifly is locked", style = MaterialTheme.typography.headlineSmall)
             PinField(pin, "PIN", error = error, onDone = submit)
             Button(onClick = submit, enabled = pin.text.length == PIN_LENGTH) { Text("Unlock") }
-            if (biometric) TextButton(onClick = { authenticateBiometric(onUnlock) }) { Text("Use biometrics") }
+            if (biometric) TextButton(onClick = { authenticateBiometric(biometricUnlock) }) { Text("Use biometrics") }
             Text("Forgot your PIN? Clearing Notifly's app data resets it and deletes your local data.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }

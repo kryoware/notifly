@@ -40,4 +40,10 @@ class AccountsTest {
         assertEquals(97_500L, maya.estimate)
         assertEquals(manual, maya.manual)
     }
+
+    @Test fun confirmedTransferMovesBothEnds() {
+        val transfer = row("com.maya", 3_000, TransactionType.TRANSFER, 600).copy(fromApp = "com.maya", toApp = "com.gcash")
+        val balances = accountBalances(apps, rows + transfer, emptyMap())
+        assertEquals(listOf("com.maya" to 4_500L, "com.gcash" to 2_000L), balances.map { it.app.packageName to it.estimate })
+    }
 }

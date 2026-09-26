@@ -33,9 +33,19 @@ class TransferTest {
         assertFalse(a.isTransferPairWith(b))
     }
     @Test fun matchesParserFlaggedTransferLeg() {
-        val a = draft(TransactionType.TRANSFER, "com.maya")
+        val a = draft(TransactionType.TRANSFER, "com.maya").copy(fromApp = "com.maya")
         assertTrue(a.isTransferPairWith(draft(TransactionType.INCOME, "com.maribank", occurredAt = BASE + 30.seconds)))
-        assertTrue(a.isTransferPairWith(draft(TransactionType.TRANSFER, "com.maribank", occurredAt = BASE + 30.seconds)))
+        assertTrue(a.isTransferPairWith(draft(TransactionType.TRANSFER, "com.maribank", occurredAt = BASE + 30.seconds).copy(toApp = "com.maribank")))
+    }
+    @Test fun flaggedLegKeepsItsDirection() {
+        val sent = draft(TransactionType.TRANSFER, "com.maya").copy(fromApp = "com.maya")
+        assertFalse(sent.isTransferPairWith(draft(TransactionType.EXPENSE, "com.maribank", occurredAt = BASE + 30.seconds)))
+        assertFalse(draft(TransactionType.TRANSFER, "com.maya").isTransferPairWith(draft(TransactionType.INCOME, "com.maribank")))
+    }
+    @Test fun rejectsAlreadyMergedTransfer() {
+        val merged = draft(TransactionType.TRANSFER, "com.maya").copy(fromApp = "com.maya", toApp = "com.maribank")
+        assertFalse(merged.isTransferPairWith(draft(TransactionType.INCOME, "com.gcash", occurredAt = BASE + 30.seconds)))
+        assertFalse(merged.isTransferPairWith(draft(TransactionType.EXPENSE, "com.gcash", occurredAt = BASE + 30.seconds)))
     }
     @Test fun rejectsOutsideWindow() {
         val a = draft(TransactionType.EXPENSE, "com.maya")

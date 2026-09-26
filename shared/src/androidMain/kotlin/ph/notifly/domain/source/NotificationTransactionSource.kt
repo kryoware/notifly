@@ -67,7 +67,9 @@ class NotificationTransactionSource(
                     reason = result.reason, fingerprint = fingerprint), Transaction(
                     title = draft.merchant ?: "Payment from $sourceAppLabel", amountMinor = draft.amountMinor,
                     currency = draft.currency, type = draft.type, status = TransactionStatus.NEEDS_REVIEW,
-                    category = if (draft.type == TransactionType.TRANSFER) "Transfer" else "Other", occurredAt = now, sourceApp = event.sourceApp, captureId = null))
+                    category = if (draft.type == TransactionType.TRANSFER) "Transfer" else "Other", occurredAt = now, sourceApp = event.sourceApp, captureId = null,
+                    fromApp = event.sourceApp.takeIf { draft.type == TransactionType.TRANSFER && draft.inbound == false },
+                    toApp = event.sourceApp.takeIf { draft.type == TransactionType.TRANSFER && draft.inbound == true }))
             }
         }
         if (id != -1L) allowList.incrementCapturedCount(event.sourceApp)
