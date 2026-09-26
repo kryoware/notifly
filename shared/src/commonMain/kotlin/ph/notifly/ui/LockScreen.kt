@@ -55,6 +55,11 @@ internal fun PinDialog(setup: Boolean, onDismiss: () -> Unit, onDone: (String) -
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }
 
+/**
+ * Submits a complete PIN to [verify] and calls [onUnlock] for an Ok result or biometric success.
+ * When [biometric] is enabled, prompts once on resume per composition and allows manual retries.
+ * Wrong PIN and lockout results are displayed; exceptions from [verify] are not caught here.
+ */
 @Composable
 fun LockScreen(
     verify: suspend (String) -> PinResult,

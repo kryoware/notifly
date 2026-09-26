@@ -30,6 +30,10 @@ class MainActivity : ComponentActivity() {
     private val batteryExempt = mutableStateOf(false)
     private val biometricAvailable = mutableStateOf(false)
     // ponytail: framework BiometricPrompt needs API 30 for BIOMETRIC_STRONG; API 26–29 get PIN only. androidx.biometric if older devices matter.
+    /**
+     * Prompts for strong biometrics on API 30+, calling [onSuccess] only after authentication succeeds.
+     * Earlier APIs do nothing; cancellation and unsuccessful authentication do not invoke the callback.
+     */
     private fun authenticate(onSuccess: () -> Unit) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         BiometricPrompt.Builder(this)

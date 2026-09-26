@@ -318,6 +318,10 @@ private fun CategoryBudgetCard(m: MonthInsights, budgets: Map<String, Long>, man
     }
 }
 
+/**
+ * Edits a positive budget in minor units; removal passes null to [save].
+ * Invalid amounts stay in the dialog with an error. The caller dismisses after saving or removing.
+ */
 @Composable
 internal fun BudgetDialog(
     current: Long?, dismiss: () -> Unit,

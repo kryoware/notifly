@@ -22,6 +22,10 @@ class CaptureRepositoryImpl(
 ) : CaptureRepository {
     private val writeLock = Mutex()
 
+    /**
+     * Observes captures matching [filter] (all results when null), excluding IGNORED entries.
+     * Bodies are hidden unless raw-text retention is currently enabled.
+     */
     override fun observeLog(filter: CaptureResult?): Flow<List<RawCapture>> =
         kotlinx.coroutines.flow.combine(dao.observeLog(filter?.name), preferences?.keepRawText ?: kotlinx.coroutines.flow.flowOf(false)) { entities, keep ->
             entities.filter { it.result != CaptureResult.IGNORED.name }

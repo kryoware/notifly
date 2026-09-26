@@ -34,6 +34,12 @@ class NotificationTransactionSource(
     }
     override fun observe() = captures.observeLog()
         .let { flow -> kotlinx.coroutines.flow.flow { flow.collect { rows -> rows.firstOrNull()?.let { emit(it) } } } }
+    /**
+     * Purges expired captures, then records nonblank notifications from allowed packages.
+     * Rejected packages produce no log entry or content read. Parsed drafts remain awaiting review;
+     * the repository may merge matching transfer legs. Only a new capture increments the app's count.
+     * App-label lookup failures fall back to the package name; content, parser, and storage failures propagate.
+     */
     override suspend fun capture(event: NotificationEvent) {
         captures.purgeExpired()
         if (!allowList.isAllowed(event.sourceApp)) {

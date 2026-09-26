@@ -37,6 +37,7 @@ actual fun AppIcon(packageName: String?, label: String, modifier: Modifier, size
     else Image(bitmap, contentDescription = null, modifier = modifier.size(size).clip(CircleShape))
 }
 
+/** Renders an app icon to a square of [px] pixels; a missing package returns null, other failures propagate. */
 private fun load(packageManager: PackageManager, packageName: String, px: Int): ImageBitmap? = try {
     val drawable = packageManager.getApplicationIcon(packageName)
     val bitmap = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)

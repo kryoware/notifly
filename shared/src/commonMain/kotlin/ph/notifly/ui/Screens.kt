@@ -58,6 +58,11 @@ private val CATEGORIES = listOf("Income", "Food", "Transport", "Bills", "Shoppin
 private val FAB_CLEARANCE = 88.dp
 private const val SWIPE_THRESHOLD = 0.5f
 
+/**
+ * Displays a transaction; [selectionMode] routes taps to [onToggleSelection] and hides confirmation.
+ * Otherwise taps open the row, long presses call [onLongClick], and review rows can expose [confirm].
+ * [appLabels] maps package names to display labels.
+ */
 @Composable
 fun TransactionRow(
     transaction: Transaction,
@@ -220,6 +225,7 @@ private fun AccountRow(account: AccountBalance, edit: () -> Unit) {
     )
 }
 
+/** Edits a nonnegative balance in minor units; reset passes null to [save]. The caller dismisses after saving. */
 @Composable
 private fun BalanceDialog(account: AccountBalance, dismiss: () -> Unit, save: (Long?) -> Unit) {
     var text by remember { mutableStateOf(amountText(account.estimate.coerceAtLeast(0L))) }
@@ -429,6 +435,10 @@ private fun CategoryField(value: String, onValueChange: (String) -> Unit) {
     }
 }
 
+/**
+ * Picks an ISO date and an `HH:mm` time, displaying time in the device's clock format.
+ * Callbacks run only on confirmation; canceling preserves the supplied values.
+ */
 @Composable
 internal fun DateTimeFields(date: String, time: String, onDate: (String) -> Unit, onTime: (String) -> Unit,
                            dateError: String? = null, timeError: String? = null,
@@ -630,6 +640,10 @@ private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap), content = content)
 }
 
+/**
+ * Displays a setting with segmented corners determined by its zero-based [index] and group [count].
+ * A non-null [checked] with [onCheckedChange] makes the whole row toggle; otherwise [onClick] handles taps.
+ */
 @Composable
 internal fun SettingsRow(
     title: String,

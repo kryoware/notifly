@@ -24,7 +24,13 @@ class NotificationParser {
     private val selfTransferHints = listOf("your own", "to your", "own account", "savings ending", "between your")
     private val genericNameWords = setOf("bank", "app", "mobile", "online", "digital", "pay", "wallet", "savings")
 
-    /** [financeApps] are labels of the user's other finance apps; naming one marks the draft as a likely transfer. */
+    /**
+     * Parses the first matching PHP amount into minor units. Empty text, a missing amount, or
+     * no recognized transaction or hold wording returns [ParseOutcome.Unrecognized].
+     * [financeApps] are labels of the user's other finance apps; naming one marks the draft as a likely transfer.
+     *
+     * @throws NumberFormatException if the matched amount's whole-number portion cannot fit in a Long.
+     */
     fun parse(body: String, financeApps: Collection<String> = emptyList()): ParseOutcome {
         val text = body.trim()
         if (text.isEmpty()) return ParseOutcome.Unrecognized("Empty notification body.")

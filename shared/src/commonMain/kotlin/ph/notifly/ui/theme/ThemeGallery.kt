@@ -11,7 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ph.notifly.ui.SettingsModel
 
-/** Inspect all four palettes in both modes; horizontally scroll on phones. */
+/** Inspect all palettes in both modes; horizontally scroll on phones. */
 @Composable
 fun ThemeGallery(model: SettingsModel) {
     Row(Modifier.fillMaxSize().horizontalScroll(rememberScrollState()).padding(16.dp),

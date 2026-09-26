@@ -29,12 +29,17 @@ interface RawCaptureDao {
     @Insert
     suspend fun insertTransaction(entity: TransactionEntity): Long
 
+    /**
+     * Returns review drafts matching the amount in minor units and currency, newest occurrence first.
+     * [sinceMillis] is an inclusive Unix epoch millisecond cutoff; there is no upper time bound.
+     */
     @Query(
         "SELECT * FROM transactions WHERE status = 'NEEDS_REVIEW' AND amountMinor = :amountMinor " +
             "AND currency = :currency AND occurredAtMillis >= :sinceMillis ORDER BY occurredAtMillis DESC",
     )
     suspend fun needsReviewCandidates(amountMinor: Long, currency: String, sinceMillis: Long): List<TransactionEntity>
 
+    /** Whether the package is marked as a finance app, regardless of its listening setting. */
     @Query("SELECT EXISTS(SELECT 1 FROM allowed_apps WHERE packageName = :packageName AND finance = 1)")
     suspend fun isFinance(packageName: String): Boolean
 
@@ -45,11 +50,13 @@ interface RawCaptureDao {
     suspend fun mergeIntoTransfer(id: Long, type: String, category: String, title: String)
 
     /**
-     * Stores a unique capture and its review draft atomically, or returns `-1` for a duplicate.
+     * Stores a unique capture and its review draft atomically, returning the capture ID or `-1` for a duplicate.
      *
      * If the draft is the other side of a transfer already awaiting review (same amount and
-     * currency, opposite direction, both from different finance apps, within [TRANSFER_WINDOW]), the
-     * existing row is merged into a single TRANSFER instead of inserting a second draft.
+     * currency, opposite directions or either leg marked TRANSFER, different finance apps, at most
+     * [TRANSFER_WINDOW] apart), the newest matching row is updated instead of inserting a second draft.
+     * Its type, category, and title change; the incoming capture is kept and the row remains awaiting review.
+     * Database and entity-conversion failures propagate and roll back the operation.
      *
      * @throws IllegalArgumentException if [transaction] is not awaiting review.
      */

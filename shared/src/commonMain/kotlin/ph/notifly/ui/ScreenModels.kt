@@ -61,6 +61,7 @@ class HomeModel(
     val state = combine(repository.observeAll(), repository.observeConfirmedNetMinor(), apps.observeAll(), preferences.accountBalances) {
         rows, net, allowed, manual -> LedgerState(rows, net, accountBalances(allowed, rows, manual))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LedgerState())
+    /** Saves a balance in minor units with the current time as its cutoff, or clears it when null. */
     fun setBalance(packageName: String, minor: Long?) = work {
         preferences.setAccountBalance(packageName, minor?.let { ph.notifly.data.local.ManualBalance(it, Clock.System.now()) })
     }
@@ -106,11 +107,19 @@ class TransactionsModel(private val repository: TransactionRepository) : ScreenM
         repository.delete(t.id)
         mutableEvents.emit(UiEvent.Message("Transaction deleted", undo = t))
     }
+    /**
+     * Confirms supplied review rows asynchronously, leaving other statuses unchanged.
+     * Non-cancellation failures stop the batch and emit an error message; earlier saves remain committed.
+     */
     fun confirmAll(rows: List<Transaction>) = work {
         val pending = rows.filter { it.status == TransactionStatus.NEEDS_REVIEW }
         pending.forEach { repository.upsert(it.copy(status = TransactionStatus.CONFIRMED)) }
         if (pending.isNotEmpty()) mutableEvents.emit(UiEvent.Message("${pending.size} transactions confirmed"))
     }
+    /**
+     * Deletes supplied rows asynchronously without an undo payload.
+     * Non-cancellation failures stop the batch and emit an error message; earlier deletions remain committed.
+     */
     fun deleteAll(rows: List<Transaction>) = work {
         rows.forEach { repository.delete(it.id) }
         if (rows.isNotEmpty()) mutableEvents.emit(UiEvent.Message("${rows.size} transactions deleted"))
@@ -153,6 +162,11 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
         mutableState.value = state.value.copy(title = title, amount = amount, category = category, type = type, date = date, time = time,
             error = null, titleError = null, amountError = null, dateError = null, timeError = null)
     }
+    /**
+     * Validates the editor fields and asynchronously saves a confirmed transaction, then navigates
+     * to the list. Calls before loading or during a save are ignored. Invalid fields and save failures
+     * are exposed in [state]; coroutine cancellation is rethrown.
+     */
     fun save() {
         val s = state.value
         if (!s.ready || s.saving) return
@@ -209,6 +223,7 @@ class SettingsModel(private val preferences: AppPreferences, pending: Flow<Int>)
     }
     fun crashReporting(value: Boolean) = work { preferences.setCrashReporting(value) }
     fun setPin(pin: String) = work { preferences.setPin(pin); mutableEvents.emit(UiEvent.Message("App PIN set.")) }
+    /** Verifies [current] before removing the PIN; wrong attempts and lockout are reported as UI messages. */
     fun clearPin(current: String) = work {
         when (val result = preferences.verifyPin(current)) {
             PinResult.Ok -> { preferences.clearPin(); mutableEvents.emit(UiEvent.Message("App PIN removed.")) }
@@ -234,7 +249,9 @@ class AllowListModel(private val repository: AllowListRepository, private val fi
         val visible = apps.filter { q.isBlank() || it.label.contains(q, ignoreCase = true) || it.packageName.contains(q, ignoreCase = true) }
         AllowListState(visible.sortedBy { it.packageName !in p }, q, finance)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AllowListState(finance = finance))
+    /** Returns the finance flag in finance mode, or the listening flag otherwise. */
     fun AllowedApp.isChecked() = if (this@AllowListModel.finance) finance else listening
+    /** Asynchronously toggles the finance or listening flag selected by this model's mode. */
     fun toggle(app: AllowedApp) = work {
         if (finance) repository.setFinance(app.packageName, !app.finance)
         else repository.setListening(app.packageName, !app.listening)
@@ -255,6 +272,10 @@ class AuthModel(private val preferences: AppPreferences, private val demo: Boole
     fun edit(email: String = state.value.email, password: String = state.value.password, signup: Boolean = state.value.signup) {
         mutableState.value = AuthState(signup, email, password)
     }
+    /**
+     * Checks for an email containing `@` and a password of at least eight characters.
+     * Valid demo submissions complete onboarding in offline mode; other valid submissions report unavailable cloud sign-in.
+     */
     fun submit() = work {
         val s = state.value
         if (!s.email.contains('@') || s.password.length < 8) {
