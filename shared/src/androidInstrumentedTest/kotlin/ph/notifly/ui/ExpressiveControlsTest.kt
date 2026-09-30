@@ -46,7 +46,7 @@ class ExpressiveControlsTest {
         val model = HomeModel(DemoTransactions(), DemoAllowList(), AppPreferences(store))
         compose.setContent { NotiflyTheme { HomeScreen(model) } }
         compose.waitUntil { model.state.value.rows.isNotEmpty() }
-        compose.onNodeWithText("Add transaction").assertExists()
+        compose.onNodeWithContentDescription("Add transaction").assertExists()
         compose.onNode(hasScrollAction()).performScrollToIndex(3)
         compose.onNodeWithContentDescription("Add transaction").assertExists()
     }

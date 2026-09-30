@@ -83,6 +83,17 @@ android {
         minSdk = libs.versions.minSdk.get().toInt()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+    testOptions {
+        managedDevices {
+            localDevices {
+                create("pixelApi37") {
+                    device = "Pixel 9"
+                    apiLevel = 37
+                    systemImageSource = "google"
+                }
+            }
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

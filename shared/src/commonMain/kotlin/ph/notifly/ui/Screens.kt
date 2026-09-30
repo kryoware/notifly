@@ -148,7 +148,9 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
             ExtendedFloatingActionButton(
                 onClick = { model.navigate("edit/0") },
                 expanded = !listState.canScrollBackward,
-                icon = { Icon(painterResource(Res.drawable.symbol_add), contentDescription = if (listState.canScrollBackward) "Add transaction" else null) },
+                // M3 1.5 clears the text slot's semantics, so the name must sit on the button itself.
+                modifier = Modifier.semantics { contentDescription = "Add transaction" },
+                icon = { Icon(painterResource(Res.drawable.symbol_add), contentDescription = null) },
                 text = { Text("Add transaction") },
             )
         }
@@ -309,7 +311,9 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
             ExtendedFloatingActionButton(
                 onClick = { model.navigate("edit/0") },
                 expanded = !listState.canScrollBackward,
-                icon = { Icon(painterResource(Res.drawable.symbol_add), contentDescription = if (listState.canScrollBackward) "Add transaction" else null) },
+                // M3 1.5 clears the text slot's semantics, so the name must sit on the button itself.
+                modifier = Modifier.semantics { contentDescription = "Add transaction" },
+                icon = { Icon(painterResource(Res.drawable.symbol_add), contentDescription = null) },
                 text = { Text("Add transaction") },
             )
         }

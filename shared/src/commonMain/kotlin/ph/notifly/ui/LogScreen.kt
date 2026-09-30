@@ -23,6 +23,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.text
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -130,12 +133,16 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap()) {
                     }) {
                     Column(Modifier.padding(vertical = 4.dp)) {
                         val label = appLabels[capture.sourceApp] ?: capture.sourceApp
-                        ListItem(
-                            leadingContent = { AppIcon(remember(capture.sourceApp, appLabels) { appLabels.packageFor(capture.sourceApp) }, label) },
-                            headlineContent = { Text("$label · ${capture.result.label()}", color = color) },
-                            trailingContent = { Icon(painterResource(Res.drawable.symbol_expand_more), contentDescription = null, modifier = Modifier.rotate(rotation)) },
-                            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                        )
+                        val headline = "$label · ${capture.result.label()}"
+                        // ListItem merges its own subtree; clearing it lets the headline join the card's announcement.
+                        Box(Modifier.clearAndSetSemantics { text = AnnotatedString(headline) }) {
+                            ListItem(
+                                leadingContent = { AppIcon(remember(capture.sourceApp, appLabels) { appLabels.packageFor(capture.sourceApp) }, label) },
+                                headlineContent = { Text(headline, color = color) },
+                                trailingContent = { Icon(painterResource(Res.drawable.symbol_expand_more), contentDescription = null, modifier = Modifier.rotate(rotation)) },
+                                colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+                            )
+                        }
                         val highlight = MaterialTheme.colorScheme.tertiaryContainer
                         val onHighlight = MaterialTheme.colorScheme.onTertiaryContainer
                         Text(buildAnnotatedString {
