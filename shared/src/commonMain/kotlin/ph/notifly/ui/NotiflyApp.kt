@@ -70,6 +70,10 @@ fun NotiflyApp(
     val scope = rememberCoroutineScope()
     fun navigate(target: String) {
         if (route == target) return
+        if ((target == "accounts" && route == "account/{id}") ||
+            (target == "categories" && route == "category/{id}/{type}")) {
+            if (nav.popBackStack(target, inclusive = false)) return
+        }
         nav.navigate(target) {
             launchSingleTop = true
             if (target in listOf("home", "transactions", "insights", "settings")) popUpTo(nav.graph.id) { inclusive = false }

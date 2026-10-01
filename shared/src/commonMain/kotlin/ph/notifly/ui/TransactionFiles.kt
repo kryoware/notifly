@@ -36,7 +36,9 @@ internal fun TransactionDataControls(repository: TransactionRepository, demo: Bo
         val name = if (destination) entry.toAccountName else entry.accountName
         val type = if (destination) entry.toAccountType else entry.accountType
         val pkg = if (destination) entry.transaction.toApp else entry.transaction.fromApp ?: entry.transaction.sourceApp
-        return if (name != null) "$name · ${type?.name.orEmpty()}" else pkg ?: if (destination) "Unassigned transfer destination" else "Manual / unassigned"
+        val role = if (destination) "To" else if (entry.transaction.type == TransactionType.TRANSFER) "From" else "Account"
+        val identity = if (name != null) "$name · ${type?.name.orEmpty()}" else pkg ?: "Manual / unassigned"
+        return "$role: $identity"
     }
     fun suggested(entry: TransactionCsv.Entry, destination: Boolean): Long? {
         val name = if (destination) entry.toAccountName else entry.accountName

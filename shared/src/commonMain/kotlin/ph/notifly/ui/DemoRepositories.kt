@@ -77,6 +77,8 @@ class DemoTransactions(initial: List<Transaction> = listOf(
         return added.size
     }
     override suspend fun upsert(transaction: Transaction): Long {
+        require(transaction.accountId > 0 && transaction.amountMinor > 0 && transaction.title.isNotBlank() && transaction.currency == "PHP")
+        require(transaction.type != TransactionType.TRANSFER || (transaction.toAccountId != null && transaction.toAccountId != transaction.accountId))
         val id = transaction.id.takeIf { it != 0L } ?: nextId++
         rows.value = (rows.value.filterNot { it.id == id } + transaction.copy(id = id))
             .sortedWith(compareByDescending<Transaction> { it.occurredAt }.thenByDescending { it.createdAt })
@@ -141,13 +143,17 @@ class DemoLedger(private val transactions: TransactionRepository) : LedgerReposi
         Account(2, "Maya wallet", AccountType.WALLET, linkedApps = setOf(MAYA))))
     private val categories = MutableStateFlow((DEFAULT_EXPENSE_CATEGORIES.map { it to TransactionType.EXPENSE } +
         (DEFAULT_INCOME_CATEGORIES + "Income").map { it to TransactionType.INCOME }).mapIndexed { i, (name, type) -> Category(i + 1L, name, type) })
-    private val drafts = MutableStateFlow(emptyList<CapturedDraft>())
+    private val drafts = MutableStateFlow(listOf(CapturedDraft(1, title = "Purchase awaiting account assignment",
+        amountMinor = 12500, type = TransactionType.EXPENSE, inbound = false, occurredAt = Clock.System.now(), sourceApp = MAYA)))
     override suspend fun initialize() = Unit
     override fun observeAccounts() = accounts
     override fun observeCategories() = categories
     override fun observeDrafts() = drafts
     override suspend fun saveAccount(account: Account): Long {
         account.validate()
+        val old = accounts.value.find { it.id == account.id }
+        require(old == null || (old.type == AccountType.CARD) == (account.type == AccountType.CARD) ||
+            transactions.observeAll().first().none { it.accountId == account.id || it.toAccountId == account.id })
         require(accounts.value.none { it.id != account.id && it.name.equals(account.name, true) })
         val id = account.id.takeIf { it > 0 } ?: (accounts.value.maxOfOrNull { it.id } ?: 0) + 1
         accounts.value = accounts.value.filterNot { it.id == id } + account.copy(id = id)
@@ -169,6 +175,7 @@ class DemoLedger(private val transactions: TransactionRepository) : LedgerReposi
     }
     override suspend fun deleteDraft(id: Long) { drafts.value = drafts.value.filterNot { it.id == id } }
     override suspend fun confirmDraft(id: Long, transaction: Transaction): Long {
+        require(drafts.value.any { it.id == id })
         val saved = transactions.upsert(transaction); deleteDraft(id); return saved
     }
 }

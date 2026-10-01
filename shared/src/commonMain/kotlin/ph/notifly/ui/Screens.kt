@@ -812,6 +812,9 @@ fun SettingsScreen(
         item { SettingsSection("General") }
         item {
             SettingsGroup {
+                SettingsRow("Accounts", "Bank, card and wallet balances and app links", onClick = { model.navigate("accounts") })
+                SettingsRow("Categories", "Customize income and expense categories", onClick = { model.navigate("categories") })
+                SettingsRow("Assign accounts", "Review captured transactions without an account", onClick = { model.navigate("account-review") })
                 SettingsRow("Category budgets", "Set a monthly limit for each spending category", onClick = { model.navigate("budgets") })
                 SettingsRow("Demo mode", "Explore with random sample transactions. Your own data is left untouched.",
                     checked = demo, onCheckedChange = onDemo)
@@ -893,9 +896,6 @@ fun SettingsScreen(
                     onClick = requestPermission,
                 )
                 SettingsRow("Allowed apps", "Choose which notifications Notifly reads", onClick = { model.navigate("allow-list") })
-                SettingsRow("Accounts", "Bank, card and wallet balances and app links", onClick = { model.navigate("accounts") })
-                SettingsRow("Categories", "Customize income and expense categories", onClick = { model.navigate("categories") })
-                SettingsRow("Assign accounts", "Review captured transactions without an account", onClick = { model.navigate("account-review") })
                 SettingsRow("Finance apps", "Detect transfers between your bank and wallet apps", onClick = { model.navigate("finance-apps") })
             }
         }

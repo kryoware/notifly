@@ -21,13 +21,13 @@ data class Transaction(
     val category: String,
     val occurredAt: Instant,
     val createdAt: Instant = occurredAt,
-    val sourceApp: String?,         // null for manual entries
+    val sourceApp: String?,         // optional package; manual entries can also be attributed to an app
     val captureId: Long?,           // links back to the RawCapture that produced it
     val accountId: Long,
     val toAccountId: Long? = null,
     val categoryId: Long? = null,
     val note: String = "",
-    // TRANSFER only: packages the money left and reached. One side is set per captured leg, both once merged.
+    // Notification provenance only. accountId and toAccountId determine money movements.
     val fromApp: String? = null,
     val toApp: String? = null,
 )

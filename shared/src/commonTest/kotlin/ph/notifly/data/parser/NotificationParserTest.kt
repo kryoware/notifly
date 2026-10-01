@@ -181,4 +181,10 @@ class NotificationParserTest {
         val unrelated = assertIs<ParseOutcome.Parsed>(parser.parse("You paid PHP 250.00 to BDOUGHNUTS.", finance))
         assertEquals(TransactionType.EXPENSE, unrelated.draft.type)
     }
+    @Test fun `card refund wording does not imply a transfer between owned accounts`() {
+        val result = NotificationParser().parse("Your refund of PHP 500.00 was credited to your card ending 1234.") as ParseOutcome.Parsed
+        assertEquals(ph.notifly.domain.model.TransactionType.INCOME, result.draft.type)
+        assertEquals(50000L, result.draft.amountMinor)
+    }
+
 }

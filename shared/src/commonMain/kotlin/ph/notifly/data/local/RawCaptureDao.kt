@@ -85,12 +85,12 @@ interface RawCaptureDao : LedgerDao {
         val window = TRANSFER_WINDOW.inWholeMilliseconds
         val candidates = if (accountId == null || inbound == null || incoming.toAccountId != null) emptyList()
         else needsReviewCandidates(incoming.amountMinor, "PHP", incoming.occurredAtMillis - window).map { it.toDomain() }.filter {
-            it.captureId != null && it.accountId != accountId && it.inboundLeg == !inbound &&
+            it.captureId != null && it.accountId != accountId && accountById(it.accountId)?.archived == false && it.inboundLeg == !inbound &&
                 (it.occurredAt.toEpochMilliseconds() - incoming.occurredAtMillis) in -window..window
         }
         val pending = if (accountId == null || inbound == null || incoming.toAccountId != null) emptyList()
         else drafts().filter { it.accountId != null && it.accountId != accountId && it.inbound == !inbound &&
-            it.toAccountId == null && it.amountMinor == incoming.amountMinor &&
+            it.toAccountId == null && accountById(it.accountId!!)?.archived == false && it.amountMinor == incoming.amountMinor &&
             (it.occurredAtMillis - incoming.occurredAtMillis) in -window..window }
         if (candidates.size + pending.size == 1) {
             val other = candidates.singleOrNull()

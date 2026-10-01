@@ -32,6 +32,7 @@ class LedgerPersistenceTest {
             val dao = db.ledgerDao()
             val repository = TransactionRepositoryImpl(db.transactionDao())
             assertFailsWith<IllegalArgumentException> { repository.upsert(transaction(999)) }
+            assertFailsWith<IllegalArgumentException> { repository.upsert(transaction().copy(categoryId = 999)) }
             assertFailsWith<IllegalArgumentException> { repository.upsert(transaction(type = TransactionType.TRANSFER)) }
             assertFailsWith<IllegalArgumentException> { repository.upsert(transaction(type = TransactionType.TRANSFER, to = 1)) }
             val id = repository.upsert(transaction())

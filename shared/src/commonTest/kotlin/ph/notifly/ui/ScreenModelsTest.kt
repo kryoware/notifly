@@ -144,7 +144,7 @@ class ScreenModelsTest {
         try {
             val repository = DemoTransactions()
             repository.upsert(repository.byId(2)!!.copy(id = 0,
-                type = ph.notifly.domain.model.TransactionType.TRANSFER, status = TransactionStatus.NEEDS_REVIEW))
+                type = ph.notifly.domain.model.TransactionType.TRANSFER, toAccountId = 2, status = TransactionStatus.NEEDS_REVIEW))
             val model = TransactionsModel(repository, DemoLedger(repository))
             val states = mutableListOf<TransactionsState>()
             val job = launch { model.state.collect { states.add(it) } }

@@ -70,7 +70,8 @@ interface TransactionDao {
             return entity.copy(category = "Transfer", categoryId = null)
         }
         require(entity.toAccountId == null)
-        val category = entity.categoryId?.let { categoryById(it) } ?: categoryForName(entity.category, entity.type)
+        val category = if (entity.categoryId != null) requireNotNull(categoryById(entity.categoryId)) { "Choose an existing category." }
+            else categoryForName(entity.category, entity.type)
         require(category != null && category.type == entity.type)
         require(!category.archived || previous?.categoryId == category.id) { "Choose an active category." }
         return entity.copy(category = category.name, categoryId = category.id)

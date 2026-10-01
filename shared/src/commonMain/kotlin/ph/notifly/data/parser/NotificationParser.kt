@@ -22,7 +22,7 @@ class NotificationParser {
     private val incomplete = Regex("""(?i)\b(?:failed|declined|unsuccessful|pending|cancelled|canceled)\b""")
 
     private val inbound = listOf("received", "credited", "refund", "deposited", "cash in", "received from")
-    private val outbound = listOf("paid", "payment", "debited", "sent", "purchase", "withdrawn", "cash out", "charged")
+    private val outbound = listOf("paid", "payment", "debited", "sent", "purchase", "withdrawn", "cash out", "charged", "transferred")
     private val holdWords = listOf("hold", "pre-auth", "preauth", "authorization hold", "may differ")
     private val balanceWords = listOf("balance is", "available balance", "current balance", "as of")
     private val selfTransferHints = listOf("your own", "to your account", "own account", "savings ending", "between your")
