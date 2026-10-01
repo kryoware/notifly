@@ -47,6 +47,9 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      - name: Regenerate license catalog
+        run: ./gradlew :shared:exportLibraryDefinitions --rerun-tasks
+
       - name: Build signed release
         env:
           KEYSTORE_FILE: ${{ github.workspace }}/release.keystore
