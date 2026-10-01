@@ -22,15 +22,15 @@ class ScreenModelsTest {
         try {
             val transactions = DemoTransactions()
             val captures = DemoCaptures()
-            val editor = EditorModel(transactions, 0, captures, 3)
+            val editor = EditorModel(transactions, 0, captures, 3, ledger = DemoLedger(transactions), apps = DemoAllowList())
             runCurrent()
             assertNotNull(editor.state.value.sourceText)
-            editor.edit(title = "Manual payment", amount = "25")
+            editor.edit(title = "Manual payment", amount = "25", accountId = 1)
             editor.save()
             runCurrent()
             val saved = transactions.observeAll().first().first { it.title == "Manual payment" }
             assertEquals("", saved.note)
-            assertEquals("GCash", saved.sourceApp)
+            assertEquals("com.globe.gcash.android", saved.sourceApp)
             captures.redactBodies()
             assertTrue(captures.observeLog().first().all { it.body == null })
         } finally { Dispatchers.resetMain() }
@@ -40,22 +40,22 @@ class ScreenModelsTest {
         try {
             val transactions = DemoTransactions()
             transactions.upsert(transactions.byId(2)!!.copy(captureId = 2))
-            val editor = EditorModel(transactions, 2, DemoCaptures())
+            val editor = EditorModel(transactions, 2, DemoCaptures(), ledger = DemoLedger(transactions), apps = DemoAllowList())
             runCurrent()
             assertEquals("PHP 500.00 hold placed by SHELL.", editor.state.value.sourceText)
         } finally { Dispatchers.resetMain() }
     }
-    @Test fun onboardingCapsAtFourthPage() {
-        val model = OnboardingModel()
-        repeat(4) { model.next() }
-        assertEquals(3, model.state.value.page)
+    @Test fun spokenListNamesTwoAppsThenCounts() {
+        assertEquals("GCash", spokenList(listOf("GCash")))
+        assertEquals("GCash and BPI", spokenList(listOf("GCash", "BPI")))
+        assertEquals("GCash, BPI and 2 more", spokenList(listOf("GCash", "BPI", "Maya", "BDO")))
     }
     @Test fun reviewDoesNotMoveBalanceAndInvalidEditsDoNotWrite() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
             val repository = DemoTransactions()
             assertEquals(4800000L, repository.observeConfirmedNetMinor().first())
-            val editor = EditorModel(repository, 2)
+            val editor = EditorModel(repository, 2, ledger = DemoLedger(repository), apps = DemoAllowList())
             runCurrent()
             editor.edit(title = "", amount = "0")
             editor.save()
@@ -79,7 +79,7 @@ class ScreenModelsTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
             val repository = DemoTransactions()
-            val editor = EditorModel(repository, 2)
+            val editor = EditorModel(repository, 2, ledger = DemoLedger(repository), apps = DemoAllowList())
             runCurrent()
             editor.edit(time = "14:30")
             editor.save()
@@ -94,10 +94,10 @@ class ScreenModelsTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
             val repository = DemoTransactions()
-            val editor = EditorModel(repository, 0)
+            val editor = EditorModel(repository, 0, ledger = DemoLedger(repository), apps = DemoAllowList())
             runCurrent()
             assertEquals("00:00", editor.state.value.time)
-            editor.edit(title = "Coffee", amount = "5")
+            editor.edit(title = "Coffee", amount = "5", accountId = 1)
             editor.save()
             runCurrent()
             val saved = repository.observeAll().first().first { it.title == "Coffee" }
@@ -110,7 +110,7 @@ class ScreenModelsTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
             val repository = DemoTransactions()
-            val model = TransactionsModel(repository)
+            val model = TransactionsModel(repository, DemoLedger(repository))
             val t = repository.byId(2)!!
             assertEquals(TransactionStatus.NEEDS_REVIEW, t.status)
             model.confirm(t)
@@ -127,7 +127,7 @@ class ScreenModelsTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
             val repository = DemoTransactions()
-            val model = TransactionsModel(repository)
+            val model = TransactionsModel(repository, DemoLedger(repository))
             val rows = repository.observeAll().first()
             model.confirmAll(rows)
             runCurrent()
@@ -145,7 +145,7 @@ class ScreenModelsTest {
             val repository = DemoTransactions()
             repository.upsert(repository.byId(2)!!.copy(id = 0,
                 type = ph.notifly.domain.model.TransactionType.TRANSFER, status = TransactionStatus.NEEDS_REVIEW))
-            val model = TransactionsModel(repository)
+            val model = TransactionsModel(repository, DemoLedger(repository))
             val states = mutableListOf<TransactionsState>()
             val job = launch { model.state.collect { states.add(it) } }
             runCurrent()

@@ -4,7 +4,11 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "transactions", indices = [Index(value = ["status", "occurredAtMillis", "createdAtMillis"])])
+@Entity(tableName = "transactions", indices = [Index(value = ["status", "occurredAtMillis", "createdAtMillis"]),
+    Index("accountId"), Index("toAccountId"), Index("categoryId")], foreignKeys = [
+    androidx.room.ForeignKey(entity = AccountEntity::class, parentColumns = ["id"], childColumns = ["accountId"]),
+    androidx.room.ForeignKey(entity = AccountEntity::class, parentColumns = ["id"], childColumns = ["toAccountId"]),
+    androidx.room.ForeignKey(entity = CategoryEntity::class, parentColumns = ["id"], childColumns = ["categoryId"])])
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val title: String,
@@ -18,6 +22,9 @@ data class TransactionEntity(
     val sourceApp: String?,
     val captureId: Long?,
     val note: String,
+    @androidx.room.ColumnInfo(defaultValue = "0") val accountId: Long = 0,
+    val toAccountId: Long? = null,
+    val categoryId: Long? = null,
     val fromApp: String? = null,
     val toApp: String? = null,
 )

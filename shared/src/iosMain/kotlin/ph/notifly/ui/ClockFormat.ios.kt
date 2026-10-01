@@ -3,6 +3,7 @@ package ph.notifly.ui
 import androidx.compose.runtime.Composable
 import platform.Foundation.NSDateFormatter
 import platform.Foundation.NSLocale
+import platform.Foundation.currentLocale
 
 @Composable
 internal actual fun is24HourClock(): Boolean =

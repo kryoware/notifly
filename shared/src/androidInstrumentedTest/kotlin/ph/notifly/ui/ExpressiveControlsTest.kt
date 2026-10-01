@@ -43,7 +43,7 @@ class ExpressiveControlsTest {
             override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
                 transform(emptyPreferences())
         }
-        val model = HomeModel(DemoTransactions(), DemoAllowList(), AppPreferences(store))
+        val model = DemoTransactions().let { HomeModel(it, DemoAllowList(), AppPreferences(store), DemoLedger(it)) }
         compose.setContent { NotiflyTheme { HomeScreen(model) } }
         compose.waitUntil { model.state.value.rows.isNotEmpty() }
         compose.onNodeWithContentDescription("Add transaction").assertExists()
@@ -52,7 +52,7 @@ class ExpressiveControlsTest {
     }
 
     @Test fun editorShowsFieldErrorsOnFields() {
-        val model = EditorModel(DemoTransactions(), 0)
+        val model = DemoTransactions().let { EditorModel(it, 0, ledger = DemoLedger(it), apps = DemoAllowList()) }
         compose.setContent { NotiflyTheme { EditorScreen(model) } }
         compose.waitUntil { model.state.value.ready }
         compose.onNodeWithText("Save transaction").performClick()
@@ -90,7 +90,7 @@ class ExpressiveControlsTest {
     }
 
     @Test fun bulkDeleteRequiresConfirmation() {
-        val model = TransactionsModel(DemoTransactions())
+        val model = DemoTransactions().let { TransactionsModel(it, DemoLedger(it)) }
         compose.setContent { NotiflyTheme { TransactionsScreen(model) } }
         compose.waitUntil { model.state.value.rows.isNotEmpty() }
         compose.onNodeWithContentDescription("SM Supermarket, ₱2,450.50, needs review")

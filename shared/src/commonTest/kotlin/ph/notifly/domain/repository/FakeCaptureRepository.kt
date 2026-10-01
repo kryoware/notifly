@@ -13,6 +13,7 @@ class FakeCaptureRepository(
     private val clock: Clock = Clock.System,
 ) : CaptureRepository {
     val transactions = FakeTransactionRepository()
+    override suspend fun recordDraft(capture: RawCapture, draft: ph.notifly.domain.model.CapturedDraft): Long = record(capture)
     override suspend fun recordParsed(capture: RawCapture, transaction: ph.notifly.domain.model.Transaction): Long {
         val id = record(capture)
         transactions.upsert(transaction.copy(captureId = id))

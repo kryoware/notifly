@@ -53,7 +53,7 @@ class AppPreferences(private val store: DataStore<Preferences>) {
         if (exception is IOException) emit(emptyPreferences()) else throw exception
     }
     val palette = data.map { prefs ->
-        NotiflyPalette.entries.firstOrNull { it.name == prefs[paletteKey] } ?: NotiflyPalette.Evergreen
+        NotiflyPalette.entries.firstOrNull { it.name == prefs[paletteKey] } ?: NotiflyPalette.Ube
     }
     val themeMode = data.map { prefs -> ThemeMode.entries.firstOrNull { it.name == prefs[themeModeKey] } ?: ThemeMode.SYSTEM }
     val onboardingComplete = data.map { it[onboardingKey] ?: false }
@@ -76,6 +76,14 @@ class AppPreferences(private val store: DataStore<Preferences>) {
                 ManualBalance(minor.toLongOrNull() ?: return@mapNotNull null, Instant.fromEpochMilliseconds(at.toLongOrNull() ?: return@mapNotNull null))
         }.toMap()
     }
+    /** Called only after the idempotent Room import has committed. */
+    suspend fun clearLegacyLedgerPreferences() {
+        store.edit { prefs ->
+            prefs.asMap().keys.filter { it.name.startsWith(ACCOUNT_BALANCE_PREFIX) || it.name.startsWith(CATEGORY_BUDGET_PREFIX) }
+                .forEach { prefs.remove(it) }
+        }
+    }
+
     suspend fun setPalette(value: NotiflyPalette) { store.edit { it[paletteKey] = value.name } }
     suspend fun setThemeMode(value: ThemeMode) { store.edit { it[themeModeKey] = value.name } }
     suspend fun completeOnboarding() { store.edit { it[onboardingKey] = true } }

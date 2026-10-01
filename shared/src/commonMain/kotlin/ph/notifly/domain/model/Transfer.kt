@@ -14,7 +14,7 @@ val Transaction.inboundLeg: Boolean?
         TransactionType.INCOME -> true
         TransactionType.EXPENSE -> false
         TransactionType.TRANSFER -> when {
-            fromApp != null && toApp != null -> null
+            toAccountId != null -> null
             toApp != null -> true
             fromApp != null -> false
             else -> null
@@ -29,6 +29,6 @@ val Transaction.inboundLeg: Boolean?
 fun Transaction.isTransferPairWith(other: Transaction): Boolean =
     status == TransactionStatus.NEEDS_REVIEW && other.status == TransactionStatus.NEEDS_REVIEW &&
         amountMinor == other.amountMinor && currency == other.currency &&
-        sourceApp != null && other.sourceApp != null && sourceApp != other.sourceApp &&
+        accountId > 0 && other.accountId > 0 && accountId != other.accountId &&
         inboundLeg != null && other.inboundLeg != null && inboundLeg != other.inboundLeg &&
         (occurredAt - other.occurredAt).absoluteValue <= TRANSFER_WINDOW

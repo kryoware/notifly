@@ -36,6 +36,7 @@ class ColorContrastTest {
                 ).forEach { (role, colors) -> assertContrast(palette, dark, role, colors.first, colors.second) }
                 assertContrast(palette, dark, "outline", scheme.outline, scheme.surface, 3.0)
                 assertContrast(palette, dark, "selected control", scheme.primary, scheme.surface, 3.0)
+                assertContrast(palette, dark, "confirmed tick", accents.onConfirmed, accents.confirmed, 3.0)
             }
         }
     }

@@ -3,6 +3,8 @@ package ph.notifly.data.local
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -35,10 +37,43 @@ interface TransactionDao {
         entities.forEach { entity ->
             require(entity.title.isNotBlank() && entity.amountMinor > 0 && entity.currency == "PHP")
             require(entity.type in listOf("INCOME", "EXPENSE", "TRANSFER") && entity.category.isNotBlank())
-            val draft = entity.draft()
+            val draft = validated(entity.draft())
             if (known.add(draft)) { upsert(draft); inserted++ }
         }
         return inserted
+    }
+
+    @Query("SELECT * FROM accounts WHERE id = :id") suspend fun accountById(id: Long): AccountEntity?
+    @Query("SELECT * FROM categories WHERE id = :id") suspend fun categoryById(id: Long): CategoryEntity?
+    @Query("SELECT * FROM categories WHERE nameKey = :key AND type = :type")
+    suspend fun categoryByName(key: String, type: String): CategoryEntity?
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertCategory(category: CategoryEntity): Long
+
+    suspend fun categoryForName(name: String, type: String): CategoryEntity {
+        val key = name.trim().lowercase()
+        categoryByName(key, type)?.let { return it }
+        insertCategory(CategoryEntity(name = name.trim(), nameKey = key, type = type))
+        return requireNotNull(categoryByName(key, type))
+    }
+
+    suspend fun validated(entity: TransactionEntity): TransactionEntity {
+        require(entity.title.isNotBlank() && entity.amountMinor > 0 && entity.currency == "PHP")
+        require(entity.type in listOf("INCOME", "EXPENSE", "TRANSFER"))
+        require(entity.status in listOf("CONFIRMED", "NEEDS_REVIEW"))
+        val previous = if (entity.id != 0L) byId(entity.id) else null
+        val account = requireNotNull(accountById(entity.accountId)) { "Choose an account." }
+        require(!account.archived || previous?.accountId == account.id) { "Choose an active account." }
+        if (entity.type == "TRANSFER") {
+            val to = requireNotNull(entity.toAccountId?.let { accountById(it) }) { "Choose a destination account." }
+            require(to.id != account.id) { "From and To accounts must differ." }
+            require(!to.archived || previous?.toAccountId == to.id)
+            return entity.copy(category = "Transfer", categoryId = null)
+        }
+        require(entity.toAccountId == null)
+        val category = entity.categoryId?.let { categoryById(it) } ?: categoryForName(entity.category, entity.type)
+        require(category != null && category.type == entity.type)
+        require(!category.archived || previous?.categoryId == category.id) { "Choose an active category." }
+        return entity.copy(category = category.name, categoryId = category.id)
     }
 
     @Upsert
@@ -68,7 +103,7 @@ interface TransactionDao {
     suspend fun saveLocally(entity: TransactionEntity): Long {
         require(entity.title.isNotBlank() && entity.amountMinor > 0)
         val previous = if (entity.id != 0L) byId(entity.id) else null
-        val inserted = upsert(entity)
+        val inserted = upsert(validated(entity))
         val id = if (entity.id == 0L) inserted else entity.id
         if (entity.status == "CONFIRMED") enqueue(PendingChangeEntity(transactionId = id, operation = "UPSERT"))
         else if (previous?.status == "CONFIRMED") enqueue(PendingChangeEntity(transactionId = id, operation = "DELETE"))

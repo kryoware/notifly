@@ -15,6 +15,41 @@ class NotificationParserTest {
 
     private val parser = NotificationParser()
 
+    @Test fun `model direction keeps amount and ownership safeguards`() {
+        val p = assertIs<ParseOutcome.Parsed>(parser.parse(
+            "PHP 800.00 added to your wallet from ACME CORP.", directionHint = TransactionType.INCOME,
+        ))
+        assertEquals(TransactionType.INCOME, p.draft.type)
+        assertEquals(80_000L, p.draft.amountMinor)
+        assertEquals(true, p.draft.inbound)
+        assertIs<ParseOutcome.Unrecognized>(parser.parse("Added to your wallet", directionHint = TransactionType.INCOME))
+        assertIs<ParseOutcome.Unrecognized>(parser.parse(
+            "Your available balance is PHP 800.00.", directionHint = TransactionType.INCOME,
+        ))
+        val conflict = assertIs<ParseOutcome.Parsed>(parser.parse(
+            "Paid PHP 100 to SHOP.", directionHint = TransactionType.INCOME,
+        ))
+        assertEquals(Confidence.LOW, conflict.draft.directionConfidence)
+        assertEquals(null, conflict.draft.inbound)
+    }
+
+    @Test fun `failed or pending payments never create drafts`() {
+        for (status in listOf("failed", "declined", "pending", "cancelled")) {
+            assertIs<ParseOutcome.Unrecognized>(parser.parse(
+                "Payment of PHP 100 to SHOP $status.", directionHint = TransactionType.EXPENSE,
+            ))
+        }
+    }
+
+    @Test fun `PHP amounts do not truncate digits or overflow`() {
+        for (body in listOf("Paid PHP 1000 to SHOP.", "Paid P1000 to SHOP.", "You have paid 1000.00 of GCash to SHOP.")) {
+            assertEquals(100_000L, assertIs<ParseOutcome.Parsed>(parser.parse(body)).draft.amountMinor)
+        }
+        assertIs<ParseOutcome.Unrecognized>(parser.parse("Paid PHP 92233720368547759 to SHOP."))
+        assertIs<ParseOutcome.Unrecognized>(parser.parse("Paid PHP 1.234 to SHOP."))
+        assertIs<ParseOutcome.Unrecognized>(parser.parse("Paid USD 100 to SHOP."))
+    }
+
     @Test
     fun `gcash inbound payroll is income`() {
         val r = parser.parse("You received PHP 48,000.00 from ACME CORP. Ref 8812 4410.")

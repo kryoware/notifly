@@ -113,6 +113,7 @@ Deferred deliberately; needs real capture data from Phase 7 to tune.
 - [ ] Duplicate detection: same amount + near-same timestamp across two apps
 - [ ] "Merge or keep both?" prompt
 - [x] Transfer handling excluded from spending totals
+- [x] Bundle the compact on-device classifier for Android direction suggestions and non-transaction filtering; keep uncertain predictions and account ownership in review.
 
 Verified existing SQL exclusion with a real Room regression. Other confidence-tier
 items remain deferred as specified above: there are no real GCash/Maya samples yet

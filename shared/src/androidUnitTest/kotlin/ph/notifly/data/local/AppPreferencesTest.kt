@@ -40,7 +40,7 @@ class AppPreferencesTest {
         val secondScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         try {
             val first = AppPreferences(PreferenceDataStoreFactory.create(scope = firstScope) { file })
-            assertEquals(NotiflyPalette.Evergreen, first.palette.first())
+            assertEquals(NotiflyPalette.Ube, first.palette.first())
             first.setPalette(NotiflyPalette.Clay)
             firstScope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
             firstScope.coroutineContext[kotlinx.coroutines.Job]!!.join()
@@ -57,7 +57,7 @@ class AppPreferencesTest {
     @Test fun ioReadFailuresUseDefaults() = runBlocking {
         val preferences = AppPreferences(failingStore(IOException("read failed")))
 
-        assertEquals(NotiflyPalette.Evergreen, preferences.palette.first())
+        assertEquals(NotiflyPalette.Ube, preferences.palette.first())
         assertEquals(false, preferences.onboardingComplete.first())
         assertEquals(true, preferences.offline.first())
         assertEquals(false, preferences.keepRawText.first())

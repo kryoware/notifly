@@ -16,7 +16,7 @@ fun HomeRtlPreview() {
     NotiflyTheme {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
             val context = LocalContext.current
-            HomeScreen(viewModel { HomeModel(DemoTransactions(), DemoAllowList(), appPreferences(context)) })
+            HomeScreen(viewModel { HomeModel(DemoTransactions(), DemoAllowList(), appPreferences(context), DemoLedger(DemoTransactions())) })
         }
     }
 }

@@ -21,6 +21,7 @@ class CapturePersistenceTest {
         val db = Room.inMemoryDatabaseBuilder<AppDatabase>(ApplicationProvider.getApplicationContext())
             .setDriver(AndroidSQLiteDriver()).build()
         try {
+            db.seedTestAccounts()
             val captures = CaptureRepositoryImpl(db.rawCaptureDao())
             db.rawCaptureDao().record(RawCapture(sourceApp = "wallet", capturedAt = Clock.System.now(),
                 body = "legacy text", result = CaptureResult.IGNORED, reason = "Ignored").toEntity())
@@ -42,6 +43,7 @@ class CapturePersistenceTest {
         val preferences = AppPreferences(androidx.datastore.preferences.core.PreferenceDataStoreFactory.create(scope = storeScope) { file })
         val db = Room.inMemoryDatabaseBuilder<AppDatabase>(context).setDriver(AndroidSQLiteDriver()).build()
         try {
+            db.seedTestAccounts()
             val repository = CaptureRepositoryImpl(db.rawCaptureDao(), preferences = preferences)
             val capture = RawCapture(sourceApp = "wallet", capturedAt = Clock.System.now(), body = "private",
                 result = CaptureResult.UNRECOGNIZED, reason = "Not recognised")
@@ -56,11 +58,12 @@ class CapturePersistenceTest {
         val db = Room.inMemoryDatabaseBuilder<AppDatabase>(ApplicationProvider.getApplicationContext())
             .setDriver(AndroidSQLiteDriver()).build()
         try {
+            db.seedTestAccounts()
             val captures = CaptureRepositoryImpl(db.rawCaptureDao())
             val capture = RawCapture(sourceApp = "wallet", capturedAt = Clock.System.now(), body = "private text",
                 result = CaptureResult.PARSED, reason = "Parsed", fingerprint = "same-notification-and-content")
             val transaction = Transaction(title = "Merchant", amountMinor = 1250, type = TransactionType.EXPENSE,
-                status = TransactionStatus.NEEDS_REVIEW, category = "Other", occurredAt = Clock.System.now(), sourceApp = "wallet", captureId = null)
+                status = TransactionStatus.NEEDS_REVIEW, category = "Other", occurredAt = Clock.System.now(), sourceApp = "wallet", captureId = null, accountId = 1)
             val id = captures.recordParsed(capture, transaction)
             assertTrue(id > 0)
             assertEquals(-1L, captures.recordParsed(capture, transaction))
@@ -84,7 +87,7 @@ class CapturePersistenceTest {
     private fun leg(app: String, pkg: String, type: TransactionType, amountMinor: Long, occurredAt: kotlin.time.Instant, fingerprint: String) =
         RawCapture(sourceApp = app, capturedAt = occurredAt, body = "body", result = CaptureResult.PARSED, reason = "Parsed", fingerprint = fingerprint) to
             Transaction(title = "Payment", amountMinor = amountMinor, type = type, status = TransactionStatus.NEEDS_REVIEW,
-                category = "Other", occurredAt = occurredAt, sourceApp = pkg, captureId = null)
+                category = "Other", occurredAt = occurredAt, sourceApp = pkg, captureId = null, accountId = if (pkg == "com.maya") 1 else 2)
 
     private suspend fun transferDb(vararg finance: String = arrayOf("com.maya", "com.maribank")): AppDatabase {
         val db = Room.inMemoryDatabaseBuilder<AppDatabase>(ApplicationProvider.getApplicationContext())
@@ -96,6 +99,7 @@ class CapturePersistenceTest {
     @Test fun transferPairMergesIntoOneReviewRow() = runTest {
         val db = transferDb()
         try {
+            db.seedTestAccounts()
             val captures = CaptureRepositoryImpl(db.rawCaptureDao())
             val now = Clock.System.now()
             val (outCapture, outTx) = leg("Maya", "com.maya", TransactionType.EXPENSE, 50000, now, "leg-out")
@@ -115,6 +119,7 @@ class CapturePersistenceTest {
     @Test fun mergedTransferIsNotMatchedAgain() = runTest {
         val db = transferDb("com.maya", "com.maribank", "com.gcash")
         try {
+            db.seedTestAccounts()
             val captures = CaptureRepositoryImpl(db.rawCaptureDao())
             val now = Clock.System.now()
             listOf(
@@ -130,13 +135,16 @@ class CapturePersistenceTest {
     @Test fun flaggedTransferLegKeepsItsDirection() = runTest {
         val db = transferDb()
         try {
+            db.seedTestAccounts()
             val captures = CaptureRepositoryImpl(db.rawCaptureDao())
             val now = Clock.System.now()
             val (c1, t1) = leg("MariBank", "com.maribank", TransactionType.EXPENSE, 50000, now, "flagged-1")
             val (c2, t2) = leg("Maya", "com.maya", TransactionType.TRANSFER, 50000, now + 30.seconds, "flagged-2")
             captures.recordParsed(c1, t1)
             captures.recordParsed(c2, t2.copy(fromApp = "com.maya"))
-            assertEquals(2, db.transactionDao().observeAll().first().size)
+            // A transfer leg with no destination waits as a draft until its counterpart arrives.
+            assertEquals(1, db.transactionDao().observeAll().first().size)
+            assertEquals(1, db.ledgerDao().drafts().size)
             val (c3, t3) = leg("MariBank", "com.maribank", TransactionType.INCOME, 50000, now + 45.seconds, "flagged-3")
             captures.recordParsed(c3, t3)
             assertEquals("Maya → MariBank", db.transactionDao().observeAll().first().single { it.type == "TRANSFER" }.title)
@@ -145,6 +153,7 @@ class CapturePersistenceTest {
     @Test fun sameDirectionDoesNotMerge() = runTest {
         val db = transferDb()
         try {
+            db.seedTestAccounts()
             val captures = CaptureRepositoryImpl(db.rawCaptureDao())
             val now = Clock.System.now()
             val (c1, t1) = leg("Maya", "com.maya", TransactionType.EXPENSE, 50000, now, "same-dir-1")
@@ -157,6 +166,7 @@ class CapturePersistenceTest {
     @Test fun outsideWindowDoesNotMerge() = runTest {
         val db = transferDb()
         try {
+            db.seedTestAccounts()
             val captures = CaptureRepositoryImpl(db.rawCaptureDao())
             val now = Clock.System.now()
             val (c1, t1) = leg("Maya", "com.maya", TransactionType.EXPENSE, 50000, now, "window-1")
@@ -169,6 +179,7 @@ class CapturePersistenceTest {
     @Test fun sameAppDoesNotMerge() = runTest {
         val db = transferDb()
         try {
+            db.seedTestAccounts()
             val captures = CaptureRepositoryImpl(db.rawCaptureDao())
             val now = Clock.System.now()
             val (c1, t1) = leg("Maya", "com.maya", TransactionType.EXPENSE, 50000, now, "same-app-1")
@@ -181,6 +192,7 @@ class CapturePersistenceTest {
     @Test fun confirmedCandidateDoesNotMerge() = runTest {
         val db = transferDb()
         try {
+            db.seedTestAccounts()
             val captures = CaptureRepositoryImpl(db.rawCaptureDao())
             val now = Clock.System.now()
             val (c1, t1) = leg("Maya", "com.maya", TransactionType.EXPENSE, 50000, now, "confirmed-1")
@@ -195,13 +207,16 @@ class CapturePersistenceTest {
     @Test fun nonFinanceAppDoesNotMerge() = runTest {
         val db = transferDb("com.maya")
         try {
+            db.seedTestAccounts()
             val captures = CaptureRepositoryImpl(db.rawCaptureDao())
             val now = Clock.System.now()
             val (c1, t1) = leg("Maya", "com.maya", TransactionType.EXPENSE, 50000, now, "non-finance-1")
             val (c2, t2) = leg("MariBank", "com.maribank", TransactionType.INCOME, 50000, now + 30.seconds, "non-finance-2")
-            captures.recordParsed(c1, t1)
+            // Only finance apps can be linked to an account, so a non-finance capture arrives without one.
+            captures.recordParsed(c1, t1.copy(accountId = 0))
             captures.recordParsed(c2, t2)
-            assertEquals(2, db.transactionDao().observeAll().first().size)
+            assertTrue(db.transactionDao().observeAll().first().none { it.type == "TRANSFER" })
+            assertEquals(1, db.ledgerDao().drafts().size)
         } finally { db.close() }
     }
 }

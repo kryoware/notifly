@@ -19,12 +19,13 @@ class SyncQueueTest {
         val db = Room.inMemoryDatabaseBuilder<AppDatabase>(ApplicationProvider.getApplicationContext())
             .setDriver(AndroidSQLiteDriver()).build()
         try {
+            db.seedTestAccounts()
             val repository = TransactionRepositoryImpl(db.transactionDao())
             val base = Transaction(title = "Payment", amountMinor = 1000, type = TransactionType.INCOME,
-                status = TransactionStatus.CONFIRMED, category = "Other", occurredAt = Clock.System.now(), sourceApp = null, captureId = null)
+                status = TransactionStatus.CONFIRMED, category = "Other", occurredAt = Clock.System.now(), sourceApp = null, captureId = null, accountId = 1)
             repository.upsert(base)
             repository.upsert(base.copy(amountMinor = 200, type = TransactionType.EXPENSE))
-            repository.upsert(base.copy(amountMinor = 500000, type = TransactionType.TRANSFER))
+            repository.upsert(base.copy(amountMinor = 500000, type = TransactionType.TRANSFER, toAccountId = 2))
             repository.upsert(base.copy(amountMinor = 100000, status = TransactionStatus.NEEDS_REVIEW))
             assertEquals(800L, repository.observeConfirmedNetMinor().first())
         } finally { db.close() }
@@ -33,11 +34,12 @@ class SyncQueueTest {
         val db = Room.inMemoryDatabaseBuilder<AppDatabase>(ApplicationProvider.getApplicationContext())
             .setDriver(AndroidSQLiteDriver()).build()
         try {
+            db.seedTestAccounts()
             val dao = db.transactionDao()
             val repository = TransactionRepositoryImpl(dao)
             val draft = Transaction(title = "Merchant", amountMinor = 100, type = TransactionType.EXPENSE,
                 status = TransactionStatus.NEEDS_REVIEW, category = "Other", occurredAt = Clock.System.now(), sourceApp = "wallet", captureId = 5,
-                note = "device-only note")
+                note = "device-only note", accountId = 1)
             val id = repository.upsert(draft)
             assertEquals(0, dao.observePendingCount().first())
             assertFailsWith<IllegalArgumentException> { draft.toSyncTransaction() }

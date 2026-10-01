@@ -1,49 +1,66 @@
 package ph.notifly.ui
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
+import kotlin.test.*
 import kotlin.time.Instant
-import ph.notifly.data.local.ManualBalance
-import ph.notifly.domain.model.AllowedApp
-import ph.notifly.domain.model.Transaction
-import ph.notifly.domain.model.TransactionStatus
-import ph.notifly.domain.model.TransactionType
+import ph.notifly.domain.model.*
 
 class AccountsTest {
-    private fun row(app: String?, amountMinor: Long, type: TransactionType, at: Long,
-                    status: TransactionStatus = TransactionStatus.CONFIRMED) =
-        Transaction(title = "[TEST] row", amountMinor = amountMinor, type = type, status = status, category = "Other",
-            occurredAt = Instant.fromEpochMilliseconds(at), sourceApp = app, captureId = null)
+    private val at = Instant.fromEpochMilliseconds(1000)
+    private fun row(account: Long, amount: Long, type: TransactionType, status: TransactionStatus = TransactionStatus.CONFIRMED,
+        to: Long? = null, time: Long = 2000) = Transaction(title = "Test", amountMinor = amount,
+        type = type, status = status, category = "Other", occurredAt = Instant.fromEpochMilliseconds(time),
+        sourceApp = null, captureId = null, accountId = account, toAccountId = to)
+    private val bank = Account(1, "Bank", AccountType.BANK, balanceMinor = 10000, balanceAsOf = at)
+    private val card = Account(2, "Card", AccountType.CARD, balanceMinor = 5000, balanceAsOf = at)
 
-    private val apps = listOf(
-        AllowedApp("com.maya", "Maya", "Wallet", listening = true, finance = true),
-        AllowedApp("com.gcash", "GCash", "Wallet", listening = true, finance = true),
-        AllowedApp("com.shop", "Shop", "Shopping", listening = true),
-    )
-    private val rows = listOf(
-        row("com.maya", 10_000, TransactionType.INCOME, 100),
-        row("com.maya", 2_500, TransactionType.EXPENSE, 300),
-        row("com.maya", 99_999, TransactionType.EXPENSE, 400, TransactionStatus.NEEDS_REVIEW),
-        row("com.maya", 50_000, TransactionType.TRANSFER, 500),
-        row("com.gcash", 1_000, TransactionType.EXPENSE, 100),
-        row(null, 7_000, TransactionType.INCOME, 100),
-    )
-
-    @Test fun estimatesFromConfirmedCapturesOfFinanceAppsOnly() {
-        val balances = accountBalances(apps, rows, emptyMap())
-        assertEquals(listOf("com.maya" to 7_500L, "com.gcash" to -1_000L), balances.map { it.app.packageName to it.estimate })
+    @Test fun debtPurchasesRefundsPaymentsAndPending() {
+        val rows = listOf(row(2, 1000, TransactionType.EXPENSE), row(2, 200, TransactionType.INCOME),
+            row(1, 2000, TransactionType.TRANSFER, to = 2), row(2, 99999, TransactionType.EXPENSE, TransactionStatus.NEEDS_REVIEW))
+        val balances = accountBalances(listOf(bank, card), rows)
+        assertEquals(listOf(8000L, 3800L), balances.map { it.estimate })
+        assertEquals(4200L, balances.sumOf { it.netValue })
+        assertEquals(5000L, accountBalances(listOf(bank, card), emptyList()).sumOf { it.netValue })
+    }
+    @Test fun reconciliationExcludesEarlierAndEqualTimesAndAllowsNegativeCredit() {
+        val rows = listOf(row(1, 9999, TransactionType.EXPENSE, time = 999), row(1, 9999, TransactionType.EXPENSE, time = 1000),
+            row(1, 300, TransactionType.INCOME), row(2, 6000, TransactionType.INCOME))
+        val balances = accountBalances(listOf(bank, card), rows)
+        assertEquals(10300L, balances[0].estimate)
+        assertEquals(-1000L, balances[1].estimate)
+    }
+    @Test fun deletionAndEditingRecomputeInsteadOfAccumulatingDrift() {
+        val expense = row(1, 1000, TransactionType.EXPENSE)
+        assertEquals(9000L, accountBalances(listOf(bank), listOf(expense)).single().estimate)
+        assertEquals(9500L, accountBalances(listOf(bank), listOf(expense.copy(amountMinor = 500))).single().estimate)
+        assertEquals(10000L, accountBalances(listOf(bank), emptyList()).single().estimate)
+    }
+    @Test fun accountMatchingNeverGuessesAcrossIdentifiers() {
+        val a = bank.copy(lastFour = "1234", linkedApps = setOf("bank"))
+        val b = card.copy(lastFour = "5678", linkedApps = setOf("bank"))
+        assertEquals(a, resolveAccount(listOf(a, b), "bank", "Account ending 1234 debited PHP 10"))
+        assertNull(resolveAccount(listOf(a, b), "bank", "You paid PHP 10"))
+        assertNull(resolveAccount(listOf(a), "bank", "Card ending 5678 charged PHP 10"))
+        assertNull(resolveAccount(listOf(a.copy(archived = true)), "bank", "You paid PHP 10"))
+        assertEquals(a, resolveAccount(listOf(a), "bank", "You paid PHP 10"))
+        assertNull(resolveAccount(listOf(a), "other", "Account ending 1234 debited PHP 10"))
+    }
+    @Test fun transferSeparatesSourceAndDestinationIdentifiers() {
+        val a = bank.copy(lastFour = "1234", linkedApps = setOf("bank"))
+        val b = card.copy(lastFour = "5678", linkedApps = setOf("bank"))
+        assertEquals(a to b, resolveTransactionAccounts(listOf(a, b), "bank",
+            "Transferred PHP 10 from your account ending 1234 to your card ending 5678", TransactionType.TRANSFER, false))
+        assertEquals(a to b, resolveTransactionAccounts(listOf(a, b), "bank",
+            "Received PHP 10 from your account ending 1234 to your card ending 5678", TransactionType.TRANSFER, true))
+        val wallet = bank.copy(name = "Wallet", linkedApps = setOf("wallet"), lastFour = null)
+        assertEquals(wallet to b, resolveTransactionAccounts(listOf(wallet, b), "wallet",
+            "Sent PHP 10 to your card ending 5678", TransactionType.TRANSFER, false))
     }
 
-    @Test fun manualBalanceCountsOnlyLaterTransactions() {
-        val manual = ManualBalance(100_000, Instant.fromEpochMilliseconds(200))
-        val maya = accountBalances(apps, rows, mapOf("com.maya" to manual)).first()
-        assertEquals(97_500L, maya.estimate)
-        assertEquals(manual, maya.manual)
-    }
-
-    @Test fun confirmedTransferMovesBothEnds() {
-        val transfer = row("com.maya", 3_000, TransactionType.TRANSFER, 600).copy(fromApp = "com.maya", toApp = "com.gcash")
-        val balances = accountBalances(apps, rows + transfer, emptyMap())
-        assertEquals(listOf("com.maya" to 4_500L, "com.gcash" to 2_000L), balances.map { it.app.packageName to it.estimate })
+    @Test fun billingDaysAndBalanceInputs() {
+        assertEquals("2026-02-28", billingDate(2026, 2, 31).toString())
+        assertEquals("2028-02-29", billingDate(2028, 2, 31).toString())
+        assertEquals(-1234L, balanceInput("-12.34"))
+        assertEquals(0L, balanceInput("0.00"))
+        assertNull(balanceInput("1.001"))
     }
 }

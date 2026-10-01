@@ -80,19 +80,19 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap()) {
     val saveCsv = rememberCsvSaver { s.captures.toCsv() }
     Column(Modifier.fillMaxSize()) {
         val filters = listOf(null) + CaptureResult.entries.filter { it != CaptureResult.IGNORED }
-        SingleChoiceSegmentedButtonRow(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)) {
-            filters.forEachIndexed { index, result ->
-                SegmentedButton(
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            filters.forEach { result ->
+                FilterChip(
                     selected = s.filter == result,
                     onClick = { model.filter(result) },
-                    shape = SegmentedButtonDefaults.itemShape(index, filters.size),
-                    icon = { Icon(painterResource(result.icon()), contentDescription = null, Modifier.size(SegmentedButtonDefaults.IconSize)) },
+                    leadingIcon = { Icon(painterResource(result.icon()), contentDescription = null, Modifier.size(FilterChipDefaults.IconSize)) },
                     label = { Text(result?.label() ?: "All") },
                 )
             }
         }
         Column(Modifier.padding(horizontal = 16.dp)) {
-            SettingsRow("Keep raw text on device", checked = s.keepRaw, onCheckedChange = model::retain)
+            SettingsGroup { SettingsRow("Keep raw text on device", checked = s.keepRaw, onCheckedChange = model::retain) }
             Text("Raw text is never uploaded and is removed after 24 hours.", style = MaterialTheme.typography.bodySmall)
         }
         Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -107,13 +107,9 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap()) {
             } }
         }
         HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+        TextButton(onClick = { model.navigate("account-review") }) { Text("Assign accounts") }
         if (s.captures.isEmpty()) {
-            Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center) {
-                Text("Nothing here yet", style = MaterialTheme.typography.titleMedium)
-                Text("Notifications from your allowed apps will show up here.",
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            EmptyState("Nothing here yet", "Notifications from your allowed apps will show up here.", Modifier.fillMaxSize())
         } else LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(s.captures, key = { it.id }) { capture ->
                 val color = when (capture.result) {
@@ -124,7 +120,7 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap()) {
                 }
                 val isExpanded = expanded == capture.id
                 val rotation by animateFloatAsState(if (isExpanded) 180f else 0f)
-                Card(onClick = { expanded = if (isExpanded) null else capture.id },
+                Card(onClick = { expanded = if (isExpanded) null else capture.id }, colors = brandCardColors(),
                     modifier = Modifier.fillMaxWidth().animateItem().semantics {
                         stateDescription = if (isExpanded) "Expanded" else "Collapsed"
                         customActions = listOf(CustomAccessibilityAction(if (isExpanded) "Collapse details" else "Expand details") {

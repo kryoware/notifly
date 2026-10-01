@@ -9,9 +9,9 @@ from urllib.request import urlopen
 
 
 NAMES = (
-    "add", "arrow_back", "calendar_today", "check", "check_circle", "clear", "delete",
-    "expand_more", "file_download", "help", "home", "keyboard_arrow_right", "list",
-    "north_east", "notifications_active", "pending_actions", "pie_chart",
+    "add", "arrow_back", "backspace", "calendar_today", "check", "check_circle", "clear", "delete",
+    "expand_more", "file_download", "help", "home", "keyboard_arrow_right", "list", "lock",
+    "north_east", "notifications", "open_in_new", "battery_android_full", "pending_actions", "pie_chart", "receipt_long",
     "schedule", "search", "settings", "south_west", "swap_horiz",
 )
 target = Path("shared/src/commonMain/composeResources/drawable")

@@ -20,14 +20,16 @@ import kotlin.test.assertFailsWith
 @RunWith(RobolectricTestRunner::class)
 class AppDatabaseTest {
 
-    private fun buildDatabase(): AppDatabase =
+    private suspend fun buildDatabase(): AppDatabase =
         Room.inMemoryDatabaseBuilder<AppDatabase>(ApplicationProvider.getApplicationContext())
             .setDriver(AndroidSQLiteDriver())
             .build()
+            .also { it.seedTestAccounts() }
 
     @Test
     fun `insert transaction and read it back as domain model`() = runTest {
         val db = buildDatabase()
+        db.seedTestAccounts()
         val transaction = Transaction(
             title = "Payroll",
             amountMinor = 4_800_000,
@@ -36,8 +38,7 @@ class AppDatabaseTest {
             category = "Salary",
             occurredAt = Instant.fromEpochMilliseconds(1_700_000_000_000),
             sourceApp = "com.gcash.app",
-            captureId = null,
-        )
+            captureId = null, accountId = 1)
 
         val id = db.transactionDao().upsert(transaction.toEntity())
         val stored = db.transactionDao().byId(id)?.toDomain()
@@ -48,6 +49,7 @@ class AppDatabaseTest {
     @Test
     fun `query by status excludes other statuses`() = runTest {
         val db = buildDatabase()
+        db.seedTestAccounts()
         val needsReview = Transaction(
             title = "Needs review",
             amountMinor = 100,
@@ -56,8 +58,7 @@ class AppDatabaseTest {
             category = "Misc",
             occurredAt = Instant.fromEpochMilliseconds(0),
             sourceApp = null,
-            captureId = null,
-        )
+            captureId = null, accountId = 1)
         val confirmed = needsReview.copy(status = TransactionStatus.CONFIRMED)
         db.transactionDao().upsert(needsReview.toEntity())
         db.transactionDao().upsert(confirmed.toEntity())
@@ -71,6 +72,7 @@ class AppDatabaseTest {
     @Test
     fun `delete removes the transaction`() = runTest {
         val db = buildDatabase()
+        db.seedTestAccounts()
         val id = db.transactionDao().upsert(
             Transaction(
                 title = "Gone soon",
@@ -80,8 +82,7 @@ class AppDatabaseTest {
                 category = "Misc",
                 occurredAt = Instant.fromEpochMilliseconds(0),
                 sourceApp = null,
-                captureId = null,
-            ).toEntity(),
+                captureId = null, accountId = 1).toEntity(),
         )
 
         db.transactionDao().delete(id)
@@ -92,6 +93,7 @@ class AppDatabaseTest {
     @Test
     fun `repository rejects non-PHP transactions`() = runTest {
         val db = buildDatabase()
+        db.seedTestAccounts()
         val repository = TransactionRepositoryImpl(db.transactionDao())
         val transaction = Transaction(
             title = "Dollar transaction",
@@ -102,8 +104,7 @@ class AppDatabaseTest {
             category = "Misc",
             occurredAt = Instant.fromEpochMilliseconds(0),
             sourceApp = null,
-            captureId = null,
-        )
+            captureId = null, accountId = 1)
 
         assertFailsWith<IllegalArgumentException> { repository.upsert(transaction) }
         assertEquals(emptyList(), db.transactionDao().observeAll().first())
@@ -112,6 +113,7 @@ class AppDatabaseTest {
     @Test
     fun `confirmed net excludes legacy non-PHP rows`() = runTest {
         val db = buildDatabase()
+        db.seedTestAccounts()
         val dao = db.transactionDao()
         val base = Transaction(
             title = "Income",
@@ -121,8 +123,7 @@ class AppDatabaseTest {
             category = "Misc",
             occurredAt = Instant.fromEpochMilliseconds(0),
             sourceApp = null,
-            captureId = null,
-        )
+            captureId = null, accountId = 1)
         dao.upsert(base.toEntity())
         dao.upsert(base.copy(title = "Legacy dollar income", amountMinor = 99_000, currency = "USD").toEntity())
 

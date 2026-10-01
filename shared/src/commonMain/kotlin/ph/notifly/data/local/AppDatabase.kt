@@ -9,11 +9,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 
 @Database(
-    entities = [TransactionEntity::class, RawCaptureEntity::class, AllowedAppEntity::class, PendingChangeEntity::class, CaptureReceiptEntity::class],
-    version = 8,
+    entities = [TransactionEntity::class, RawCaptureEntity::class, AllowedAppEntity::class, PendingChangeEntity::class, CaptureReceiptEntity::class, AccountEntity::class, AccountAppEntity::class, CategoryEntity::class, CapturedDraftEntity::class],
+    version = 9,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
+    abstract fun ledgerDao(): LedgerDao
     abstract fun transactionDao(): TransactionDao
     abstract fun rawCaptureDao(): RawCaptureDao
     abstract fun allowedAppDao(): AllowedAppDao
@@ -26,6 +27,7 @@ expect object AppDatabaseConstructor : RoomDatabaseConstructor<AppDatabase> {
 }
 
 val databaseMigrations = arrayOf(
+    ledgerMigration,
     object : androidx.room.migration.Migration(7, 8) {
         override fun migrate(connection: androidx.sqlite.SQLiteConnection) {
             connection.prepare("ALTER TABLE transactions ADD COLUMN fromApp TEXT").use { it.step() }

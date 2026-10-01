@@ -1,0 +1,6 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp"
+    android:viewportWidth="100" android:viewportHeight="100">
+    <!-- n + tick from docs/brand/run-2026-09-30-ube; stroke is only a mask, Icon() tints it. -->
+    <path android:strokeColor="#FF000000" android:strokeWidth="16" android:strokeLineCap="round"
+        android:strokeLineJoin="round" android:pathData="M16,78.5 V44.5 A23,23 0 0 1 62,44.5 V74.5 L84,48.5"/>
+</vector>

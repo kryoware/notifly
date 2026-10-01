@@ -17,8 +17,7 @@ private fun draft(
     status: TransactionStatus = TransactionStatus.NEEDS_REVIEW,
 ) = Transaction(
     title = "t", amountMinor = amountMinor, type = type, status = status,
-    category = "Other", occurredAt = occurredAt, sourceApp = sourceApp, captureId = null,
-)
+    category = "Other", occurredAt = occurredAt, sourceApp = sourceApp, captureId = null, accountId = if (sourceApp == "com.maya") 1 else 2)
 
 class TransferTest {
     @Test fun matchesOppositeDirectionsSameAmountDifferentAppsWithinWindow() {
@@ -43,7 +42,7 @@ class TransferTest {
         assertFalse(draft(TransactionType.TRANSFER, "com.maya").isTransferPairWith(draft(TransactionType.INCOME, "com.maribank")))
     }
     @Test fun rejectsAlreadyMergedTransfer() {
-        val merged = draft(TransactionType.TRANSFER, "com.maya").copy(fromApp = "com.maya", toApp = "com.maribank")
+        val merged = draft(TransactionType.TRANSFER, "com.maya").copy(fromApp = "com.maya", toApp = "com.maribank", toAccountId = 2)
         assertFalse(merged.isTransferPairWith(draft(TransactionType.INCOME, "com.gcash", occurredAt = BASE + 30.seconds)))
         assertFalse(merged.isTransferPairWith(draft(TransactionType.EXPENSE, "com.gcash", occurredAt = BASE + 30.seconds)))
     }
@@ -52,7 +51,7 @@ class TransferTest {
         val b = draft(TransactionType.INCOME, "com.maribank", occurredAt = BASE + 2.minutes + 1.seconds)
         assertFalse(a.isTransferPairWith(b))
     }
-    @Test fun rejectsSameApp() {
+    @Test fun rejectsSameAccount() {
         val a = draft(TransactionType.EXPENSE, "com.maya")
         val b = draft(TransactionType.INCOME, "com.maya", occurredAt = BASE + 30.seconds)
         assertFalse(a.isTransferPairWith(b))

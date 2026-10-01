@@ -18,9 +18,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
@@ -33,6 +35,7 @@ import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.plus
 import ph.notifly.ui.theme.accents
+import ph.notifly.ui.theme.tabular
 
 @Composable
 fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyMap()) {
@@ -55,8 +58,9 @@ fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyM
         if (s.pending > 0) item {
             ListItem(
                 onClick = { model.navigate("transactions") },
+                modifier = Modifier.clip(MaterialTheme.shapes.large),
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-                leadingContent = { Icon(painterResource(Res.drawable.symbol_pending_actions), contentDescription = null, tint = MaterialTheme.colorScheme.onTertiaryContainer) },
+                leadingContent = { StatusMark(confirmed = false) },
                 content = { Text("${s.pending} awaiting review ${if (s.pending == 1) "isn't" else "aren't"} counted", color = MaterialTheme.colorScheme.onTertiaryContainer) },
                 supportingContent = { Text("Confirm them to include them here", color = MaterialTheme.colorScheme.onTertiaryContainer) },
             )
@@ -70,19 +74,24 @@ fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyM
         }
         item { CategoryCard(w) }
         if (w.largest.isNotEmpty()) {
-            item { Text("Largest expenses · last ${w.days} days", style = MaterialTheme.typography.titleMedium) }
+            item { SectionHeader("Largest expenses · last ${w.days} days") }
             items(w.largest, key = { it.id }) { t -> TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") }) }
         }
     }
     if (editingBudget) BudgetDialog(s.budget, dismiss = { editingBudget = false }) { model.budget(it); editingBudget = false }
 }
 
-private fun signed(minor: Long) = (if (minor > 0) "+" else "") + money(minor)
-
-private fun shortDate(date: LocalDate) = "${date.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${date.day}"
+internal fun shortDate(date: LocalDate) = "${date.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${date.day}"
 
 /** Display-only ratio for progress bars; money itself stays in Long. */
 private fun ratio(part: Long, whole: Long) = if (whole <= 0L) 0f else (part.coerceIn(0L, whole) * 1000 / whole).toInt() / 1000f
+
+/** The brand's flat 6dp bar: no gap or stop dot, so a full budget reads as one solid line. */
+@Composable
+internal fun Meter(progress: Float, color: Color, modifier: Modifier = Modifier) {
+    LinearProgressIndicator(progress = { progress }, modifier = modifier.fillMaxWidth().height(6.dp), color = color,
+        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest, gapSize = 0.dp, drawStopIndicator = {})
+}
 
 /** Percent change against the previous window; [compared] names that window, or null for the terse form. */
 @Composable
@@ -103,15 +112,15 @@ private fun Change(current: Long, previous: Long, compared: String?, lowerIsBett
 @Composable
 private fun CashFlowCard(w: WindowInsights) {
     val net = w.current.net
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Net cash flow · last ${w.days} days", style = MaterialTheme.typography.labelLarge)
-            Text(signed(net), style = MaterialTheme.typography.headlineLarge, color = when {
+            Text(signedMoney(net), style = MaterialTheme.typography.headlineLarge.tabular(), color = when {
                 net > 0 -> MaterialTheme.accents.income
                 net < 0 -> MaterialTheme.accents.expense
                 else -> MaterialTheme.colorScheme.onSurface
             })
-            Text("Previous ${w.days} days: ${signed(w.previous.net)}", style = MaterialTheme.typography.bodySmall,
+            Text("Previous ${w.days} days: ${signedMoney(w.previous.net)}", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -140,10 +149,10 @@ private fun DailySpendingCard(w: WindowInsights) {
     val detail = picked?.let { "${shortDate(w.start.plus(it, DateTimeUnit.DAY))}: ${money(w.daily[it])}" }
         ?: if (peak == 0L) "No spending in the last ${w.days} days"
         else "Average ${money(w.dailyAverage)}/day (dashed line) · peak ${money(peak)} on ${shortDate(w.start.plus(w.daily.indexOf(peak), DateTimeUnit.DAY))}"
-    val bar = MaterialTheme.accents.expense
-    val empty = MaterialTheme.colorScheme.outlineVariant
+    val bar = MaterialTheme.colorScheme.primary
+    val empty = MaterialTheme.colorScheme.surfaceContainerHighest
     val guide = MaterialTheme.colorScheme.outline
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Daily spending", style = MaterialTheme.typography.titleMedium)
             Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -193,7 +202,7 @@ private fun PaceCard(windows: List<WindowInsights>, selected: Int, select: (Int)
     val baseline = windows.last()
     // Without history before the longest window its average is diluted by days that predate any data.
     val change = if (baseline.previous == CashFlow()) null else percentChange(recent.dailyAverage, baseline.dailyAverage)
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
         Column(Modifier.padding(vertical = 12.dp)) {
             Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Spending pace", style = MaterialTheme.typography.titleMedium)
@@ -229,7 +238,7 @@ private fun PaceCard(windows: List<WindowInsights>, selected: Int, select: (Int)
 @Composable
 private fun BudgetCard(m: MonthInsights, budget: Long?, edit: () -> Unit) {
     val spent = m.flow.spent
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Monthly budget", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -242,8 +251,7 @@ private fun BudgetCard(m: MonthInsights, budget: Long?, edit: () -> Unit) {
             } else {
                 val over = spent > budget
                 val trendingOver = m.projected > budget
-                LinearProgressIndicator(progress = { ratio(spent, budget) }, modifier = Modifier.fillMaxWidth(),
-                    color = if (over || trendingOver) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                Meter(ratio(spent, budget), if (over || trendingOver) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("${money(spent)} spent", style = MaterialTheme.typography.titleSmall)
                     Text("of ${money(budget)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -263,7 +271,7 @@ private fun BudgetCard(m: MonthInsights, budget: Long?, edit: () -> Unit) {
 
 @Composable
 private fun CategoryCard(w: WindowInsights) {
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Spending by category", style = MaterialTheme.typography.titleMedium)
@@ -277,8 +285,7 @@ private fun CategoryCard(w: WindowInsights) {
                         Text(c.category, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                         Text(money(c.spent), style = MaterialTheme.typography.titleSmall)
                     }
-                    LinearProgressIndicator(progress = { ratio(c.spent, w.current.spent) }, modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.accents.expense)
+                    Meter(ratio(c.spent, w.current.spent), MaterialTheme.colorScheme.primary)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${c.spent * 100 / w.current.spent}% of spending", style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
@@ -294,7 +301,7 @@ private fun CategoryCard(w: WindowInsights) {
 private fun CategoryBudgetCard(m: MonthInsights, budgets: Map<String, Long>, manage: () -> Unit) {
     val rows = budgets.entries.map { (category, budget) -> Triple(category, m.categories[category] ?: 0L, budget) }
         .sortedByDescending { (_, spent, budget) -> spent * 1000 / budget }
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Category budgets · this month", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -307,8 +314,7 @@ private fun CategoryBudgetCard(m: MonthInsights, budgets: Map<String, Long>, man
                         Text(category, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                         Text("${money(spent)} of ${money(budget)}", style = MaterialTheme.typography.titleSmall)
                     }
-                    LinearProgressIndicator(progress = { ratio(spent, budget) }, modifier = Modifier.fillMaxWidth(),
-                        color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                    Meter(ratio(spent, budget), if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                     Text(if (over) "Over by ${money(spent - budget)}" else "${money(budget - spent)} left",
                         style = MaterialTheme.typography.bodySmall,
                         color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)

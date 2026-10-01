@@ -3,20 +3,27 @@ package ph.notifly.data.transfer
 import ph.notifly.domain.model.*
 import kotlin.time.Instant
 
-/** Version 1 ledger CSV. IDs and raw notification content are deliberately excluded. */
+/** Ledger CSV v2 with portable account names/types; v1 imports remain supported. IDs and raw notification content are deliberately excluded. */
 object TransactionCsv {
     const val MAX_CHARS = 5_000_000
     const val MAX_ROWS = 10_000
     private val columns = listOf("title", "amount_minor", "currency", "type", "status", "category",
         "occurred_at", "created_at", "source_app", "note", "from_app", "to_app")
 
-    fun encode(rows: List<Transaction>): String = buildString {
-        appendLine(columns.joinToString(","))
+    private val accountColumns = listOf("account_name", "account_type", "to_account_name", "to_account_type")
+    data class Entry(val transaction: Transaction, val accountName: String? = null, val accountType: AccountType? = null,
+        val toAccountName: String? = null, val toAccountType: AccountType? = null)
+
+    fun encode(rows: List<Transaction>, accounts: List<Account> = emptyList()): String = buildString {
+        appendLine((columns + accountColumns).joinToString(","))
         rows.forEach { t ->
+            val account = accounts.find { it.id == t.accountId }
+            val to = accounts.find { it.id == t.toAccountId }
             appendLine(listOf(t.title, t.amountMinor.toString(), t.currency, t.type.name, t.status.name,
                 t.category, Instant.fromEpochMilliseconds(t.occurredAt.toEpochMilliseconds()).toString(),
                 Instant.fromEpochMilliseconds(t.createdAt.toEpochMilliseconds()).toString(), t.sourceApp.orEmpty(),
-                t.note, t.fromApp.orEmpty(), t.toApp.orEmpty()).joinToString(",") { value ->
+                t.note, t.fromApp.orEmpty(), t.toApp.orEmpty(), account?.name.orEmpty(), account?.type?.name.orEmpty(),
+                to?.name.orEmpty(), to?.type?.name.orEmpty()).joinToString(",") { value ->
                 // Prevent spreadsheet formulas; doubling an existing apostrophe keeps this reversible.
                 val safe = if (value.needsSpreadsheetEscape()) "'$value" else value
                 "\"${safe.replace("\"", "\"\"")}\""
@@ -25,13 +32,16 @@ object TransactionCsv {
     }
 
     /** Validates the entire file before returning drafts; file status never confirms an import. */
-    fun decode(csv: String): List<Transaction> {
+    fun decode(csv: String): List<Transaction> = decodeEntries(csv).map { it.transaction }
+
+    fun decodeEntries(csv: String): List<Entry> {
         require(csv.length <= MAX_CHARS) { "CSV is too large. Use a file under 5 million characters." }
         val records = records(csv.removePrefix("\uFEFF"))
-        require(records.firstOrNull() == columns) { "Choose a Notifly transaction CSV with the original column headers." }
+        val headers = records.firstOrNull()
+        require(headers == columns || headers == columns + accountColumns) { "Choose a Notifly transaction CSV with the original column headers." }
         return records.drop(1).mapIndexed { index, fields ->
             val message = "Invalid transaction at CSV row ${index + 2}. Check its fields and try again."
-            require(fields.size == columns.size) { message }
+            require(fields.size == headers?.size) { message }
             val f = fields.map { value ->
                 if (value.startsWith("'") && value.drop(1).needsSpreadsheetEscape()) value.drop(1) else value
             }
@@ -44,10 +54,19 @@ object TransactionCsv {
                 // The database stores milliseconds; reject dates outside that representation.
                 require(Instant.fromEpochMilliseconds(occurred.toEpochMilliseconds()) == occurred)
                 require(Instant.fromEpochMilliseconds(created.toEpochMilliseconds()) == created)
-                Transaction(title = f[0], amountMinor = amount, currency = f[2], type = TransactionType.valueOf(f[3]),
+                val transaction = Transaction(title = f[0], amountMinor = amount, currency = f[2], type = TransactionType.valueOf(f[3]),
                     status = TransactionStatus.NEEDS_REVIEW, category = f[5], occurredAt = occurred, createdAt = created,
                     sourceApp = f[8].ifEmpty { null }, captureId = null, note = f[9],
-                    fromApp = f[10].ifEmpty { null }, toApp = f[11].ifEmpty { null })
+                    fromApp = f[10].ifEmpty { null }, toApp = f[11].ifEmpty { null }, accountId = 0)
+                if (f.size == columns.size) Entry(transaction) else {
+                    val accountName = f[12].takeIf { it.isNotBlank() }
+                    val accountType = f[13].takeIf { it.isNotBlank() }?.let(AccountType::valueOf)
+                    val toName = f[14].takeIf { it.isNotBlank() }
+                    val toType = f[15].takeIf { it.isNotBlank() }?.let(AccountType::valueOf)
+                    require((accountName == null) == (accountType == null))
+                    require((toName == null) == (toType == null))
+                    Entry(transaction, accountName, accountType, toName, toType)
+                }
             } catch (_: IllegalArgumentException) { throw IllegalArgumentException(message) }
         }
     }
@@ -83,7 +102,7 @@ object TransactionCsv {
                 '\r', '\n' -> { if (c == '\r' && csv.getOrNull(i) == '\n') i++; endRow() }
                 else -> { require(!closed) { "Invalid CSV quoting." }; field.append(c) }
             }
-            require(fields.size < columns.size) { "Too many CSV columns." }
+            require(fields.size < columns.size + accountColumns.size) { "Too many CSV columns." }
         }
         require(!quoted) { "CSV has an unclosed quoted field." }
         if (field.isNotEmpty() || fields.isNotEmpty() || closed) endRow()

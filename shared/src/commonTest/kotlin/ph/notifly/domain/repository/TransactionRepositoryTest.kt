@@ -26,8 +26,7 @@ class TransactionRepositoryTest {
         category = "Misc",
         occurredAt = Instant.fromEpochMilliseconds(1_700_000_000_000),
         sourceApp = null,
-        captureId = null,
-    )
+        captureId = null, accountId = 1)
 
     @Test
     fun `observeConfirmedNetMinor excludes NEEDS_REVIEW`() = runTest {

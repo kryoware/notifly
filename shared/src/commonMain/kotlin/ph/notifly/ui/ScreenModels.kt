@@ -25,7 +25,7 @@ import kotlinx.datetime.atTime
 import kotlinx.datetime.plus
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
-import org.koin.core.context.GlobalContext
+import org.koin.mp.KoinPlatformTools
 
 sealed interface UiEvent {
     data class Navigate(val route: String) : UiEvent
@@ -35,10 +35,11 @@ sealed interface UiEvent {
 open class ScreenModel : ViewModel() {
     protected val mutableEvents = MutableSharedFlow<UiEvent>()
     val events = mutableEvents.asSharedFlow()
-    private val reporter by lazy { GlobalContext.getOrNull()?.get<ErrorReporter>() ?: ErrorReporter.None }
+    private val reporter by lazy { KoinPlatformTools.defaultContext().getOrNull()?.get<ErrorReporter>() ?: ErrorReporter.None }
     /** Runs UI work in this model's scope, preserving cancellation and reporting other failures to the user. */
     protected fun work(block: suspend () -> Unit) = viewModelScope.launch {
         try { block() } catch (e: CancellationException) { throw e }
+        catch (e: IllegalArgumentException) { mutableEvents.emit(UiEvent.Message(e.message ?: "Check the entered values.")) }
         catch (e: Exception) {
             reporter.report(e, ErrorSite.SCREEN_MODEL)
             mutableEvents.emit(UiEvent.Message("Couldn't save or load data. Please try again."))
@@ -47,7 +48,7 @@ open class ScreenModel : ViewModel() {
     fun navigate(route: String) = work { mutableEvents.emit(UiEvent.Navigate(route)) }
 }
 
-data class LedgerState(val rows: List<Transaction> = emptyList(), val net: Long = 0L, val accounts: List<AccountBalance> = emptyList())
+data class LedgerState(val rows: List<Transaction> = emptyList(), val net: Long = 0L, val accounts: List<AccountBalance> = emptyList(), val drafts: Int = 0)
 data class InsightsState(
     val days: Int = INSIGHT_WINDOWS.first(),
     val windows: List<WindowInsights> = emptyList(),
@@ -62,13 +63,16 @@ class HomeModel(
     private val repository: TransactionRepository,
     apps: AllowListRepository,
     private val preferences: AppPreferences,
+    private val ledger: LedgerRepository,
 ) : ScreenModel() {
-    val state = combine(repository.observeAll(), repository.observeConfirmedNetMinor(), apps.observeAll(), preferences.accountBalances) {
-        rows, net, allowed, manual -> LedgerState(rows, net, accountBalances(allowed, rows, manual))
+    val state = combine(repository.observeAll(), ledger.observeAccounts(), ledger.observeDrafts()) { rows, accounts, drafts ->
+        val balances = accountBalances(accounts, rows)
+        LedgerState(rows, balances.sumOf { it.netValue }, balances, drafts.size)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LedgerState())
-    /** Saves a balance in minor units with the current time as its cutoff, or clears it when null. */
-    fun setBalance(packageName: String, minor: Long?) = work {
-        preferences.setAccountBalance(packageName, minor?.let { ph.notifly.data.local.ManualBalance(it, Clock.System.now()) })
+    fun setBalance(id: Long, minor: Long?) = work {
+        val account = ledger.observeAccounts().first().first { it.id == id }
+        ledger.saveAccount(account.copy(balanceMinor = minor ?: 0L,
+            balanceAsOf = if (minor == null) kotlin.time.Instant.fromEpochMilliseconds(Long.MIN_VALUE) else Clock.System.now()))
     }
     fun confirm(t: Transaction) = work {
         repository.upsert(t.copy(status = TransactionStatus.CONFIRMED))
@@ -87,9 +91,9 @@ private fun localToday() = flow {
     }
 }.distinctUntilChanged()
 
-class InsightsModel(repository: TransactionRepository, private val preferences: AppPreferences) : ScreenModel() {
+class InsightsModel(repository: TransactionRepository, private val preferences: AppPreferences, ledger: LedgerRepository) : ScreenModel() {
     private val days = MutableStateFlow(INSIGHT_WINDOWS.first())
-    val state = combine(repository.observeAll(), days, preferences.monthlyBudget, preferences.categoryBudgets, localToday()) { rows, d, budget, categoryBudgets, today ->
+    val state = combine(repository.observeAll(), days, preferences.monthlyBudget, ledger.observeCategories().map { categories -> categories.filter { it.type == TransactionType.EXPENSE && it.budgetMinor != null }.associate { it.name to it.budgetMinor!! } }, localToday()) { rows, d, budget, categoryBudgets, today ->
         val zone = TimeZone.currentSystemDefault()
         InsightsState(d, INSIGHT_WINDOWS.map { windowInsights(rows, today, it, zone) }, monthInsights(rows, today, zone),
             budget, rows.count { it.status == TransactionStatus.NEEDS_REVIEW }, categoryBudgets)
@@ -97,22 +101,27 @@ class InsightsModel(repository: TransactionRepository, private val preferences: 
     fun days(value: Int) { days.value = value }
     fun budget(minor: Long?) = work { preferences.setMonthlyBudget(minor) }
 }
-class BudgetsModel(private val preferences: AppPreferences) : ScreenModel() {
-    val state = preferences.categoryBudgets.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
-    fun budget(category: String, minor: Long?) = work { preferences.setCategoryBudget(category, minor) }
+class BudgetsModel(private val preferences: AppPreferences, private val ledger: LedgerRepository) : ScreenModel() {
+    val categories = ledger.observeCategories().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val state = categories.map { list -> list.filter { it.type == TransactionType.EXPENSE && it.budgetMinor != null }
+        .associate { it.name to it.budgetMinor!! } }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+    fun budget(name: String, minor: Long?) = work {
+        val category = ledger.observeCategories().first().first { it.name == name && it.type == TransactionType.EXPENSE }
+        ledger.saveCategory(category.copy(budgetMinor = minor))
+    }
 }
 enum class TransactionFilter { ALL, NEEDS_REVIEW, INCOME, EXPENSE, TRANSFER }
-data class TransactionsState(val rows: List<Transaction> = emptyList(), val filter: TransactionFilter = TransactionFilter.ALL)
-class TransactionsModel(private val repository: TransactionRepository) : ScreenModel() {
+data class TransactionsState(val rows: List<Transaction> = emptyList(), val filter: TransactionFilter = TransactionFilter.ALL, val accountNames: Map<Long, String> = emptyMap())
+class TransactionsModel(private val repository: TransactionRepository, ledger: LedgerRepository) : ScreenModel() {
     private val filter = MutableStateFlow(TransactionFilter.ALL)
-    val state = combine(repository.observeAll(), filter) { rows, f ->
+    val state = combine(repository.observeAll(), filter, ledger.observeAccounts()) { rows, f, accounts ->
         TransactionsState(rows.filter { when (f) {
             TransactionFilter.ALL -> true
             TransactionFilter.NEEDS_REVIEW -> it.status == TransactionStatus.NEEDS_REVIEW
             TransactionFilter.INCOME -> it.type == TransactionType.INCOME
             TransactionFilter.EXPENSE -> it.type == TransactionType.EXPENSE
             TransactionFilter.TRANSFER -> it.type == TransactionType.TRANSFER
-        } }, f)
+        } }, f, accounts.associate { it.id to it.name })
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TransactionsState())
     fun filter(value: TransactionFilter) { filter.value = value }
     fun confirm(t: Transaction) = work {
@@ -151,32 +160,65 @@ data class EditorState(
     val sourceText: String? = null, val sourceApp: String? = null, val captureId: Long? = null,
     val date: String = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString(),
     val time: String = "00:00",
+    val accountId: Long? = null, val toAccountId: Long? = null, val categoryId: Long? = null,
+    val accounts: List<Account> = emptyList(), val categories: List<Category> = emptyList(), val apps: List<AllowedApp> = emptyList(),
+    val fromDraft: Boolean = false, val accountError: String? = null, val toAccountError: String? = null,
+
 )
 class EditorModel(private val repository: TransactionRepository, id: Long,
-                  captures: CaptureRepository? = null, captureId: Long? = null) : ScreenModel() {
+                  captures: CaptureRepository? = null, captureId: Long? = null,
+                  private val ledger: LedgerRepository, apps: AllowListRepository, private val draftId: Long? = null) : ScreenModel() {
     private val mutableState = MutableStateFlow(EditorState())
     val state = mutableState.asStateFlow()
     init { work {
+        ledger.initialize()
         val t = if (id == 0L) null else repository.byId(id)
         mutableState.value = if (id != 0L && t == null) EditorState(error = "Transaction no longer exists.")
         else {
             val local = (t?.occurredAt ?: Clock.System.now()).toLocalDateTime(TimeZone.currentSystemDefault())
             EditorState(t, t?.title.orEmpty(), t?.let { amountText(it.amountMinor) }.orEmpty(),
                 t?.category ?: "Other", t?.type ?: TransactionType.EXPENSE, ready = true,
+                accountId = t?.accountId, toAccountId = t?.toAccountId, categoryId = t?.categoryId, sourceApp = t?.sourceApp,
                 date = local.date.toString(),
                 time = if (t == null) "00:00" else local.hour.toString().padStart(2, '0') + ":" + local.minute.toString().padStart(2, '0'))
         }
-        val linkedCaptureId = captureId ?: t?.captureId
+        val draft = draftId?.let { value -> ledger.observeDrafts().first().find { it.id == value } }
+        if (draftId != null && draft == null) { mutableState.value = state.value.copy(ready = false, error = "Draft no longer exists."); return@work }
+        if (draft != null) {
+            val local = draft.occurredAt.toLocalDateTime(TimeZone.currentSystemDefault())
+            mutableState.value = state.value.copy(fromDraft = true, title = draft.title, amount = amountText(draft.amountMinor),
+                type = draft.type, category = if (draft.type == TransactionType.TRANSFER) "Transfer" else "Other",
+                accountId = if (draft.type == TransactionType.TRANSFER && draft.inbound == true) null else draft.accountId,
+                toAccountId = if (draft.type == TransactionType.TRANSFER && draft.inbound == true) draft.accountId else draft.toAccountId,
+                sourceApp = draft.sourceApp, captureId = draft.captureId, date = local.date.toString(),
+                time = local.hour.toString().padStart(2, '0') + ":" + local.minute.toString().padStart(2, '0'))
+        }
+        val linkedCaptureId = captureId ?: draft?.captureId ?: t?.captureId
         if (linkedCaptureId != null) {
             val capture = captures?.observeLog()?.first()?.find { it.id == linkedCaptureId }
-            mutableState.value = state.value.copy(sourceText = capture?.body, sourceApp = capture?.sourceApp, captureId = capture?.id)
+            mutableState.value = state.value.copy(sourceText = capture?.body, sourceApp = state.value.sourceApp ?: apps.observeAll().first().find { it.packageName == capture?.sourceApp || it.label == capture?.sourceApp }?.packageName, captureId = capture?.id ?: state.value.captureId)
+        }
+        viewModelScope.launch {
+            combine(ledger.observeAccounts(), ledger.observeCategories(), apps.observeAll()) { accounts, categories, allowed ->
+                Triple(accounts, categories, allowed)
+            }.collect { (accounts, categories, allowed) ->
+                mutableState.value = state.value.copy(accounts = accounts, categories = categories, apps = allowed)
+            }
         }
     } }
     fun edit(title: String = state.value.title, amount: String = state.value.amount,
              category: String = state.value.category, type: TransactionType = state.value.type,
-             date: String = state.value.date, time: String = state.value.time) {
-        mutableState.value = state.value.copy(title = title, amount = amount, category = category, type = type, date = date, time = time,
-            error = null, titleError = null, amountError = null, dateError = null, timeError = null)
+             date: String = state.value.date, time: String = state.value.time,
+             accountId: Long? = state.value.accountId, toAccountId: Long? = state.value.toAccountId,
+             sourceApp: String? = state.value.sourceApp) {
+        val chosen = state.value.categories.find { it.name == category && it.type == type }
+        val suggestion = if (sourceApp != state.value.sourceApp && accountId == null)
+            state.value.accounts.filter { !it.archived && sourceApp in it.linkedApps }.singleOrNull()?.id else accountId
+        mutableState.value = state.value.copy(title = title, amount = amount,
+            category = if (type == TransactionType.TRANSFER) "Transfer" else if (type != state.value.type && chosen == null) "Other" else category,
+            categoryId = if (type == TransactionType.TRANSFER) null else chosen?.id, type = type, date = date, time = time,
+            accountId = suggestion, toAccountId = toAccountId.takeIf { type == TransactionType.TRANSFER }, sourceApp = sourceApp,
+            accountError = null, toAccountError = null, error = null, titleError = null, amountError = null, dateError = null, timeError = null)
     }
     /**
      * Validates the editor fields and asynchronously saves a confirmed transaction, then navigates
@@ -199,15 +241,26 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
             )
             return
         }
+        val account = s.accounts.find { it.id == s.accountId && (!it.archived || it.id == s.original?.accountId) }
+        val destination = s.accounts.find { it.id == s.toAccountId && (!it.archived || it.id == s.original?.toAccountId) }
+        if (account == null || (s.type == TransactionType.TRANSFER && (destination == null || destination.id == account.id))) {
+            mutableState.value = s.copy(accountError = if (account == null) "Choose an account." else null,
+                toAccountError = if (s.type == TransactionType.TRANSFER) "Choose a different destination account." else null)
+            return
+        }
         mutableState.value = s.copy(saving = true)
         val occurredAt = date.atTime(time).toInstant(TimeZone.currentSystemDefault())
         work {
             try {
-                repository.upsert(s.original?.copy(title = s.title.trim(), amountMinor = amount,
-                    category = s.category, type = s.type, status = TransactionStatus.CONFIRMED, occurredAt = occurredAt)
-            ?: Transaction(title = s.title.trim(), amountMinor = amount, type = s.type,
-                status = TransactionStatus.CONFIRMED, category = s.category,
-                occurredAt = occurredAt, createdAt = Clock.System.now(), sourceApp = s.sourceApp, captureId = s.captureId))
+                val transaction = s.original?.copy(title = s.title.trim(), amountMinor = amount,
+                    category = s.category, categoryId = s.categoryId, type = s.type, status = TransactionStatus.CONFIRMED,
+                    occurredAt = occurredAt, accountId = account.id, toAccountId = s.toAccountId,
+                    sourceApp = s.sourceApp)
+                    ?: Transaction(title = s.title.trim(), amountMinor = amount, type = s.type,
+                        status = TransactionStatus.CONFIRMED, category = s.category, categoryId = s.categoryId,
+                        occurredAt = occurredAt, createdAt = Clock.System.now(), sourceApp = s.sourceApp,
+                        captureId = s.captureId, accountId = account.id, toAccountId = s.toAccountId)
+                if (draftId != null) ledger.confirmDraft(draftId, transaction) else repository.upsert(transaction)
                 mutableEvents.emit(UiEvent.Navigate("transactions"))
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -223,7 +276,7 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
     }
 }
 
-data class SettingsState(val palette: NotiflyPalette = NotiflyPalette.Evergreen, val themeMode: ThemeMode = ThemeMode.SYSTEM,
+data class SettingsState(val palette: NotiflyPalette = NotiflyPalette.Ube, val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val offline: Boolean = true, val pending: Int = 0, val crashReporting: Boolean = false,
     val pinSet: Boolean = false, val biometric: Boolean = false)
 class SettingsModel(private val preferences: AppPreferences, pending: Flow<Int>) : ScreenModel() {
@@ -250,10 +303,11 @@ class SettingsModel(private val preferences: AppPreferences, pending: Flow<Int>)
     fun biometric(value: Boolean) = work { preferences.setBiometricUnlock(value) }
     fun restartOnboarding() = work {
         preferences.resetOnboarding()
-        navigate("onboarding")
+        navigate("onboarding/0")
     }
 }
-data class AllowListState(val apps: List<AllowedApp> = emptyList(), val query: String = "", val finance: Boolean = false)
+/** [checked] counts every enabled app, not just those matching [query]. */
+data class AllowListState(val apps: List<AllowedApp> = emptyList(), val query: String = "", val finance: Boolean = false, val checked: Int = 0)
 /** In [finance] mode, lists only allowed apps and toggles whether each one takes part in transfer detection. */
 class AllowListModel(private val repository: AllowListRepository, private val finance: Boolean = false) : ScreenModel() {
     private val query = MutableStateFlow("")
@@ -263,7 +317,7 @@ class AllowListModel(private val repository: AllowListRepository, private val fi
         val apps = if (finance) all.filter { it.listening } else all
         val p = pinned ?: apps.filter { it.isChecked() }.map { it.packageName }.toSet().also { pinned = it }
         val visible = apps.filter { q.isBlank() || it.label.contains(q, ignoreCase = true) || it.packageName.contains(q, ignoreCase = true) }
-        AllowListState(visible.sortedBy { it.packageName !in p }, q, finance)
+        AllowListState(visible.sortedBy { it.packageName !in p }, q, finance, apps.count { it.isChecked() })
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AllowListState(finance = finance))
     /** Returns the finance flag in finance mode, or the listening flag otherwise. */
     fun AllowedApp.isChecked() = if (this@AllowListModel.finance) finance else listening
@@ -274,11 +328,13 @@ class AllowListModel(private val repository: AllowListRepository, private val fi
     }
     fun search(value: String) { query.value = value }
 }
-data class OnboardingState(val page: Int = 0)
-class OnboardingModel : ScreenModel() {
-    private val mutableState = MutableStateFlow(OnboardingState())
-    val state = mutableState.asStateFlow()
-    fun next() { mutableState.value = OnboardingState((state.value.page + 1).coerceAtMost(3)) }
+/** First run has no account step: finishing starts offline, and Settings keeps sign-in. */
+class OnboardingModel(private val preferences: AppPreferences) : ScreenModel() {
+    fun finish() = work {
+        preferences.setOffline(true)
+        preferences.completeOnboarding()
+        mutableEvents.emit(UiEvent.Navigate("home"))
+    }
 }
 data class AuthState(val signup: Boolean = false, val email: String = "", val password: String = "",
     val error: String? = null, val emailError: String? = null, val passwordError: String? = null)

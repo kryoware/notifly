@@ -6,7 +6,7 @@ import android.provider.Settings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import ph.notifly.domain.repository.CaptureRepository
-import ph.notifly.data.parser.NotificationParser
+import ph.notifly.data.parser.ModelNotificationParser
 import ph.notifly.data.parser.ParseOutcome
 import ph.notifly.domain.model.CaptureResult
 import ph.notifly.domain.model.RawCapture
@@ -22,7 +22,8 @@ class NotificationTransactionSource(
     private val context: Context,
     private val captures: CaptureRepository,
     private val allowList: ph.notifly.domain.repository.AllowListRepository,
-    private val parser: NotificationParser,
+    private val parser: ModelNotificationParser,
+    private val ledger: ph.notifly.domain.repository.LedgerRepository,
 ) : TransactionSource {
     override val id = "android.notification-listener"
     private val mutableConnection = MutableStateFlow("Disconnected")
@@ -41,6 +42,7 @@ class NotificationTransactionSource(
      * App-label lookup failures fall back to the package name; content, parser, and storage failures propagate.
      */
     override suspend fun capture(event: NotificationEvent) {
+        ledger.initialize()
         captures.purgeExpired()
         if (!allowList.isAllowed(event.sourceApp)) {
             return
@@ -56,20 +58,25 @@ class NotificationTransactionSource(
         val now = Clock.System.now()
         val fingerprint = digest("${event.key}\u0000$body")
         val otherFinanceApps = allowList.observeAll().first().filter { it.finance && it.packageName != event.sourceApp }.map { it.label }
-        val id = when (val result = parser.parse(body, otherFinanceApps)) {
+        val id = when (val result = parser.parse(sourceAppLabel, body, otherFinanceApps)) {
             is ParseOutcome.Unrecognized -> captures.record(RawCapture(sourceApp = sourceAppLabel, capturedAt = now, body = body,
                 result = CaptureResult.UNRECOGNIZED, reason = result.reason, fingerprint = fingerprint))
             is ParseOutcome.Parsed -> {
                 val draft = result.draft
-                captures.recordParsed(RawCapture(sourceApp = sourceAppLabel, capturedAt = now, body = body,
-                    result = if (draft.needsReview) CaptureResult.NEEDS_REVIEW else CaptureResult.PARSED,
-                    matchedAmount = draft.matchedAmount, matchedDirection = draft.matchedDirection,
-                    reason = result.reason, fingerprint = fingerprint), Transaction(
-                    title = draft.merchant ?: "Payment from $sourceAppLabel", amountMinor = draft.amountMinor,
-                    currency = draft.currency, type = draft.type, status = TransactionStatus.NEEDS_REVIEW,
-                    category = if (draft.type == TransactionType.TRANSFER) "Transfer" else "Other", occurredAt = now, sourceApp = event.sourceApp, captureId = null,
-                    fromApp = event.sourceApp.takeIf { draft.type == TransactionType.TRANSFER && draft.inbound == false },
-                    toApp = event.sourceApp.takeIf { draft.type == TransactionType.TRANSFER && draft.inbound == true }))
+                val accounts = ledger.observeAccounts().first()
+                val (from, to) = ph.notifly.domain.model.resolveTransactionAccounts(accounts, event.sourceApp, body, draft.type, draft.inbound)
+                val account = if (draft.type == TransactionType.TRANSFER && draft.inbound == true) to else from
+                val reason = if (account == null) "Choose an account before creating this transaction. ${result.reason}" else result.reason
+                captures.recordDraft(RawCapture(sourceApp = sourceAppLabel, capturedAt = now, body = body,
+                    result = CaptureResult.NEEDS_REVIEW, matchedAmount = draft.matchedAmount,
+                    matchedDirection = draft.matchedDirection, reason = reason, fingerprint = fingerprint),
+                    ph.notifly.domain.model.CapturedDraft(title = draft.merchant ?: "Payment from $sourceAppLabel",
+                        amountMinor = draft.amountMinor, type = draft.type, inbound = draft.inbound,
+                        occurredAt = now, sourceApp = event.sourceApp,
+                        accountId = if (draft.type == TransactionType.TRANSFER && from != null && to != null) from.id else account?.id,
+                        toAccountId = to?.id.takeIf { draft.type == TransactionType.TRANSFER && from != null && to != null },
+                        accountHint = Regex("(?i)(?:ending(?: in)?|card|account)\\s*[:#*xX. -]*([0-9]{4,})")
+                            .find(body)?.groupValues?.get(1)?.takeLast(4)))
             }
         }
         if (id != -1L) allowList.incrementCapturedCount(event.sourceApp)

@@ -50,6 +50,7 @@ class TransactionDataControlsTest {
         }
         val owner = object : ActivityResultRegistryOwner { override val activityResultRegistry = registry }
         val source = DemoTransactions()
+        val ledger = DemoLedger(source)
         var repository by mutableStateOf<TransactionRepository>(source)
         var demo by mutableStateOf(false)
         var dark by mutableStateOf(false)
@@ -59,7 +60,7 @@ class TransactionDataControlsTest {
                 val density = LocalDensity.current
                 CompositionLocalProvider(LocalDensity provides Density(density.density, if (dark) 1.3f else 1f)) {
                     NotiflyTheme(themeMode = if (dark) ThemeMode.DARK else ThemeMode.LIGHT) {
-                        Column { TransactionDataControls(repository, demo) { messages.add(it) } }
+                        Column { TransactionDataControls(repository, demo, ledger) { messages.add(it) } }
                     }
                 }
             }

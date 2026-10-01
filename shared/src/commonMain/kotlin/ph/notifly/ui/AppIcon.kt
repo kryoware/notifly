@@ -21,7 +21,7 @@ expect fun AppIcon(packageName: String?, label: String, modifier: Modifier = Mod
 internal fun LetterAvatar(label: String, modifier: Modifier = Modifier, size: Dp = 40.dp) {
     Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = modifier.size(size)) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(label.take(1), style = if (size < 32.dp) MaterialTheme.typography.labelSmall else MaterialTheme.typography.titleMedium)
+            Text(label.take(1), style = if (size < 32.dp) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleMedium)
         }
     }
 }

@@ -8,7 +8,7 @@ class TransactionCsvTest {
     private val row = Transaction(id = 42, title = "=Merchant, \"name\"\nsecond line", amountMinor = 12345,
         type = TransactionType.TRANSFER, status = TransactionStatus.CONFIRMED, category = "Transfer",
         occurredAt = Instant.parse("2026-10-01T12:00:00Z"), sourceApp = "wallet", captureId = 99,
-        note = "'a note\r\nwith commas, and quotes \"", fromApp = "wallet", toApp = "bank")
+        note = "'a note\r\nwith commas, and quotes \"", fromApp = "wallet", toApp = "bank", accountId = 1)
 
     @Test fun roundTripPreservesMoneyAndTextButDropsDeviceIdsAndConfirmation() {
         val csv = TransactionCsv.encode(listOf(row))
@@ -16,10 +16,10 @@ class TransactionCsvTest {
         assertFalse(csv.contains("capture_id"))
         assertFalse(csv.contains("body"))
         val draft = TransactionCsv.decode("\uFEFF$csv").single()
-        assertEquals(row.copy(id = 0, captureId = null, status = TransactionStatus.NEEDS_REVIEW), draft)
+        assertEquals(row.copy(id = 0, captureId = null, accountId = 0, status = TransactionStatus.NEEDS_REVIEW), draft)
         assertEquals(emptyList(), TransactionCsv.decode(TransactionCsv.encode(emptyList())))
         val simple = row.copy(title = "Merchant", note = "")
-        assertEquals(simple.copy(id = 0, captureId = null, status = TransactionStatus.NEEDS_REVIEW),
+        assertEquals(simple.copy(id = 0, captureId = null, accountId = 0, status = TransactionStatus.NEEDS_REVIEW),
             TransactionCsv.decode(TransactionCsv.encode(listOf(simple)).replace("\n", "\r\n")).single())
         assertEquals(Long.MAX_VALUE, TransactionCsv.decode(TransactionCsv.encode(listOf(row.copy(amountMinor = Long.MAX_VALUE)))).single().amountMinor)
         val formula = row.copy(title = " \t=HYPERLINK(\"example\")")

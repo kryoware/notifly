@@ -13,7 +13,8 @@ import ph.notifly.domain.repository.TransactionRepository
 
 val sharedModule: Module = module {
     single { NotificationParser() }
-    single<TransactionRepository> { TransactionRepositoryImpl(get<AppDatabase>().transactionDao()) }
+    single<ph.notifly.domain.repository.LedgerRepository> { ph.notifly.data.repository.LedgerRepositoryImpl(get<AppDatabase>().ledgerDao(), get()) }
+    single<TransactionRepository> { TransactionRepositoryImpl(get<AppDatabase>().transactionDao(), get()) }
     single<CaptureRepository> { CaptureRepositoryImpl(get<AppDatabase>().rawCaptureDao(), preferences = get()) }
     single<AllowListRepository> { AllowListRepositoryImpl(get<AppDatabase>().allowedAppDao()) }
 }

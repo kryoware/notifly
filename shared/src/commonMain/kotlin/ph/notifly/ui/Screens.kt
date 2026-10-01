@@ -2,6 +2,7 @@
 
 package ph.notifly.ui
 
+import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import notifly.shared.generated.resources.Res
 import notifly.shared.generated.resources.*
@@ -19,6 +20,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -30,13 +33,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -44,6 +52,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import kotlin.math.abs
 import kotlin.time.Instant
+import kotlinx.coroutines.delay
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
@@ -53,10 +62,12 @@ import ph.notifly.ui.theme.NotiflyPalette
 import ph.notifly.ui.theme.ThemeMode
 import ph.notifly.ui.theme.hint
 import ph.notifly.ui.theme.accents
+import ph.notifly.ui.theme.tabular
 
-private val CATEGORIES = listOf("Income", "Food", "Transport", "Bills", "Shopping", "Transfer", "Other")
 private val FAB_CLEARANCE = 88.dp
 private const val SWIPE_THRESHOLD = 0.5f
+// The brand's full-width call to action.
+private val WideButton = Modifier.fillMaxWidth().heightIn(min = 56.dp)
 
 /**
  * Displays a transaction; [selectionMode] routes taps to [onToggleSelection] and hides confirmation.
@@ -74,18 +85,21 @@ fun TransactionRow(
     selected: Boolean = false,
     onToggleSelection: () -> Unit = {},
     onLongClick: () -> Unit = {},
+    accountNames: Map<Long, String> = emptyMap(),
 ) {
     val color = when (transaction.type) {
         TransactionType.INCOME -> MaterialTheme.accents.income
         TransactionType.EXPENSE -> MaterialTheme.accents.expense
         TransactionType.TRANSFER -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val accountLabel = accountNames[transaction.accountId].orEmpty() +
+        (transaction.toAccountId?.let { " → " + accountNames[it].orEmpty() } ?: "")
     val needsReview = transaction.status == TransactionStatus.NEEDS_REVIEW
     val sourceApp = transaction.sourceApp?.let { appLabels[it] ?: it }
     val sender = sourceApp ?: "Manual"
     val occurredOn = transaction.occurredAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
-    val supportingText = listOfNotNull(transaction.category.takeIf { it.isNotBlank() }, "Needs review".takeIf { needsReview })
-        .joinToString(" · ")
+    val supportingText = listOfNotNull(accountLabel.takeIf { it.isNotBlank() }, transaction.category.takeIf { it.isNotBlank() }, shortDate(occurredOn),
+        "Needs review".takeIf { needsReview }).joinToString(" · ")
     val leading: @Composable () -> Unit = {
         Crossfade(selected, label = "avatar") { checked ->
             if (checked) Icon(painterResource(Res.drawable.symbol_check_circle), contentDescription = null,
@@ -98,23 +112,21 @@ fun TransactionRow(
         label = "selection",
     )
     val colors = ListItemDefaults.colors(containerColor = container, selectedContainerColor = container)
-    val supporting: (@Composable () -> Unit)? = if (supportingText.isEmpty()) null else { {
+    val supporting: @Composable () -> Unit = {
             Text(supportingText, style = MaterialTheme.typography.bodySmall,
                 color = if (needsReview) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
-    } }
+    }
     val trailing: @Composable () -> Unit = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(occurredOn.toString(), style = MaterialTheme.typography.labelSmall)
-                    Text((if (transaction.type == TransactionType.INCOME) "+" else if (transaction.type == TransactionType.EXPENSE) "−" else "") + money(transaction.amountMinor), color = color)
-                }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text((if (transaction.type == TransactionType.INCOME) "+" else if (transaction.type == TransactionType.EXPENSE) "−" else "") + money(transaction.amountMinor),
+                    style = MaterialTheme.typography.titleMedium.tabular(), color = color)
                 if (!selectionMode && needsReview && confirm != null) {
                     IconTooltip("Confirm ${transaction.title}") {
-                        IconButton(onClick = confirm) {
-                            Icon(painterResource(Res.drawable.symbol_check), contentDescription = "Confirm ${transaction.title}", tint = MaterialTheme.colorScheme.primary)
+                        IconButton(onClick = confirm, modifier = Modifier.size(48.dp).semantics { contentDescription = "Confirm ${transaction.title}" }) {
+                            StatusMark(confirmed = false)
                         }
                     }
-                }
+                } else Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { StatusMark(confirmed = !needsReview) }
             }
     }
     val rowModifier = modifier.fillMaxWidth()
@@ -132,98 +144,131 @@ fun TransactionRow(
 
 @Composable
 fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
-               snackbar: SnackbarHostState? = null, demo: Boolean = false) {
+               snackbar: SnackbarHostState? = null, demo: Boolean = false,
+               listeningApps: List<String> = emptyList(), accessOn: Boolean = true, requestAccess: () -> Unit = {}) {
     val s by model.state.collectAsState()
-    val pendingTotal = s.rows.filter { it.status == TransactionStatus.NEEDS_REVIEW }
-        .sumOf { if (it.type == TransactionType.INCOME) it.amountMinor else -it.amountMinor }
+    val pendingRows = s.rows.filter { it.status == TransactionStatus.NEEDS_REVIEW }
+    val pendingTotal = pendingRows.sumOf { when (it.type) { TransactionType.INCOME -> it.amountMinor; TransactionType.EXPENSE -> -it.amountMinor; TransactionType.TRANSFER -> 0L } }
     val listState = rememberLazyListState()
     var editingAccount by remember { mutableStateOf<AccountBalance?>(null) }
     editingAccount?.let { account ->
-        BalanceDialog(account, dismiss = { editingAccount = null }) { model.setBalance(account.app.packageName, it); editingAccount = null }
+        BalanceDialog(account, dismiss = { editingAccount = null }) { model.setBalance(account.account.id, it); editingAccount = null }
     }
     Scaffold(
-        topBar = { TopAppBar(title = { Text(if (demo) "Notifly · Demo" else "Notifly") }) },
+        topBar = { TopAppBar(title = { Wordmark(if (demo) "DEMO" else null) }) },
         snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { model.navigate("edit/0") },
-                expanded = !listState.canScrollBackward,
-                // M3 1.5 clears the text slot's semantics, so the name must sit on the button itself.
-                modifier = Modifier.semantics { contentDescription = "Add transaction" },
-                icon = { Icon(painterResource(Res.drawable.symbol_add), contentDescription = null) },
-                text = { Text("Add transaction") },
-            )
-        }
+        floatingActionButton = { AddTransactionFab(expanded = !listState.canScrollBackward) { model.navigate("edit/0") } }
     ) { padding ->
     LazyColumn(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).padding(horizontal = 16.dp), state = listState,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(bottom = FAB_CLEARANCE)) {
-        item {
-            Card(Modifier.fillMaxWidth().animateContentSize()) {
-                Column(Modifier.padding(24.dp)) {
-                    Text("Confirmed balance", style = MaterialTheme.typography.labelLarge)
-                    Text(money(s.net), style = MaterialTheme.typography.headlineLarge)
-                    Text("Transfers and transactions awaiting review are excluded.", style = MaterialTheme.typography.bodySmall)
-                    val pending = s.rows.count { it.status == TransactionStatus.NEEDS_REVIEW }
-                    if (pending > 0) {
-                        HorizontalDivider(Modifier.padding(vertical = 12.dp))
-                        Text("Pending review", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
-                        Text(money(pendingTotal), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.tertiary)
-                    }
-                }
-            }
-        }
-        val pending = s.rows.count { it.status == TransactionStatus.NEEDS_REVIEW }
-        item {
-            AnimatedVisibility(pending > 0) {
-                ListItem(
-                    onClick = { model.navigate("transactions") },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-                    leadingContent = { Icon(painterResource(Res.drawable.symbol_notifications_active), contentDescription = null, tint = MaterialTheme.colorScheme.onTertiaryContainer) },
-                    content = { Text("$pending transaction${if (pending == 1) "" else "s"} need review", color = MaterialTheme.colorScheme.onTertiaryContainer) },
-                    supportingContent = { Text("Parsed automatically — confirm or edit them", color = MaterialTheme.colorScheme.onTertiaryContainer) },
-                )
+        item { Box(Modifier.padding(bottom = 8.dp)) { BalanceHero(s.net, pendingRows.size, pendingTotal) { model.navigate("transactions") } } }
+        if (s.drafts > 0) item {
+            FilledTonalButton(onClick = { model.navigate("account-review") }, modifier = Modifier.fillMaxWidth()) {
+                Text("Assign accounts · ${s.drafts} to review")
             }
         }
         if (s.accounts.isNotEmpty()) {
-            item { AccountsHeader(s.accounts.sumOf { it.estimate }) }
-            items(s.accounts, key = { "account:" + it.app.packageName }) { account ->
+            item { AccountsHeader(s.accounts.sumOf { it.netValue }) }
+            items(s.accounts, key = { "account:" + it.account.id }) { account ->
                 AccountRow(account) { editingAccount = account }
             }
         }
-        item { Text("Recent", style = MaterialTheme.typography.titleLarge) }
+        item {
+            SectionHeader("Recent") {
+                if (s.rows.size > 5) TextButton(onClick = { model.navigate("transactions") }) { Text("See all") }
+            }
+        }
         items(s.rows.take(5), key = { it.id }) { t ->
             TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") },
-                confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null)
+                accountNames = s.accounts.associate { it.account.id to it.account.name }, confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null)
         }
-        if (s.rows.isEmpty()) item { Text("No transactions yet. Add one manually to get started.") }
-        if (s.rows.size > 5) item { TextButton(onClick = { model.navigate("transactions") }) { Text("See all transactions") } }
+        // First value is the first captured draft, so the empty ledger says what it is waiting on.
+        if (s.rows.isEmpty()) item {
+            when {
+                !accessOn -> EmptyState("Nothing counts until you do.",
+                    "Notification access is off, so payment alerts can't become drafts yet. You can still add transactions manually.") {
+                    FilledTonalButton(onClick = requestAccess) { Text("Turn on access") }
+                }
+                listeningApps.isEmpty() -> EmptyState("Nothing counts until you do.",
+                    "No apps chosen yet. Pick the bank and wallet apps whose payment alerts should become drafts.") {
+                    FilledTonalButton(onClick = { model.navigate("allow-list") }) { Text("Choose apps") }
+                }
+                else -> EmptyState("Listening for your first ping.",
+                    "Your next payment alert from ${spokenList(listeningApps)} lands here as a draft. Confirm it and it counts.")
+            }
+        }
     }
+    }
+}
+
+@Composable
+private fun AddTransactionFab(expanded: Boolean, onClick: () -> Unit) {
+    ExtendedFloatingActionButton(
+        onClick = onClick,
+        expanded = expanded,
+        // M3 1.5 clears the text slot's semantics, so the name must sit on the button itself.
+        modifier = Modifier.semantics { contentDescription = "Add transaction" },
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        icon = { Icon(painterResource(Res.drawable.symbol_add), contentDescription = null) },
+        text = { Text("Add transaction") },
+    )
+}
+
+/** Only confirmed money moves the headline; review items sit in their own line below it. */
+@Composable
+private fun BalanceHero(net: Long, pending: Int, pendingTotal: Long, review: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(Modifier.fillMaxWidth().animateContentSize(), shape = MaterialTheme.shapes.extraLarge,
+        color = scheme.primaryContainer, contentColor = scheme.onPrimaryContainer) {
+        Column(Modifier.padding(start = 22.dp, end = 22.dp, top = 22.dp, bottom = if (pending > 0) 14.dp else 22.dp)) {
+            val muted = LocalContentColor.current.copy(alpha = 0.7f)
+            Text("Confirmed balance", style = MaterialTheme.typography.labelLarge)
+            Text(splitMoney(net, LocalContentColor.current.copy(alpha = 0.55f)),
+                style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.035).em).tabular(),
+                maxLines = 1, autoSize = TextAutoSize.StepBased(minFontSize = 24.sp, maxFontSize = 44.sp),
+                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
+            Text("Transfers between your accounts aren't counted.", style = MaterialTheme.typography.bodySmall, color = muted)
+            if (pending > 0) Row(
+                Modifier.padding(top = 16.dp).fillMaxWidth().background(scheme.surface.copy(alpha = 0.35f), RoundedCornerShape(18.dp))
+                    .padding(start = 14.dp, top = 8.dp, end = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                StatusMark(confirmed = false, size = 16.dp)
+                Column(Modifier.weight(1f)) {
+                    Text("$pending to review", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium))
+                    Text("${signedMoney(pendingTotal)} · not counted", style = MaterialTheme.typography.bodySmall.tabular(), color = muted)
+                }
+                Button(onClick = review, contentPadding = PaddingValues(horizontal = 16.dp)) { Text("Review") }
+            }
+        }
     }
 }
 
 @Composable
 private fun AccountsHeader(total: Long) {
     Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Accounts", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            Text(money(total), style = MaterialTheme.typography.titleMedium)
+        SectionHeader("Accounts") {
+            Text(splitMoney(total, LocalContentColor.current.copy(alpha = 0.55f)), style = MaterialTheme.typography.titleMedium.tabular())
         }
-        Text("Estimated from confirmed transactions; transfers aren't counted. Tap an account to enter its actual balance.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Estimated from confirmed transactions. Tap an account to enter its actual balance.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 4.dp))
     }
 }
 
 @Composable
 private fun AccountRow(account: AccountBalance, edit: () -> Unit) {
-    val source = account.manual?.let { "Balance of ${money(it.minor)} set ${it.setAt.toLocalDateTime(TimeZone.currentSystemDefault()).date}" }
+    val source = account.manual?.let { "Set to ${money(it.minor)} on ${shortDate(it.setAt.toLocalDateTime(TimeZone.currentSystemDefault()).date)}" }
         ?: "From captured transactions"
     ListItem(
         onClick = edit,
-        leadingContent = { AppIcon(account.app.packageName, account.app.label) },
-        supportingContent = { Text(source, style = MaterialTheme.typography.bodySmall) },
-        trailingContent = { Text(money(account.estimate), style = MaterialTheme.typography.titleMedium) },
-        content = { Text(account.app.label, style = MaterialTheme.typography.titleMedium) },
+        leadingContent = { AppIcon(account.account.linkedApps.firstOrNull().orEmpty(), account.account.name) },
+        supportingContent = { Text((if (account.account.type == ph.notifly.domain.model.AccountType.CARD) "Debt owed · " else "") + source + if (account.account.archived) " · Archived" else "", style = MaterialTheme.typography.bodySmall) },
+        trailingContent = {
+            Text(splitMoney(account.estimate, LocalContentColor.current.copy(alpha = 0.55f)), style = MaterialTheme.typography.titleMedium.tabular())
+        },
+        content = { Text(account.account.name, style = MaterialTheme.typography.titleMedium) },
     )
 }
 
@@ -234,7 +279,7 @@ private fun BalanceDialog(account: AccountBalance, dismiss: () -> Unit, save: (L
     var invalid by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = dismiss,
-        title = { Text("${account.app.label} balance") },
+        title = { Text("${account.account.name} balance") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Enter what the app shows now. Confirmed transactions from here on are added to it.")
@@ -307,16 +352,7 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
             ) else TopAppBar(title = { Text(if (demo) "Transactions · Demo" else "Transactions") })
         },
         snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { model.navigate("edit/0") },
-                expanded = !listState.canScrollBackward,
-                // M3 1.5 clears the text slot's semantics, so the name must sit on the button itself.
-                modifier = Modifier.semantics { contentDescription = "Add transaction" },
-                icon = { Icon(painterResource(Res.drawable.symbol_add), contentDescription = null) },
-                text = { Text("Add transaction") },
-            )
-        }
+        floatingActionButton = { AddTransactionFab(expanded = !listState.canScrollBackward) { model.navigate("edit/0") } }
     ) { padding ->
     Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -331,12 +367,7 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
             }
         }
         if (s.rows.isEmpty()) {
-            Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center) {
-                Text("Nothing here yet", style = MaterialTheme.typography.titleMedium)
-                Text("Transactions parsed from your allowed apps will show up here.",
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(12.dp))
+            EmptyState("Nothing here yet", "Transactions parsed from your allowed apps will show up here.", Modifier.fillMaxSize()) {
                 FilledTonalButton(onClick = { model.navigate("edit/0") }) { Text("Add one manually") }
             }
         } else {
@@ -349,7 +380,7 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                             t, appLabels, { model.navigate("edit/${t.id}") },
                             confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null,
                             modifier = Modifier.animateItem(),
-                            selectionMode = selectionMode,
+                            accountNames = s.accountNames, selectionMode = selectionMode,
                             selected = t.id in selectedIds,
                             onToggleSelection = toggle,
                             onLongClick = { selectedIds = selectedIds + t.id },
@@ -390,13 +421,14 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                                 val offset = try { dismissState.requireOffset() } catch (_: IllegalStateException) { 0f }
                                 val fraction = if (width == 0f) 0f else (abs(offset) / (width * SWIPE_THRESHOLD)).coerceIn(0f, 1f)
                                 val scheme = MaterialTheme.colorScheme
+                                val accents = MaterialTheme.accents
                                 Box(
                                     Modifier.fillMaxSize().onSizeChanged { width = it.width.toFloat() }.clip(MaterialTheme.shapes.large)
-                                        .background(if (toConfirm) scheme.primaryContainer else lerp(scheme.errorContainer, scheme.error, fraction))
+                                        .background(if (toConfirm) accents.confirmed else lerp(scheme.errorContainer, scheme.error, fraction))
                                         .padding(horizontal = 24.dp),
                                     contentAlignment = if (toConfirm) Alignment.CenterStart else Alignment.CenterEnd,
                                 ) { Icon(if (toConfirm) painterResource(Res.drawable.symbol_check) else painterResource(Res.drawable.symbol_delete),
-                                    contentDescription = null, tint = if (toConfirm) scheme.onPrimaryContainer
+                                    contentDescription = null, tint = if (toConfirm) accents.onConfirmed
                                     else lerp(scheme.onErrorContainer, scheme.onError, fraction)) }
                             },
                             content = { row() },
@@ -421,16 +453,16 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
 }
 
 @Composable
-private fun CategoryField(value: String, onValueChange: (String) -> Unit) {
+private fun CategoryField(value: String, categories: List<String>, onValueChange: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    val options = if (value in CATEGORIES) CATEGORIES else CATEGORIES + value
+    val options = if (value in categories) categories else categories + value
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
         OutlinedTextField(
             value = value,
-            onValueChange = onValueChange,
+            onValueChange = {}, readOnly = true,
             label = { Text("Category") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable).fillMaxWidth(),
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { option ->
@@ -543,12 +575,15 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
     LazyColumn(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp), state = listState,
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            AnimatedVisibility(s.original?.status == TransactionStatus.NEEDS_REVIEW || s.sourceText != null || s.original?.captureId != null) {
+            AnimatedVisibility((s.original?.status == TransactionStatus.NEEDS_REVIEW || s.fromDraft) || s.sourceText != null || s.original?.captureId != null) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if (s.original?.status == TransactionStatus.NEEDS_REVIEW)
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if ((s.original?.status == TransactionStatus.NEEDS_REVIEW || s.fromDraft)) Row(verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            StatusMark(confirmed = false, size = 16.dp)
                             Text("Parsed on your device. Check the details before confirming.",
                                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                        }
                         if (s.sourceText != null || s.original?.captureId != null)
                             Text("Source notification (device only): ${s.sourceText ?: "Raw text not retained. Turn on \"Keep raw text on device\" in the notification log to keep it for future notifications."}",
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
@@ -583,17 +618,31 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { if (s.ready && !s.saving) model.save() }))
         }
-        item { CategoryField(s.category) { model.edit(category = it) } }
+        item {
+            AccountPicker(if (s.type == TransactionType.TRANSFER) "From account" else "Account",
+                s.accountId, s.accounts.filter { !it.archived || it.id == s.original?.accountId }, s.accountError) { model.edit(accountId = it) }
+        }
+        if (s.accounts.none { !it.archived }) item {
+            TextButton(onClick = { model.navigate("accounts") }) { Text("Create an account") }
+        }
+        if (s.type == TransactionType.TRANSFER) item {
+            AccountPicker("To account", s.toAccountId,
+                s.accounts.filter { (!it.archived || it.id == s.original?.toAccountId) && it.id != s.accountId }, s.toAccountError) { model.edit(toAccountId = it) }
+        } else item {
+            CategoryField(s.category, s.categories.filter { it.type == s.type && (!it.archived || it.id == s.original?.categoryId) }.map { it.name }) { model.edit(category = it) }
+        }
         item { DateTimeFields(s.date, s.time, onDate = { model.edit(date = it) }, onTime = { model.edit(time = it) },
             dateError = s.dateError, timeError = s.timeError,
             focusDateError = s.titleError == null && s.amountError == null && s.dateError != null,
             focusTimeError = s.titleError == null && s.amountError == null && s.dateError == null && s.timeError != null) }
         item {
-            val sourceApp = s.original?.sourceApp ?: s.sourceApp
-            val sourceLabel = sourceApp?.let { appLabels[it] ?: it } ?: "Manual"
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AppIcon(appLabels.packageFor(sourceApp), sourceLabel, size = 24.dp)
+            val sourceLabel = s.sourceApp?.let { appLabels[it] ?: it } ?: "Manual"
+            if (s.original?.captureId != null || s.captureId != null) {
                 Text("Source: $sourceLabel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                ChoiceField("Source app", sourceLabel,
+                    listOf<String?>(null) + s.apps.filter { it.listening }.map { it.packageName },
+                    label = { pkg -> pkg?.let { appLabels[it] ?: it } ?: "Manual" }) { model.edit(sourceApp = it) }
             }
         }
         item {
@@ -602,9 +651,16 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
             }
         }
-        item { Button(onClick = model::save, enabled = s.ready && !s.saving, modifier = Modifier.fillMaxWidth()) {
-            Text(if (s.original?.status == TransactionStatus.NEEDS_REVIEW) "Confirm transaction" else "Save transaction")
-        } }
+        item {
+            val confirming = (s.original?.status == TransactionStatus.NEEDS_REVIEW || s.fromDraft)
+            // Confirming is the one moment money starts to count, so it takes the confirmed tick's colour.
+            Button(onClick = model::save, enabled = s.ready && !s.saving, modifier = WideButton,
+                colors = if (confirming) ButtonDefaults.buttonColors(containerColor = MaterialTheme.accents.confirmed,
+                    contentColor = MaterialTheme.accents.onConfirmed) else ButtonDefaults.buttonColors()) {
+                if (confirming) Icon(painterResource(Res.drawable.symbol_check), null, Modifier.padding(end = 8.dp).size(18.dp))
+                Text(if (confirming || s.captureId != null) "Confirm transaction" else "Save transaction")
+            }
+        }
         if (s.original != null) item {
             TextButton(onClick = { delete = true }) {
                 Text("Delete transaction", color = MaterialTheme.colorScheme.error)
@@ -624,9 +680,10 @@ private const val BUG_REPORT_URL = "https://www.google.com/search?q=notifly+repo
 @Composable
 private fun SettingsSection(title: String) {
     Text(
-        title,
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 20.dp, bottom = 8.dp),
+        title.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 24.dp, bottom = 10.dp).semantics { heading() },
     )
 }
 
@@ -640,13 +697,16 @@ private fun formatTime(value: String, is24Hour: Boolean): String {
     return "$displayHour:${minute.toString().padStart(2, '0')} $suffix"
 }
 
+/** One rounded card per group; rows inside stay square and touch, so only the card's outer corners round. */
 @Composable
-private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap), content = content)
+internal fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
+    Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainer) {
+        Column(content = content)
+    }
 }
 
 /**
- * Displays a setting with segmented corners determined by its zero-based [index] and group [count].
+ * Displays a square setting row; [SettingsGroup] supplies the rounded outline.
  * A non-null [checked] with [onCheckedChange] makes the whole row toggle; otherwise [onClick] handles taps.
  */
 @Composable
@@ -657,10 +717,9 @@ internal fun SettingsRow(
     onClick: (() -> Unit)? = null,
     checked: Boolean? = null,
     onCheckedChange: ((Boolean) -> Unit)? = null,
-    index: Int = 0,
-    count: Int = 1,
+    external: Boolean = false,
 ) {
-    val shapes = ListItemDefaults.segmentedShapes(index = index, count = count)
+    val shapes = ListItemShapes(RectangleShape, RectangleShape, RectangleShape, RectangleShape, RectangleShape, RectangleShape)
     // Default segmented container is `surface`, which vanishes against the screen; only checked rows got a fill.
     val colors = ListItemDefaults.segmentedColors(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -670,6 +729,7 @@ internal fun SettingsRow(
     val supporting: (@Composable () -> Unit)? = subtitle?.let { { Text(it, color = subtitleColor) } }
     val trailing: (@Composable () -> Unit)? = when {
         checked != null -> { { Switch(checked = checked, onCheckedChange = null) } }
+        onClick != null && external -> { { Icon(painterResource(Res.drawable.symbol_open_in_new), "Opens in browser") } }
         onClick != null -> { { Icon(painterResource(Res.drawable.symbol_keyboard_arrow_right), null,
             modifier = mirroredIconModifier()) } }
         else -> null
@@ -696,9 +756,12 @@ fun SettingsScreen(
     isDebugBuild: Boolean,
     biometricAvailable: Boolean = false,
     authenticateBiometric: (onSuccess: () -> Unit) -> Unit = {},
+    demo: Boolean = false,
+    onDemo: (Boolean) -> Unit = {},
     transactions: ph.notifly.domain.repository.TransactionRepository? = null,
-    allowDataTransfer: Boolean = true,
     onDataMessage: suspend (String) -> Unit = {},
+    allowDataTransfer: Boolean = true,
+    ledger: ph.notifly.domain.repository.LedgerRepository? = null,
 ) {
     val s by model.state.collectAsState()
     val source = org.koin.compose.koinInject<ph.notifly.domain.source.TransactionSource>()
@@ -710,10 +773,16 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(4.dp),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
-        item { SettingsSection("Account") }
+        item { SettingsSection("Account & sync") }
         item {
             SettingsGroup {
                 SettingsRow("Account", "Sign in or keep using Notifly offline", onClick = { model.navigate("auth") })
+                SettingsRow(
+                    "Offline mode",
+                    "Cloud sync is not configured yet." + if (s.pending > 0) " ${s.pending} changes waiting to sync." else "",
+                    checked = s.offline,
+                    onCheckedChange = model::offline,
+                )
             }
         }
 
@@ -721,37 +790,34 @@ fun SettingsScreen(
         item {
             SettingsGroup {
                 SettingsRow("Category budgets", "Set a monthly limit for each spending category", onClick = { model.navigate("budgets") })
+                SettingsRow("Demo mode", "Explore with random sample transactions. Your own data is left untouched.",
+                    checked = demo, onCheckedChange = onDemo)
             }
         }
 
         if (transactions != null) {
             item { SettingsSection("Your data") }
-            item { SettingsGroup { TransactionDataControls(transactions, !allowDataTransfer, onDataMessage) } }
+            item { SettingsGroup { TransactionDataControls(transactions, demo || !allowDataTransfer, ledger, onDataMessage) } }
         }
 
         item { SettingsSection("Security") }
         item {
             var pinDialog by remember { mutableStateOf(false) }
-            val rows = if (biometricAvailable) 2 else 1
             SettingsGroup {
                 SettingsRow("App PIN",
                     if (s.pinSet) "Asked every time you open Notifly" else "Lock Notifly with a 6-digit PIN",
-                    checked = s.pinSet, onCheckedChange = { pinDialog = true }, index = 0, count = rows)
+                    checked = s.pinSet, onCheckedChange = { pinDialog = true })
                 if (biometricAvailable) SettingsRow("Unlock with biometrics",
                     if (s.pinSet) "Use your fingerprint or face instead of the PIN" else "Set a PIN first",
-                    checked = s.biometric, onCheckedChange = if (s.pinSet) { value -> if (value) authenticateBiometric { model.biometric(true) } else model.biometric(false) } else null, index = 1, count = rows)
+                    checked = s.biometric, onCheckedChange = if (s.pinSet) { value -> if (value) authenticateBiometric { model.biometric(true) } else model.biometric(false) } else null)
             }
-            if (pinDialog) PinDialog(setup = !s.pinSet, onDismiss = { pinDialog = false }) { pin ->
-                pinDialog = false
-                if (s.pinSet) model.clearPin(pin) else model.setPin(pin)
-            }
+            if (pinDialog && s.pinSet) PinDialog(onDismiss = { pinDialog = false }) { pinDialog = false; model.clearPin(it) }
+            if (pinDialog && !s.pinSet) PinSetupScreen(onDismiss = { pinDialog = false }) { pinDialog = false; model.setPin(it) }
         }
 
         item { SettingsSection("Appearance") }
         item {
             SettingsGroup {
-                Surface(shape = ListItemDefaults.segmentedShapes(index = 0, count = 2).shape,
-                    color = MaterialTheme.colorScheme.surfaceContainer) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                         Text("Theme mode", style = MaterialTheme.typography.titleMedium)
                         SingleChoiceSegmentedButtonRow(Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp)) {
@@ -765,9 +831,7 @@ fun SettingsScreen(
                             }
                         }
                     }
-                }
-                Surface(shape = ListItemDefaults.segmentedShapes(index = 1, count = 2).shape,
-                    color = MaterialTheme.colorScheme.surfaceContainer) {
+                run {
                     var expanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = expanded,
@@ -798,36 +862,31 @@ fun SettingsScreen(
         item { SettingsSection("Capture") }
         item {
             SettingsGroup {
+                val listening = permissionAvailable && connection == "Connected"
                 SettingsRow(
-                    if (permissionAvailable) "Notification access enabled" else "Notification access disabled",
-                    if (permissionAvailable) "Listener: $connection" else "Listener: $connection · Manual entry still works",
-                    subtitleColor = if (connection == "Connected") MaterialTheme.accents.income else MaterialTheme.colorScheme.error,
-                    index = 0, count = 6,
+                    "Notification access",
+                    if (permissionAvailable) "On · Listener ${connection.lowercase()}" else "Off · Manual entry still works",
+                    subtitleColor = if (listening) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+                    onClick = requestPermission,
                 )
-                SettingsRow("Manage notification access", onClick = requestPermission, index = 1, count = 6)
-                SettingsRow("Allowed apps", "Choose which notifications Notifly reads", onClick = { model.navigate("allow-list") }, index = 2, count = 6)
-                SettingsRow("Finance apps", "Detect transfers between your bank and wallet apps", onClick = { model.navigate("finance-apps") }, index = 3, count = 6)
-                SettingsRow(
-                    "Offline mode", "Cloud sync is not configured yet.",
-                    checked = s.offline,
-                    onCheckedChange = model::offline,
-                    index = 4, count = 6,
-                )
-                SettingsRow("${s.pending} changes waiting to sync", "Cloud sync is not configured.", index = 5, count = 6)
+                SettingsRow("Allowed apps", "Choose which notifications Notifly reads", onClick = { model.navigate("allow-list") })
+                SettingsRow("Accounts", "Bank, card and wallet balances and app links", onClick = { model.navigate("accounts") })
+                SettingsRow("Categories", "Customize income and expense categories", onClick = { model.navigate("categories") })
+                SettingsRow("Assign accounts", "Review captured transactions without an account", onClick = { model.navigate("account-review") })
+                SettingsRow("Finance apps", "Detect transfers between your bank and wallet apps", onClick = { model.navigate("finance-apps") })
             }
         }
 
         item { SettingsSection("Support & privacy") }
         item {
             SettingsGroup {
-                SettingsRow("Help", "Guides for setting up capture", onClick = { uriHandler.openUri(HELP_URL) }, index = 0, count = 3)
-                SettingsRow("Report a bug", "Tell us what went wrong", onClick = { uriHandler.openUri(BUG_REPORT_URL) }, index = 1, count = 3)
+                SettingsRow("Help", "Guides for setting up capture", onClick = { uriHandler.openUri(HELP_URL) }, external = true)
+                SettingsRow("Report a bug", "Tell us what went wrong", onClick = { uriHandler.openUri(BUG_REPORT_URL) }, external = true)
                 SettingsRow(
                     "Send crash reports",
                     "Reports contain stack traces and device info only — never notification text.",
                     checked = s.crashReporting,
                     onCheckedChange = model::crashReporting,
-                    index = 2, count = 3,
                 )
             }
         }
@@ -835,8 +894,8 @@ fun SettingsScreen(
         item { SettingsSection("About") }
         item {
             SettingsGroup {
-                SettingsRow("Version", versionName, index = 0, count = 2)
-                SettingsRow("Release notes", "What changed in each version", onClick = { uriHandler.openUri(RELEASE_NOTES_URL) }, index = 1, count = 2)
+                SettingsRow("Version", versionName)
+                SettingsRow("Release notes", "What changed in each version", onClick = { uriHandler.openUri(RELEASE_NOTES_URL) }, external = true)
             }
         }
 
@@ -844,13 +903,14 @@ fun SettingsScreen(
             item { SettingsSection("Developer") }
             item {
                 SettingsGroup {
-                    SettingsRow("Notification log", "See what was captured and what couldn't be read", onClick = { model.navigate("log") }, index = 0, count = 4)
-                    SettingsRow("Replay onboarding", "Restart the first-run flow", onClick = model::restartOnboarding, index = 1, count = 4)
-                    SettingsRow("Theme palettes", "Render every palette side by side", onClick = { model.navigate("themes") }, index = 2, count = 4)
-                    SettingsRow("Build", "debug", index = 3, count = 4)
+                    SettingsRow("Notification log", "See what was captured and what couldn't be read", onClick = { model.navigate("log") })
+                    SettingsRow("Replay onboarding", "Restart the first-run flow", onClick = model::restartOnboarding)
+                    SettingsRow("Theme palettes", "Render every palette side by side", onClick = { model.navigate("themes") })
+                    SettingsRow("Build", "debug")
                 }
             }
         }
+        item { BrandFooter() }
     }
 }
 
@@ -859,7 +919,8 @@ fun BudgetsScreen(model: BudgetsModel) {
     val budgets by model.state.collectAsState()
     var editing by remember { mutableStateOf<String?>(null) }
     // Keeps budgets for categories that were since dropped from the list reachable, so they can be removed.
-    val categories = ((CATEGORIES - setOf("Income", "Transfer")) + budgets.keys.sorted()).distinct()
+    val typed by model.categories.collectAsState()
+    val categories = (typed.filter { it.type == TransactionType.EXPENSE && (!it.archived || it.budgetMinor != null) }.map { it.name } + budgets.keys.sorted()).distinct()
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 24.dp),
@@ -870,9 +931,9 @@ fun BudgetsScreen(model: BudgetsModel) {
         }
         item {
             SettingsGroup {
-                categories.forEachIndexed { index, category ->
+                categories.forEach { category ->
                     SettingsRow(category, budgets[category]?.let { "${money(it)} per month" } ?: "No budget",
-                        onClick = { editing = category }, index = index, count = categories.size)
+                        onClick = { editing = category })
                 }
             }
         }
@@ -884,11 +945,13 @@ fun BudgetsScreen(model: BudgetsModel) {
 }
 
 @Composable
-fun AllowListScreen(model: AllowListModel, onboarding: Boolean = false) {
+fun AllowListScreen(model: AllowListModel, onFinish: (() -> Unit)? = null) {
     val s by model.state.collectAsState()
     var searchText by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        Text(if (s.finance) "Pick the bank and wallet apps you move money between. Matching in and out alerts become one transfer."
+        if (onFinish != null) Box(Modifier.padding(top = 8.dp, bottom = 4.dp)) { StepTrail(3) }
+        Text(if (onFinish != null) "Only apps you select are read. Pick the bank and e-wallet apps that send you payment alerts."
+            else if (s.finance) "Pick the bank and wallet apps you move money between. Matching in and out alerts become one transfer."
             else "Only apps you explicitly enable can create captures.", Modifier.padding(vertical = 8.dp))
         OutlinedTextField(
             value = searchText,
@@ -925,47 +988,161 @@ fun AllowListScreen(model: AllowListModel, onboarding: Boolean = false) {
                 Modifier.padding(vertical = 24.dp),
             )
         }
-        if (onboarding) item { Button(onClick = { model.navigate("auth") }, modifier = Modifier.padding(vertical = 12.dp)) { Text("Continue") } }
+    }
+    if (onFinish != null) Column(Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(when (s.checked) { 0 -> "No apps selected yet"; 1 -> "1 app selected"; else -> "${s.checked} apps selected" },
+            style = MaterialTheme.typography.labelLarge, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        Button(onClick = onFinish, modifier = WideButton) { Text("Finish setup") }
+        Text("Change your choices in Settings anytime.", style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     }
 }
 
+/** Steps 1–3 of first run; step 4 is the app picker on `choose-apps`. Actions stay pinned below the scrolling copy. */
 @Composable
 fun OnboardingScreen(
     model: OnboardingModel,
+    page: Int,
     requestPermission: () -> Unit,
     permissionAvailable: Boolean,
     batteryExempt: Boolean,
     requestBatteryExemption: () -> Unit,
 ) {
-    val s by model.state.collectAsState()
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        Text(listOf("Stop typing your expenses", "How it works", "One permission to grant", "Keep it running")[s.page], style = MaterialTheme.typography.headlineLarge)
-        Text(listOf("Track payments from the apps you choose. Your notifications stay on your device.",
-            "Choose your apps. We parse payment alerts on-device. You review and confirm every transaction.",
-            "Notification access lets Notifly read alerts only from allowed apps. Raw notification text is never uploaded.",
-            "Android can pause background apps to save power, and some phones do it aggressively. Turning that off for Notifly keeps captures arriving promptly.")[s.page])
-        LinearProgressIndicator(
-            progress = { (s.page + 1) / 4f },
-            modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Step ${s.page + 1} of 4" },
-        )
-        when (s.page) {
-            0, 1 -> Button(onClick = model::next) { Text(if (s.page == 0) "Get started" else "Next") }
-            2 -> {
-                Text(if (permissionAvailable) "Access enabled" else "Access not enabled. You can continue manually.")
-                Button(onClick = requestPermission) { Text("Grant access") }
-                OutlinedButton(onClick = model::next) { Text(if (permissionAvailable) "Continue" else "Skip — add manually") }
-            }
-            else -> {
-                Text(if (batteryExempt) "Battery optimisation is off for Notifly" else "Notifly is still battery-optimised. Capture still works — it may just be delayed on some phones.")
-                if (!batteryExempt) Text("In the list that opens, switch the filter to All apps, then pick Notifly.")
-                Button(onClick = requestBatteryExemption) { Text("Open battery settings") }
-                OutlinedButton(onClick = { model.navigate("choose-apps") }) { Text(if (batteryExempt) "Continue" else "Skip for now") }
+    val next: () -> Unit = { model.navigate(if (page < 2) "onboarding/${page + 1}" else "choose-apps") }
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            StepTrail(page)
+            Text(listOf("Stop typing your expenses", "One permission to grant", "Keep it running")[page],
+                style = MaterialTheme.typography.displaySmall, modifier = Modifier.padding(top = 12.dp).semantics { heading() })
+            Text(listOf(
+                "Choose your apps. We parse payment alerts on-device. You review and confirm every transaction.",
+                "Notification access lets Notifly read alerts only from allowed apps. Raw notification text is never uploaded.",
+                "Android can pause background apps to save power, and some phones do it aggressively. Turning that off for Notifly keeps captures arriving promptly.",
+            )[page], style = MaterialTheme.typography.bodyLarge, color = muted)
+            when (page) {
+                0 -> {
+                    SampleSlip()
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Icon(painterResource(Res.drawable.symbol_lock), null, Modifier.size(20.dp), tint = muted)
+                        Text("Your notifications stay on your device.", style = MaterialTheme.typography.bodyMedium, color = muted)
+                    }
+                }
+                1 -> SetupStatus(Res.drawable.symbol_notifications, "Notification access", permissionAvailable,
+                    if (permissionAvailable) "On. Alerts from the apps you choose can become drafts."
+                    else "Off. Notifly can't read alerts yet; you can still add transactions manually.")
+                else -> {
+                    SetupStatus(Res.drawable.symbol_battery_android_full, "Background capture", batteryExempt,
+                        if (batteryExempt) "Unrestricted. Captures arrive promptly."
+                        else "Battery-optimised. Capture still works, but may be delayed on some phones.")
+                    if (!batteryExempt) Text("In the list that opens, switch the filter to All apps, then pick Notifly.",
+                        style = MaterialTheme.typography.bodyMedium, color = muted)
+                }
             }
         }
-        TextButton(onClick = { model.navigate("auth") }) { Text("I already have an account") }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            when {
+                page == 0 -> {
+                    Button(onClick = next, modifier = WideButton) { Text("Get started") }
+                    Text("No account needed.", style = MaterialTheme.typography.bodySmall, color = muted)
+                }
+                page == 1 && !permissionAvailable -> {
+                    Button(onClick = requestPermission, modifier = WideButton) { Text("Grant access") }
+                    TextButton(onClick = next, modifier = WideButton) { Text("Skip — add manually") }
+                }
+                page == 2 && !batteryExempt -> {
+                    Button(onClick = requestBatteryExemption, modifier = WideButton) { Text("Open battery settings") }
+                    TextButton(onClick = next, modifier = WideButton) { Text("Skip for now") }
+                }
+                else -> Button(onClick = next, modifier = WideButton) { Text("Continue") }
+            }
+        }
     }
+}
+
+private val ONBOARDING_STEPS = listOf("Hello", "Access", "Background", "Apps")
+
+/** The mark, "Step n of 4 · name", and four flat segments filled through [step]. */
+@Composable
+private fun StepTrail(step: Int) {
+    val scheme = MaterialTheme.colorScheme
+    Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            NotiflyMark(size = 28.dp)
+            Text("Step ${step + 1} of 4 · ${ONBOARDING_STEPS[step]}", style = MaterialTheme.typography.labelLarge,
+                color = scheme.onSurfaceVariant)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            repeat(ONBOARDING_STEPS.size) { i ->
+                Box(Modifier.weight(1f).height(6.dp).clip(CircleShape)
+                    .background(if (i <= step) scheme.primary else scheme.surfaceContainerHighest))
+            }
+        }
+    }
+}
+
+/**
+ * Shows the capture loop instead of describing it: an alert, the draft it becomes, then the one
+ * ring-to-tick moment. Synthetic sample text, never real notification content.
+ */
+@Composable
+private fun SampleSlip() {
+    var confirmed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { delay(1600); confirmed = true }
+    val amount = money(125_000)
+    val scheme = MaterialTheme.colorScheme
+    Surface(shape = MaterialTheme.shapes.medium, color = scheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
+            contentDescription = "Example: a GCash alert for $amount becomes a Puregold draft that counts once you confirm it."
+        }) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(painterResource(Res.drawable.symbol_notifications), null, Modifier.size(20.dp), tint = scheme.onSurfaceVariant)
+                Column {
+                    Text("GCash · Example", style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+                    Text("You paid $amount to Puregold.", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            HorizontalDivider(color = scheme.outlineVariant)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("Puregold", style = MaterialTheme.typography.titleMedium)
+                    Text(if (confirmed) "Groceries · Confirmed" else "Groceries · Needs review", style = MaterialTheme.typography.bodySmall,
+                        color = if (confirmed) scheme.onSurfaceVariant else scheme.tertiary)
+                }
+                Text("−$amount", style = MaterialTheme.typography.titleMedium.tabular(), color = MaterialTheme.accents.expense)
+                Crossfade(confirmed, label = "sample-confirm") { StatusMark(confirmed = it) }
+            }
+        }
+    }
+}
+
+/** A setup check stated in words and icon; announced politely when the user returns from system settings. */
+@Composable
+private fun SetupStatus(icon: DrawableResource, title: String, done: Boolean, detail: String) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(shape = MaterialTheme.shapes.medium, color = if (done) scheme.primaryContainer else scheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
+        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Icon(painterResource(if (done) Res.drawable.symbol_check_circle else icon), null, Modifier.size(24.dp),
+                tint = if (done) scheme.primary else scheme.onSurfaceVariant)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(detail, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+}
+
+/** "A", "A and B", "A, B and 3 more". Expects at least one name. */
+internal fun spokenList(names: List<String>): String = when (names.size) {
+    1 -> names[0]
+    2 -> "${names[0]} and ${names[1]}"
+    else -> "${names[0]}, ${names[1]} and ${names.size - 2} more"
 }
 
 @Composable
@@ -983,19 +1160,19 @@ fun AuthScreen(model: AuthModel, demo: Boolean) {
     LaunchedEffect(password) {
         snapshotFlow { password.text.toString() }.collect { model.edit(password = it) }
     }
-    Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(if (s.signup) "Create account" else "Welcome back", style = MaterialTheme.typography.headlineLarge)
+    Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(if (s.signup) "Create account" else "Welcome back", style = MaterialTheme.typography.displaySmall)
         if (demo) Text("Demo account flow — no account will be created.")
         OutlinedTextField(s.email, { model.edit(email = it) }, label = { Text("Email") }, singleLine = true,
             isError = s.emailError != null, supportingText = s.emailError?.let { { Text(it) } },
-            modifier = Modifier.focusRequester(emailFocus), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
+            modifier = Modifier.fillMaxWidth().focusRequester(emailFocus), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
         OutlinedSecureTextField(password, label = { Text("Password") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             isError = s.passwordError != null, supportingText = s.passwordError?.let { { Text(it) } },
-            modifier = Modifier.focusRequester(passwordFocus))
+            modifier = Modifier.fillMaxWidth().focusRequester(passwordFocus))
         s.error?.let { Text(it, color = MaterialTheme.colorScheme.error,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
-        Button(onClick = { model.submit() }) { Text(if (s.signup) "Create account" else "Sign in") }
+        Button(onClick = { model.submit() }, modifier = WideButton) { Text(if (s.signup) "Create account" else "Sign in") }
         TextButton(onClick = { model.edit(signup = !s.signup) }) { Text(if (s.signup) "I already have an account" else "Create account") }
-        OutlinedButton(onClick = { model.startOffline() }) { Text("Continue offline") }
+        OutlinedButton(onClick = { model.startOffline() }, modifier = WideButton) { Text("Continue offline") }
     }
 }

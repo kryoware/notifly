@@ -21,6 +21,9 @@ fun TransactionEntity.toDomain() = Transaction(
     sourceApp = sourceApp,
     captureId = captureId,
     note = note,
+    accountId = accountId,
+    toAccountId = toAccountId,
+    categoryId = categoryId,
     fromApp = fromApp,
     toApp = toApp,
 )
@@ -38,6 +41,9 @@ fun Transaction.toEntity() = TransactionEntity(
     sourceApp = sourceApp,
     captureId = captureId,
     note = note,
+    accountId = accountId,
+    toAccountId = toAccountId,
+    categoryId = categoryId,
     fromApp = fromApp,
     toApp = toApp,
 )

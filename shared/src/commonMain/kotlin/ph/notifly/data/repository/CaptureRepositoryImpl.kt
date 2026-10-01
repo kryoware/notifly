@@ -35,6 +35,10 @@ class CaptureRepositoryImpl(
         dao.recordOnce(retained(capture).toEntity())
     }
 
+    override suspend fun recordDraft(capture: RawCapture, draft: ph.notifly.domain.model.CapturedDraft): Long = writeLock.withLock {
+        dao.recordDraft(retained(capture).toEntity(), draft.toEntity())
+    }
+
     override suspend fun recordParsed(capture: RawCapture, transaction: Transaction): Long = writeLock.withLock {
         dao.recordParsed(retained(capture).toEntity(), transaction.toEntity())
     }

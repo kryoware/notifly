@@ -20,7 +20,7 @@ class InsightsTest {
         day: String, amountMinor: Long, type: TransactionType = TransactionType.EXPENSE,
         category: String = "Food", status: TransactionStatus = TransactionStatus.CONFIRMED,
     ) = Transaction(title = "[TEST] $category", amountMinor = amountMinor, type = type, status = status, category = category,
-        occurredAt = LocalDate.parse(day).atTime(LocalTime(12, 0)).toInstant(zone), sourceApp = null, captureId = null)
+        occurredAt = LocalDate.parse(day).atTime(LocalTime(12, 0)).toInstant(zone), sourceApp = null, captureId = null, accountId = 1)
 
     private val rows = listOf(
         row("2026-09-26", 10_000),

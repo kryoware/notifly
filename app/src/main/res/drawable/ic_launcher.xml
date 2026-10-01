@@ -1,7 +1,8 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="@android:color/black" android:pathData="M0,0 L108,0 L108,108 L0,108 Z" />
-    <path android:fillColor="@android:color/white"
-        android:pathData="M30,34 L74,34 L74,42 L38,42 L38,66 L74,66 L74,74 L30,74 Z M58,46 L80,46 L80,62 L58,62 Z" />
-    <path android:fillColor="@android:color/black" android:pathData="M64,51 L69,51 L69,57 L64,57 Z" />
+    <path android:fillColor="@color/notifly_ube" android:pathData="M0,0 L108,0 L108,108 L0,108 Z" />
+    <group android:scaleX="0.44" android:scaleY="0.44" android:translateX="32" android:translateY="32">
+        <path android:strokeColor="@color/notifly_gata" android:strokeWidth="16" android:strokeLineCap="round"
+            android:strokeLineJoin="round" android:pathData="M16,78.5 V44.5 A23,23 0 0 1 62,44.5 V74.5 L84,48.5" />
+    </group>
 </vector>

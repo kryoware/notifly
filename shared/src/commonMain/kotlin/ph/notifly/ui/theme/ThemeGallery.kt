@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ph.notifly.ui.SettingsModel
+import ph.notifly.ui.StatusMark
 
 /** Inspect all palettes in both modes; horizontally scroll on phones. */
 @Composable
@@ -51,6 +52,7 @@ fun ThemeGallery(model: SettingsModel) {
                     "income" to a.income, "incomeContainer" to a.incomeContainer,
                     "onIncomeContainer" to a.onIncomeContainer, "expense" to a.expense,
                     "expenseContainer" to a.expenseContainer, "onExpenseContainer" to a.onExpenseContainer,
+                    "confirmed" to a.confirmed, "onConfirmed" to a.onConfirmed,
                 )
                 Surface(Modifier.width(280.dp)) {
                     Column(Modifier.verticalScroll(rememberScrollState()).padding(12.dp)) {
@@ -63,6 +65,11 @@ fun ThemeGallery(model: SettingsModel) {
                         OutlinedTextField(value = "", onValueChange = {}, label = { Text("Invalid field") },
                             isError = true, supportingText = { Text("Example error") })
                         ListItem(headlineContent = { Text("Example row") }, trailingContent = { Switch(true, onCheckedChange = null) })
+                        Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            StatusMark(confirmed = false)
+                            StatusMark(confirmed = true)
+                            Text("Pending → confirmed", style = MaterialTheme.typography.bodySmall)
+                        }
                         roles.forEach { (name, color) ->
                             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Surface(Modifier.size(32.dp), color = color, border = BorderStroke(1.dp, c.outline)) {}

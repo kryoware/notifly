@@ -85,6 +85,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     testOptions {
+        targetSdk = libs.versions.targetSdk.get().toInt()
+        unitTests.isIncludeAndroidResources = true
         managedDevices {
             localDevices {
                 create("pixelApi37") {

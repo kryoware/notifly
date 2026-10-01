@@ -10,7 +10,7 @@ import ph.notifly.domain.model.TransactionType
 import ph.notifly.domain.model.isTransferPairWith
 
 @Dao
-interface RawCaptureDao {
+interface RawCaptureDao : LedgerDao {
     @Query("SELECT * FROM raw_captures WHERE (:result IS NULL OR result = :result) ORDER BY capturedAtMillis DESC")
     fun observeLog(result: String?): Flow<List<RawCaptureEntity>>
 
@@ -65,23 +65,56 @@ interface RawCaptureDao {
     @androidx.room.Transaction
     suspend fun recordParsed(capture: RawCaptureEntity, transaction: TransactionEntity): Long {
         require(transaction.status == "NEEDS_REVIEW")
-        val id = recordOnce(capture)
-        if (id == -1L) return -1L
-        val incoming = transaction.toDomain().copy(captureId = id)
-        val since = incoming.occurredAt.minus(TRANSFER_WINDOW).toEpochMilliseconds()
-        val candidate = if (incoming.sourceApp?.let { isFinance(it) } != true) null
-            else needsReviewCandidates(incoming.amountMinor, incoming.currency, since)
-                .map { it.toDomain() }
-                .firstOrNull { it.isTransferPairWith(incoming) && isFinance(it.sourceApp!!) }
-        if (candidate == null) {
-            insertTransaction(incoming.toEntity())
-            return id
+        return recordDraft(capture, CapturedDraftEntity(captureId = null, title = transaction.title,
+            amountMinor = transaction.amountMinor, type = transaction.type,
+            inbound = transaction.toDomain().inboundLeg, occurredAtMillis = transaction.occurredAtMillis,
+            sourceApp = transaction.sourceApp.orEmpty(), accountId = transaction.accountId.takeIf { it > 0 },
+            toAccountId = transaction.toAccountId, accountHint = null))
+    }
+
+    @androidx.room.Transaction
+    suspend fun recordDraft(capture: RawCaptureEntity, draft: CapturedDraftEntity): Long {
+        require(draft.amountMinor > 0 && draft.type in listOf("INCOME", "EXPENSE", "TRANSFER"))
+        val captureId = recordOnce(capture)
+        if (captureId == -1L) return -1L
+        val incoming = draft.copy(captureId = captureId,
+            accountId = draft.accountId?.takeIf { accountById(it)?.archived == false },
+            toAccountId = draft.toAccountId?.takeIf { accountById(it)?.archived == false })
+        val accountId = incoming.accountId
+        val inbound = incoming.inbound
+        val window = TRANSFER_WINDOW.inWholeMilliseconds
+        val candidates = if (accountId == null || inbound == null || incoming.toAccountId != null) emptyList()
+        else needsReviewCandidates(incoming.amountMinor, "PHP", incoming.occurredAtMillis - window).map { it.toDomain() }.filter {
+            it.captureId != null && it.accountId != accountId && it.inboundLeg == !inbound &&
+                (it.occurredAt.toEpochMilliseconds() - incoming.occurredAtMillis) in -window..window
         }
-        val (from, to) = if (incoming.inboundLeg == false) incoming to candidate else candidate to incoming
-        val fromLabel = from.captureId?.let { sourceAppFor(it) } ?: from.sourceApp.orEmpty()
-        val toLabel = to.captureId?.let { sourceAppFor(it) } ?: to.sourceApp.orEmpty()
-        mergeIntoTransfer(candidate.id, TransactionType.TRANSFER.name, "Transfer", "$fromLabel → $toLabel", from.sourceApp!!, to.sourceApp!!)
-        return id
+        val pending = if (accountId == null || inbound == null || incoming.toAccountId != null) emptyList()
+        else drafts().filter { it.accountId != null && it.accountId != accountId && it.inbound == !inbound &&
+            it.toAccountId == null && it.amountMinor == incoming.amountMinor &&
+            (it.occurredAtMillis - incoming.occurredAtMillis) in -window..window }
+        if (candidates.size + pending.size == 1) {
+            val other = candidates.singleOrNull()
+            val otherDraft = pending.singleOrNull()
+            val otherAccountId = other?.accountId ?: otherDraft!!.accountId!!
+            val from = if (inbound == false) accountId!! else otherAccountId
+            val to = if (inbound == true) accountId!! else otherAccountId
+            val fromName = accountById(from)?.name ?: "Account"
+            val toName = accountById(to)?.name ?: "Account"
+            saveLocally(TransactionEntity(id = other?.id ?: 0, title = "$fromName → $toName",
+                amountMinor = incoming.amountMinor, currency = "PHP", type = "TRANSFER", status = "NEEDS_REVIEW",
+                category = "Transfer", occurredAtMillis = other?.occurredAt?.toEpochMilliseconds() ?: incoming.occurredAtMillis,
+                sourceApp = other?.sourceApp ?: incoming.sourceApp, captureId = other?.captureId ?: incoming.captureId,
+                note = "", accountId = from, toAccountId = to,
+                fromApp = if (inbound == false) incoming.sourceApp else other?.sourceApp ?: otherDraft?.sourceApp,
+                toApp = if (inbound == true) incoming.sourceApp else other?.sourceApp ?: otherDraft?.sourceApp))
+            otherDraft?.let { deleteDraft(it.id) }
+        } else if (accountId != null && (incoming.type != "TRANSFER" || incoming.toAccountId != null) && inbound != null) {
+            saveLocally(TransactionEntity(title = incoming.title, amountMinor = incoming.amountMinor, currency = "PHP",
+                type = incoming.type, status = "NEEDS_REVIEW", category = if (incoming.type == "TRANSFER") "Transfer" else "Other",
+                occurredAtMillis = incoming.occurredAtMillis, sourceApp = incoming.sourceApp,
+                captureId = captureId, note = "", accountId = accountId, toAccountId = incoming.toAccountId))
+        } else insertDraft(incoming)
+        return captureId
     }
 
     @Query("DELETE FROM raw_captures")
