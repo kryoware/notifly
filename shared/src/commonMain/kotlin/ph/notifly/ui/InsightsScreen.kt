@@ -40,6 +40,11 @@ import kotlinx.datetime.plus
 import ph.notifly.ui.theme.accents
 import ph.notifly.ui.theme.tabular
 
+/**
+ * Shows insights for the selected day window, followed by budgets for the current month.
+ * Renders nothing until the selected window is available. Selection, navigation, and monthly
+ * budget saves go through [model]; [appLabels] maps source package names to app display labels.
+ */
 @Composable
 fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyMap()) {
     val s by model.state.collectAsState()
@@ -97,7 +102,11 @@ internal fun Meter(progress: Float, color: Color, modifier: Modifier = Modifier)
         trackColor = MaterialTheme.colorScheme.surfaceContainerHighest, gapSize = 0.dp, drawStopIndicator = {})
 }
 
-/** Percent change against the previous window; [compared] names that window, or null for the terse form. */
+/**
+ * Percent change against the previous window; [compared] names that window, or null for the terse form.
+ * A zero previous value shows a neutral empty/new label instead of a percentage.
+ * [lowerIsBetter] makes decreases favorable; false makes increases favorable.
+ */
 @Composable
 private fun Change(current: Long, previous: Long, compared: String?, lowerIsBetter: Boolean = true) {
     val change = percentChange(current, previous)
@@ -113,6 +122,7 @@ private fun Change(current: Long, previous: Long, compared: String?, lowerIsBett
         modifier = Modifier.semantics { contentDescription = text.replace("▲", "up").replace("▼", "down") })
 }
 
+/** Shows signed net cash flow, income, and spending against the preceding equally sized window. */
 @Composable
 private fun CashFlowCard(w: WindowInsights) {
     val net = w.current.net
@@ -202,6 +212,14 @@ private fun DailySpendingCard(w: WindowInsights) {
     }
 }
 
+/**
+ * Shows spending totals and daily averages for [windows], ordered shortest to longest by the caller.
+ * [selected] is a day count; tapping a row passes its day count to [select]. The first and last
+ * averages are compared only when the last window has prior cash flow and a nonzero daily average.
+ *
+ * @throws NoSuchElementException if [windows] is empty.
+ * @throws ArithmeticException if a window has zero days.
+ */
 @Composable
 private fun PaceCard(windows: List<WindowInsights>, selected: Int, select: (Int) -> Unit) {
     val recent = windows.first()
@@ -241,6 +259,13 @@ private fun PaceCard(windows: List<WindowInsights>, selected: Int, select: (Int)
     }
 }
 
+/**
+ * Shows month-to-date spending and its month-end projection against [budget], in centavos.
+ * A null budget shows a setup prompt; otherwise shows the remainder or overspend and daily allowance,
+ * including today. The budget action invokes [edit].
+ *
+ * @throws ArithmeticException if [m] has a zero day, or zero days left when computing the allowance.
+ */
 @Composable
 private fun BudgetCard(m: MonthInsights, budget: Long?, edit: () -> Unit) {
     val spent = m.flow.spent
@@ -275,6 +300,12 @@ private fun BudgetCard(m: MonthInsights, budget: Long?, edit: () -> Unit) {
     }
 }
 
+/**
+ * Shows each supplied category's spending, share of the window total, and change from the prior window.
+ * An empty category list shows a no-spending message.
+ *
+ * @throws ArithmeticException if categories are present but the current spending total is zero.
+ */
 @Composable
 private fun CategoryCard(w: WindowInsights) {
     Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
@@ -303,6 +334,13 @@ private fun CategoryCard(w: WindowInsights) {
     }
 }
 
+/**
+ * Shows monthly category budgets in descending spending-to-budget ratio order, with remaining or
+ * overspent amounts. [budgets] maps category names to limits in centavos; missing spending counts
+ * as zero. The Manage action invokes [manage].
+ *
+ * @throws ArithmeticException if a zero budget is used when ordering categories.
+ */
 @Composable
 private fun CategoryBudgetCard(m: MonthInsights, budgets: Map<String, Long>, manage: () -> Unit) {
     val rows = budgets.entries.map { (category, budget) -> Triple(category, m.categories[category] ?: 0L, budget) }
