@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-02T00:00:00Z",
+  "title": "Design System: Notifly",
+  "extensions": {
+    "colorMeta": {
+      "ube": { "role": "primary", "displayName": "Ube", "canonical": "#7443E6", "tonalRamp": ["#1A0B3B", "#26134A", "#3A1F66", "#5A30C4", "#7443E6", "#9C7DF2", "#CBB6FF", "#E8DEFF"] },
+      "lilac": { "role": "primary", "displayName": "Lilac", "canonical": "#CBB6FF", "tonalRamp": ["#26134A", "#3A1F66", "#4C3D75", "#7443E6", "#A58BF5", "#CBB6FF", "#E8DEFF", "#F4F0F8"] },
+      "halaya": { "role": "primary", "displayName": "Halaya", "canonical": "#3A1F66" },
+      "halaya-deep": { "role": "primary", "displayName": "Halaya Deep", "canonical": "#26134A" },
+      "mist": { "role": "primary", "displayName": "Mist", "canonical": "#E8DEFF" },
+      "night": { "role": "neutral", "displayName": "Night", "canonical": "#110D17", "tonalRamp": ["#0A0810", "#110D17", "#16111D", "#1A1422", "#221A2D", "#2D2439", "#3A2F4C", "#6F6683"] },
+      "canvas": { "role": "neutral", "displayName": "Canvas", "canonical": "#0A0810" },
+      "plum": { "role": "neutral", "displayName": "Plum", "canonical": "#1A1422" },
+      "plum-raised": { "role": "neutral", "displayName": "Plum Raised", "canonical": "#221A2D" },
+      "plum-high": { "role": "neutral", "displayName": "Plum High", "canonical": "#2D2439" },
+      "gata": { "role": "neutral", "displayName": "Gata", "canonical": "#F4F0F8", "tonalRamp": ["#5F5675", "#7D6F97", "#CEC4DC", "#DBD2E6", "#E2DAEB", "#E8E1F0", "#EEE8F4", "#F4F0F8"] },
+      "mute": { "role": "neutral", "displayName": "Mute", "canonical": "#A39AB6" },
+      "dim": { "role": "neutral", "displayName": "Dim", "canonical": "#6F6683" },
+      "line": { "role": "neutral", "displayName": "Line", "canonical": "#3A2F4C" },
+      "stone-violet": { "role": "neutral", "displayName": "Stone Violet", "canonical": "#5F5675" },
+      "error": { "role": "error", "displayName": "Error", "canonical": "#BA1A1A" },
+      "error-dark": { "role": "error", "displayName": "Error (dark)", "canonical": "#FFB4AB" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display (Fraunces)", "purpose": "Brand voice lines only; never data." },
+      "headline": { "displayName": "Headline", "purpose": "Confirmed balance, tabular, auto-sized 24-44sp." },
+      "title": { "displayName": "Title", "purpose": "Screen titles, row titles, list amounts." },
+      "body": { "displayName": "Body", "purpose": "Descriptions and supporting text." },
+      "label": { "displayName": "Label", "purpose": "Buttons, chips, navigation." },
+      "stamp": { "displayName": "Stamp (Geist Mono)", "purpose": "labelSmall: receipt-style metadata, uppercase." }
+    },
+    "shadows": [
+      { "name": "fab", "value": "0 10px 24px rgba(0,0,0,0.4)", "purpose": "FAB only; every other surface is flat." }
+    ],
+    "motion": [
+      { "name": "material-standard", "value": "MaterialExpressiveTheme default motion scheme", "purpose": "All component transitions." },
+      { "name": "selection-tint", "value": "animateColorAsState", "purpose": "Selected row tint." },
+      { "name": "hero-resize", "value": "animateContentSize", "purpose": "Review tray appearing in the balance hero." }
+    ],
+    "breakpoints": [
+      { "name": "compact", "value": "<600dp" },
+      { "name": "medium", "value": "600dp" },
+      { "name": "expanded", "value": "840dp" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Filled pill for the single primary action (dark theme).",
+      "html": "<button class=\"ds-btn-primary\">Review</button>",
+      "css": ".ds-btn-primary { background: #CBB6FF; color: #26134A; border: none; border-radius: 999px; height: 40px; padding: 0 16px; font: 500 14px/1 Geist, system-ui, sans-serif; cursor: pointer; transition: filter .15s; } .ds-btn-primary:hover { filter: brightness(1.06); } .ds-btn-primary:focus-visible { outline: 2px solid #F4F0F8; outline-offset: 2px; } .ds-btn-primary:active { filter: brightness(.94); }"
+    },
+    {
+      "name": "Text Button",
+      "kind": "button",
+      "description": "Low-emphasis action in Lilac.",
+      "html": "<button class=\"ds-btn-text\">See all</button>",
+      "css": ".ds-btn-text { background: transparent; color: #CBB6FF; border: none; border-radius: 999px; height: 40px; padding: 0 12px; font: 500 14px/1 Geist, system-ui, sans-serif; cursor: pointer; } .ds-btn-text:hover { background: rgba(203,182,255,.08); } .ds-btn-text:focus-visible { outline: 2px solid #CBB6FF; outline-offset: 2px; }"
+    },
+    {
+      "name": "Filter Chips",
+      "kind": "chip",
+      "refersTo": "chip-selected",
+      "description": "Transaction filters; selected fills Halaya.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip ds-chip-on\">All</button><button class=\"ds-chip\">Needs review</button><button class=\"ds-chip\">Income</button></div>",
+      "css": ".ds-chips { display: flex; gap: 8px; background: #110D17; padding: 12px; } .ds-chip { height: 32px; border-radius: 10px; border: 1px solid #3A2F4C; background: transparent; color: #F4F0F8; padding: 0 12px; font: 500 13.5px/1 Geist, system-ui, sans-serif; cursor: pointer; } .ds-chip:hover { background: rgba(244,240,248,.06); } .ds-chip:focus-visible { outline: 2px solid #CBB6FF; outline-offset: 2px; } .ds-chip-on { background: #3A1F66; border-color: transparent; color: #CBB6FF; }"
+    },
+    {
+      "name": "Balance Hero",
+      "kind": "card",
+      "refersTo": "balance-hero",
+      "description": "Confirmed balance with a separate, uncounted review tray.",
+      "html": "<div class=\"ds-hero\"><div class=\"ds-hero-l\">Confirmed balance</div><div class=\"ds-hero-amt\">₱24,180<span>.00</span></div><div class=\"ds-hero-note\">Transfers between your accounts aren't counted.</div><div class=\"ds-tray\"><i class=\"ds-ring\"></i><div class=\"ds-tray-t\"><b>3 to review</b><small>−₱1,529.00 · not counted</small></div><button>Review</button></div></div>",
+      "css": ".ds-hero { background: #3A1F66; color: #F4F0F8; border-radius: 28px; padding: 22px 22px 14px; font-family: Geist, system-ui, sans-serif; max-width: 360px; } .ds-hero-l { font-weight: 500; font-size: 14px; } .ds-hero-amt { font-weight: 600; font-size: 40px; letter-spacing: -.035em; font-variant-numeric: tabular-nums; margin: 12px 0 4px; } .ds-hero-amt span { opacity: .55; } .ds-hero-note { font-size: 12px; opacity: .7; } .ds-tray { margin-top: 16px; display: flex; align-items: center; gap: 10px; background: rgba(17,13,23,.35); border-radius: 18px; padding: 8px 8px 8px 14px; } .ds-ring { width: 10px; height: 10px; border: 2px solid #CBB6FF; border-radius: 50%; } .ds-tray-t { flex: 1; display: flex; flex-direction: column; } .ds-tray-t b { font-weight: 500; font-size: 14px; } .ds-tray-t small { font-size: 12px; opacity: .7; font-variant-numeric: tabular-nums; } .ds-tray button { background: #CBB6FF; color: #26134A; border: none; border-radius: 999px; height: 40px; padding: 0 16px; font: 500 14px/1 Geist, system-ui, sans-serif; cursor: pointer; } .ds-tray button:focus-visible { outline: 2px solid #F4F0F8; outline-offset: 2px; }"
+    },
+    {
+      "name": "Transaction Row",
+      "kind": "custom",
+      "refersTo": "transaction-row",
+      "description": "Pending row with ring; confirmed row with filled tick.",
+      "html": "<div class=\"ds-rows\"><div class=\"ds-row\"><span class=\"ds-av\">G</span><div class=\"ds-rt\"><b>Groceries</b><small class=\"ds-pend\">Food · 30 Sep · Needs review</small></div><span class=\"ds-amt\">−₱1,250.00</span><i class=\"ds-ring\"></i></div><div class=\"ds-row\"><span class=\"ds-av\">C</span><div class=\"ds-rt\"><b>Commute</b><small>Transport · 30 Sep</small></div><span class=\"ds-amt\">−₱180.00</span><i class=\"ds-tick\">✓</i></div></div>",
+      "css": ".ds-rows { background: #110D17; color: #F4F0F8; font-family: Geist, system-ui, sans-serif; padding: 4px 0; max-width: 380px; } .ds-row { display: flex; align-items: center; gap: 14px; padding: 10px 16px; transition: background .2s; } .ds-row:hover { background: rgba(58,31,102,.3); } .ds-av { width: 40px; height: 40px; border-radius: 50%; background: #2D2439; color: #A39AB6; display: grid; place-items: center; font-weight: 600; } .ds-rt { flex: 1; display: flex; flex-direction: column; } .ds-rt b { font-weight: 500; font-size: 15.5px; } .ds-rt small { font-size: 12.5px; color: #A39AB6; } .ds-rt small.ds-pend { color: #CBB6FF; } .ds-amt { font-weight: 500; font-variant-numeric: tabular-nums; } .ds-ring { width: 14px; height: 14px; border: 2px solid #CBB6FF; border-radius: 50%; margin: 0 4px; } .ds-tick { width: 22px; height: 22px; border-radius: 50%; background: #7443E6; color: #F4F0F8; display: grid; place-items: center; font-style: normal; font-size: 13px; }"
+    },
+    {
+      "name": "Navigation Bar",
+      "kind": "nav",
+      "description": "Material nav bar; active item gets a Halaya pill.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-ni ds-on\"><span class=\"ds-pill\">●</span>Home</a><a class=\"ds-ni\"><span class=\"ds-pill\">≡</span>Activity</a><a class=\"ds-ni\"><span class=\"ds-pill\">◔</span>Insights</a></nav>",
+      "css": ".ds-nav { display: flex; justify-content: space-around; background: #1A1422; padding: 12px 20px 16px; font-family: Geist, system-ui, sans-serif; max-width: 400px; } .ds-ni { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; color: #A39AB6; text-decoration: none; cursor: pointer; } .ds-pill { width: 60px; height: 32px; border-radius: 16px; display: grid; place-items: center; } .ds-ni:hover .ds-pill { background: rgba(244,240,248,.06); } .ds-ni:focus-visible { outline: 2px solid #CBB6FF; outline-offset: 2px; } .ds-on { color: #F4F0F8; } .ds-on .ds-pill { background: #3A1F66; color: #CBB6FF; }"
+    },
+    {
+      "name": "FAB",
+      "kind": "button",
+      "refersTo": "fab",
+      "description": "The single primary action: add transaction.",
+      "html": "<button class=\"ds-fab\" aria-label=\"Add transaction\">+</button>",
+      "css": ".ds-fab { width: 60px; height: 60px; border-radius: 20px; background: #CBB6FF; color: #26134A; border: none; font-size: 28px; box-shadow: 0 10px 24px rgba(0,0,0,.4); cursor: pointer; } .ds-fab:hover { filter: brightness(1.06); } .ds-fab:focus-visible { outline: 2px solid #F4F0F8; outline-offset: 3px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Checked Receipt",
+    "overview": "Every notification becomes a slip that waits. It sits as an open ring, uncounted, until the user stamps it with a check. The whole system is built to make that single transition legible and satisfying: open ring to filled tick, pending line to headline balance. Everything else is quiet so the transition reads.\n\nUbe is a violet-on-night world. Dark is the home theme, deep plum surfaces stepping up in small tonal increments, with Lilac as the one light in the room. Light theme is the same hues inverted onto Gata (a warm off-white), not a separate identity. Voice lives in Fraunces: italic serif on display lines against Geist everywhere else. Numbers are Geist with tabular figures, so money columns align and the cents sit dimmer than the pesos.\n\nThe system is Material 3 Expressive in structure (navigation bar, ListItem, Material buttons, snackbars) with the brand expressed through colour roles, type, shape and motion, never through custom controls. Tone: calm, confident, private. It is not loud, glossy, or gamified.",
+    "keyCharacteristics": [
+      "Pending is an outlined ring; confirmed is a filled tick. This pair is the product's core semantic and never changes meaning.",
+      "Tonal depth, flat at rest. Shadows are rare.",
+      "Soft, rounded, tactile: pill buttons, 24dp cards, 10dp chips.",
+      "Money is tabular, signed, and split: pesos at full weight, centavos dimmed.",
+      "Fraunces appears only as brand voice; it is never used for data.",
+      "Five palettes ship (Ube, Evergreen, Indigo, Slate, Clay). Ube is the identity; the others reuse the same roles."
+    ],
+    "rules": [
+      { "name": "The Ring-and-Tick Rule", "body": "Pending is always an outlined ring in the tertiary role; confirmed is always a filled circle in `accents.confirmed` with a check. Never express status by colour alone; the words \"Needs review\" accompany the ring.", "section": "colors" },
+      { "name": "The One Light Rule", "body": "In dark theme, Lilac is the only bright colour. If a screen has more than a few Lilac moments, demote some to Gata or Mute.", "section": "colors" },
+      { "name": "The No-Red-Ink Rule", "body": "Income is Lilac (dark) / Ube (light); expense is Gata (dark) / Night (light); both signed with + and −. Spending is not an alarm. Red is reserved for errors and destructive confirmation.", "section": "colors" },
+      { "name": "The Roles-Only Rule", "body": "All colour comes from `MaterialTheme.colorScheme` or `MaterialTheme.accents`. No hex outside `ui/theme/Color.kt`.", "section": "colors" },
+      { "name": "The Tabular Money Rule", "body": "Every peso amount uses `tabular()` (`tnum`) so columns line up. Centavos are dimmed (about 55% content colour) via `splitMoney`.", "section": "typography" },
+      { "name": "The Voice-Not-Data Rule", "body": "Fraunces never sets numbers, labels, or controls. It is voice only.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces carry no shadow at rest. Raise a surface by stepping its container colour, not by adding a shadow.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do show pending as its own line under the confirmed balance, labelled \"not counted\".",
+      "Do set all money with tabular figures and dim the centavos.",
+      "Do step container tones for depth instead of adding shadows.",
+      "Do pair every status ring or tick with words.",
+      "Do use Material Symbols from `composeResources/drawable/symbol_*.xml`.",
+      "Do keep Fraunces for brand voice and Geist for everything functional."
+    ],
+    "donts": [
+      "Don't colour expenses red or income green; use `accents.income` / `accents.expense`, signed with + and −.",
+      "Don't use hex outside `ui/theme/Color.kt`, and don't use `Color.Gray` or `Color.White` from guide samples.",
+      "Don't let a pending item move the headline balance or share its line.",
+      "Don't introduce a second accent hue in Ube; the system has one light.",
+      "Don't use Fraunces for numbers, labels, or buttons.",
+      "Don't wrap an iOS-style control or custom switch/dialog in Material clothing."
+    ]
+  }
+}

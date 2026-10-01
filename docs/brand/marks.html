@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono&display=block" rel="stylesheet">
+<style>
+body{margin:0;width:1600px;height:900px;background:#120E19;display:grid;grid-template-columns:repeat(4,1fr);gap:20px;padding:40px;box-sizing:border-box;font-family:Geist;color:#F3EFF7}
+.c{background:#1B1524;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px}
+.w{font:600 44px Geist;letter-spacing:-.04em}
+.l{font:12px 'Geist Mono';color:#9A8FB0}
+.tile{width:120px;height:120px;border-radius:30px;background:#7C4DEB;display:grid;place-items:center}
+</style></head><body>
+<!-- A: n + tick monoline -->
+<div class="c"><svg width="200" height="200" viewBox="0 0 100 100"><path d="M20 80 V48 A20 20 0 0 1 60 48 V74 L86 40" fill="none" stroke="#CDB8FF" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="l">A n+tick</div></div>
+<!-- A2: n + tick, shorter tick -->
+<div class="c"><svg width="200" height="200" viewBox="0 0 100 100"><path d="M18 78 V46 A21 21 0 0 1 60 46 V66 Q60 78 70 70 L88 50" fill="none" stroke="#CDB8FF" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="l">A2 soft tick</div></div>
+<!-- A3: n + tick solid geometric -->
+<div class="c"><svg width="200" height="200" viewBox="0 0 100 100"><path d="M22 80 V50 A19 19 0 0 1 60 50 V78 M60 78 L84 46" fill="none" stroke="#CDB8FF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="l">A3</div></div>
+<!-- B: tile with arch + pill -->
+<div class="c"><svg width="200" height="200" viewBox="0 0 100 100"><rect x="6" y="6" width="88" height="88" rx="26" fill="#7C4DEB"/><path d="M28 78 V52 A22 22 0 0 1 72 52 V78" fill="none" stroke="#F3EFF7" stroke-width="13" stroke-linecap="round"/><rect x="39" y="47" width="22" height="10" rx="5" fill="#F3EFF7"/></svg><div class="l">B arch+pill</div></div>
+<!-- D: pill with tick knock -->
+<div class="c"><svg width="200" height="200" viewBox="0 0 100 100"><rect x="8" y="30" width="84" height="40" rx="20" fill="#CDB8FF"/><path d="M34 50 L45 60 L66 40" fill="none" stroke="#120E19" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="l">D pill tick</div></div>
+<!-- E: ring -> tick (pending to confirmed) -->
+<div class="c"><svg width="200" height="200" viewBox="0 0 100 100"><path d="M50 18 A32 32 0 1 0 82 50" fill="none" stroke="#CDB8FF" stroke-width="13" stroke-linecap="round"/><path d="M36 50 L48 62 L88 20" fill="none" stroke="#CDB8FF" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="l">E ring breaks into tick</div></div>
+<!-- F: n arch whose right leg is a tick, fill style in tile -->
+<div class="c"><div class="tile"><svg width="84" height="84" viewBox="0 0 100 100"><path d="M20 80 V48 A20 20 0 0 1 60 48 V74 L86 40" fill="none" stroke="#F3EFF7" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="l">A in tile</div></div>
+<!-- lockup A -->
+<div class="c"><div style="display:flex;align-items:center;gap:14px"><svg width="64" height="64" viewBox="0 0 100 100"><path d="M20 80 V48 A20 20 0 0 1 60 48 V74 L86 40" fill="none" stroke="#CDB8FF" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">notifly</span></div><div class="l">lockup A</div></div>
+</body></html>
