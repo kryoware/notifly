@@ -156,13 +156,13 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
     val listState = rememberLazyListState()
     var editingAccount by remember { mutableStateOf<AccountBalance?>(null) }
     editingAccount?.let { account ->
-        BalanceDialog(account, dismiss = { editingAccount = null }) { model.setBalance(account.account.id, it); editingAccount = null }
+        BalanceDialog(account, hidden = s.hideAmounts, dismiss ={ editingAccount = null }) { model.setBalance(account.account.id, it); editingAccount = null }
     }
     Scaffold(
         topBar = {
             TopAppBar(title = { Wordmark(if (demo) "DEMO" else null) }, actions = {
                 IconTooltip("Hide amounts") {
-                    IconToggleButton(checked = s.hideAmounts, onCheckedChange = model::hideAmounts) {
+                    IconToggleButton(checked = s.hideAmounts, onCheckedChange = model::hideAmounts, enabled = s.loaded) {
                         Icon(painterResource(if (s.hideAmounts) Res.drawable.symbol_visibility_off else Res.drawable.symbol_visibility),
                             contentDescription = "Hide amounts")
                     }
@@ -296,8 +296,9 @@ private fun AccountRow(account: AccountBalance, hidden: Boolean, edit: () -> Uni
 
 /** Edits a nonnegative balance in minor units; reset passes null to [save]. The caller dismisses after saving. */
 @Composable
-private fun BalanceDialog(account: AccountBalance, dismiss: () -> Unit, save: (Long?) -> Unit) {
-    var text by remember { mutableStateOf(amountText(account.estimate)) }
+private fun BalanceDialog(account: AccountBalance, hidden: Boolean, dismiss: () -> Unit, save: (Long?) -> Unit) {
+    // Left blank while amounts are hidden so opening the editor can't reveal the estimate.
+    var text by remember { mutableStateOf(if (hidden) "" else amountText(account.estimate)) }
     var invalid by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = dismiss,

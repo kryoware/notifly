@@ -1,9 +1,7 @@
 package ph.notifly.ui
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
@@ -23,10 +21,9 @@ private const val PILL_ALPHA = 0.2f
 /** Obscures a money figure and hides it from screen readers while [hidden]. */
 @Composable
 internal fun hiddenMoneyModifier(hidden: Boolean): Modifier {
-    val strength by animateFloatAsState(if (hidden) 1f else 0f, label = "hiddenMoney")
     val color = LocalContentColor.current
     val obscured = if (canBlur) Modifier.graphicsLayer {
-        val radius = size.height * BLUR_PER_HEIGHT * strength
+        val radius = if (hidden) size.height * BLUR_PER_HEIGHT else 0f
         renderEffect = if (radius > 0f) BlurEffect(radius, radius, TileMode.Decal) else null
         clip = false
     } else Modifier.drawWithContent {

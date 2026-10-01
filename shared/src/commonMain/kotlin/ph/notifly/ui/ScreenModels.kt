@@ -51,6 +51,8 @@ open class ScreenModel : ViewModel() {
 data class LedgerState(val rows: List<Transaction> = emptyList(), val net: Long = 0L, val accounts: List<AccountBalance> = emptyList(), val drafts: Int = 0,
     /** True until the first real emission so the placeholder frame never shows figures. */
     val hideAmounts: Boolean = true,
+    /** False until the saved hide preference arrives; the toggle stays disabled meanwhile. */
+    val loaded: Boolean = false,
 )
 data class InsightsState(
     val days: Int = INSIGHT_WINDOWS.first(),
@@ -70,7 +72,7 @@ class HomeModel(
 ) : ScreenModel() {
     val state = combine(repository.observeAll(), ledger.observeAccounts(), ledger.observeDrafts(), preferences.hideAmounts) { rows, accounts, drafts, hide ->
         val balances = accountBalances(accounts, rows)
-        LedgerState(rows, balances.sumOf { it.netValue }, balances, drafts.size, hide)
+        LedgerState(rows, balances.sumOf { it.netValue }, balances, drafts.size, hide, loaded = true)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LedgerState())
     fun hideAmounts(value: Boolean) = work { preferences.setHideAmounts(value) }
     fun setBalance(id: Long, minor: Long?) = work {
