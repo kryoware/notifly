@@ -54,7 +54,7 @@ class ScreenModelsTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
             val repository = DemoTransactions()
-            assertEquals(4800000L, repository.observeConfirmedNetMinor().first())
+            assertEquals(4_800_000_000L, repository.observeConfirmedNetMinor().first())
             val editor = EditorModel(repository, 2, ledger = DemoLedger(repository), apps = DemoAllowList())
             runCurrent()
             editor.edit(title = "", amount = "0")
@@ -70,9 +70,9 @@ class ScreenModelsTest {
             editor.save()
             runCurrent()
             assertEquals(TransactionStatus.CONFIRMED, repository.byId(2)?.status)
-            assertEquals(4798766L, repository.observeConfirmedNetMinor().first())
+            assertEquals(4_799_998_766L, repository.observeConfirmedNetMinor().first())
             repository.delete(2)
-            assertEquals(4800000L, repository.observeConfirmedNetMinor().first())
+            assertEquals(4_800_000_000L, repository.observeConfirmedNetMinor().first())
         } finally { Dispatchers.resetMain() }
     }
     @Test fun timePickerEditIsPreservedOnSave() = runTest {

@@ -86,6 +86,7 @@ fun TransactionRow(
     onToggleSelection: () -> Unit = {},
     onLongClick: () -> Unit = {},
     accountNames: Map<Long, String> = emptyMap(),
+    hideAmount: Boolean = false,
 ) {
     val color = when (transaction.type) {
         TransactionType.INCOME -> MaterialTheme.accents.income
@@ -119,7 +120,7 @@ fun TransactionRow(
     val trailing: @Composable () -> Unit = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text((if (transaction.type == TransactionType.INCOME) "+" else if (transaction.type == TransactionType.EXPENSE) "−" else "") + money(transaction.amountMinor),
-                    style = MaterialTheme.typography.titleMedium.tabular(), color = color)
+                    style = MaterialTheme.typography.titleMedium.tabular(), color = color, modifier = hiddenMoneyModifier(hideAmount))
                 if (!selectionMode && needsReview && confirm != null) {
                     IconTooltip("Confirm ${transaction.title}") {
                         IconButton(onClick = confirm, modifier = Modifier.size(48.dp).semantics { contentDescription = "Confirm ${transaction.title}" }) {
@@ -130,7 +131,10 @@ fun TransactionRow(
             }
     }
     val rowModifier = modifier.fillMaxWidth()
-        .semantics { contentDescription = "${transaction.title}, ${money(transaction.amountMinor)}${if (needsReview) ", needs review" else ""}" }
+        .semantics {
+            contentDescription = listOfNotNull(transaction.title, money(transaction.amountMinor).takeIf { !hideAmount },
+                "needs review".takeIf { needsReview }).joinToString(", ")
+        }
     if (selectionMode) {
         ListItem(checked = selected, onCheckedChange = { onToggleSelection() }, modifier = rowModifier, colors = colors,
             leadingContent = leading, supportingContent = supporting, trailingContent = trailing,
@@ -155,22 +159,31 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
         BalanceDialog(account, dismiss = { editingAccount = null }) { model.setBalance(account.account.id, it); editingAccount = null }
     }
     Scaffold(
-        topBar = { TopAppBar(title = { Wordmark(if (demo) "DEMO" else null) }) },
+        topBar = {
+            TopAppBar(title = { Wordmark(if (demo) "DEMO" else null) }, actions = {
+                IconTooltip("Hide amounts") {
+                    IconToggleButton(checked = s.hideAmounts, onCheckedChange = model::hideAmounts) {
+                        Icon(painterResource(if (s.hideAmounts) Res.drawable.symbol_visibility_off else Res.drawable.symbol_visibility),
+                            contentDescription = "Hide amounts")
+                    }
+                }
+            })
+        },
         snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) },
         floatingActionButton = { AddTransactionFab(expanded = !listState.canScrollBackward) { model.navigate("edit/0") } }
     ) { padding ->
     LazyColumn(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).padding(horizontal = 16.dp), state = listState,
         contentPadding = PaddingValues(bottom = FAB_CLEARANCE)) {
-        item { Box(Modifier.padding(bottom = 8.dp)) { BalanceHero(s.net, pendingRows.size, pendingTotal) { model.navigate("transactions") } } }
+        item { Box(Modifier.padding(bottom = 8.dp)) { BalanceHero(s.net, pendingRows.size, pendingTotal, s.hideAmounts) { model.navigate("transactions") } } }
         if (s.drafts > 0) item {
             FilledTonalButton(onClick = { model.navigate("account-review") }, modifier = Modifier.fillMaxWidth()) {
                 Text("Assign accounts · ${s.drafts} to review")
             }
         }
         if (s.accounts.isNotEmpty()) {
-            item { AccountsHeader(s.accounts.sumOf { it.netValue }) }
+            item { AccountsHeader(s.accounts.sumOf { it.netValue }, s.hideAmounts) }
             items(s.accounts, key = { "account:" + it.account.id }) { account ->
-                AccountRow(account) { editingAccount = account }
+                AccountRow(account, s.hideAmounts) { editingAccount = account }
             }
         }
         item {
@@ -180,7 +193,7 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
         }
         items(s.rows.take(5), key = { it.id }) { t ->
             TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") },
-                accountNames = s.accounts.associate { it.account.id to it.account.name }, confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null)
+                accountNames = s.accounts.associate { it.account.id to it.account.name }, hideAmount = s.hideAmounts, confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null)
         }
         // First value is the first captured draft, so the empty ledger says what it is waiting on.
         if (s.rows.isEmpty()) item {
@@ -217,7 +230,7 @@ private fun AddTransactionFab(expanded: Boolean, onClick: () -> Unit) {
 
 /** Only confirmed money moves the headline; review items sit in their own line below it. */
 @Composable
-private fun BalanceHero(net: Long, pending: Int, pendingTotal: Long, review: () -> Unit) {
+private fun BalanceHero(net: Long, pending: Int, pendingTotal: Long, hidden: Boolean, review: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Surface(Modifier.fillMaxWidth().animateContentSize(), shape = MaterialTheme.shapes.extraLarge,
         color = scheme.primaryContainer, contentColor = scheme.onPrimaryContainer) {
@@ -227,7 +240,7 @@ private fun BalanceHero(net: Long, pending: Int, pendingTotal: Long, review: () 
             Text(splitMoney(net, LocalContentColor.current.copy(alpha = 0.55f)),
                 style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.035).em).tabular(),
                 maxLines = 1, autoSize = TextAutoSize.StepBased(minFontSize = 24.sp, maxFontSize = 44.sp),
-                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
+                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp).then(hiddenMoneyModifier(hidden)))
             Text("Transfers between your accounts aren't counted.", style = MaterialTheme.typography.bodySmall, color = muted)
             if (pending > 0) Row(
                 Modifier.padding(top = 16.dp).fillMaxWidth().background(scheme.surface.copy(alpha = 0.35f), RoundedCornerShape(18.dp))
@@ -237,7 +250,11 @@ private fun BalanceHero(net: Long, pending: Int, pendingTotal: Long, review: () 
                 StatusMark(confirmed = false, size = 16.dp)
                 Column(Modifier.weight(1f)) {
                     Text("$pending to review", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium))
-                    Text("${signedMoney(pendingTotal)} · not counted", style = MaterialTheme.typography.bodySmall.tabular(), color = muted)
+                    Row {
+                        Text(signedMoney(pendingTotal), style = MaterialTheme.typography.bodySmall.tabular(), color = muted,
+                            modifier = hiddenMoneyModifier(hidden))
+                        Text(" · not counted", style = MaterialTheme.typography.bodySmall, color = muted)
+                    }
                 }
                 Button(onClick = review, contentPadding = PaddingValues(horizontal = 16.dp)) { Text("Review") }
             }
@@ -246,10 +263,11 @@ private fun BalanceHero(net: Long, pending: Int, pendingTotal: Long, review: () 
 }
 
 @Composable
-private fun AccountsHeader(total: Long) {
+private fun AccountsHeader(total: Long, hidden: Boolean) {
     Column {
         SectionHeader("Accounts") {
-            Text(splitMoney(total, LocalContentColor.current.copy(alpha = 0.55f)), style = MaterialTheme.typography.titleMedium.tabular())
+            Text(splitMoney(total, LocalContentColor.current.copy(alpha = 0.55f)), style = MaterialTheme.typography.titleMedium.tabular(),
+                modifier = hiddenMoneyModifier(hidden))
         }
         Text("Estimated from confirmed transactions. Tap an account to enter its actual balance.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -258,15 +276,19 @@ private fun AccountsHeader(total: Long) {
 }
 
 @Composable
-private fun AccountRow(account: AccountBalance, edit: () -> Unit) {
-    val source = account.manual?.let { "Set to ${money(it.minor)} on ${shortDate(it.setAt.toLocalDateTime(TimeZone.currentSystemDefault()).date)}" }
+private fun AccountRow(account: AccountBalance, hidden: Boolean, edit: () -> Unit) {
+    val source = account.manual?.let {
+        val on = shortDate(it.setAt.toLocalDateTime(TimeZone.currentSystemDefault()).date)
+        if (hidden) "Set on $on" else "Set to ${money(it.minor)} on $on"
+    }
         ?: "From captured transactions"
     ListItem(
         onClick = edit,
         leadingContent = { AppIcon(account.account.linkedApps.firstOrNull().orEmpty(), account.account.name) },
         supportingContent = { Text((if (account.account.type == ph.notifly.domain.model.AccountType.CARD) "Debt owed · " else "") + source + if (account.account.archived) " · Archived" else "", style = MaterialTheme.typography.bodySmall) },
         trailingContent = {
-            Text(splitMoney(account.estimate, LocalContentColor.current.copy(alpha = 0.55f)), style = MaterialTheme.typography.titleMedium.tabular())
+            Text(splitMoney(account.estimate, LocalContentColor.current.copy(alpha = 0.55f)), style = MaterialTheme.typography.titleMedium.tabular(),
+                modifier = hiddenMoneyModifier(hidden))
         },
         content = { Text(account.account.name, style = MaterialTheme.typography.titleMedium) },
     )

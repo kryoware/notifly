@@ -55,7 +55,7 @@ fun demoRows(random: Random = Random.Default): List<Transaction> {
 
 /** Isolated, explicitly selected demo data; never inserted into the user's ledger. */
 class DemoTransactions(initial: List<Transaction> = listOf(
-    Transaction(1, "ACME CORP", 4800000, type = TransactionType.INCOME, status = TransactionStatus.CONFIRMED,
+    Transaction(1, "ACME CORP", 4_800_000_000, type = TransactionType.INCOME, status = TransactionStatus.CONFIRMED,
         category = "Income", occurredAt = Clock.System.now(), sourceApp = "GCash", captureId = null, accountId = 1),
     Transaction(2, "SM Supermarket", 245050, type = TransactionType.EXPENSE, status = TransactionStatus.NEEDS_REVIEW,
         category = "Shopping", occurredAt = Clock.System.now(), sourceApp = "GCash", captureId = null, accountId = 1),

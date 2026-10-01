@@ -48,7 +48,10 @@ open class ScreenModel : ViewModel() {
     fun navigate(route: String) = work { mutableEvents.emit(UiEvent.Navigate(route)) }
 }
 
-data class LedgerState(val rows: List<Transaction> = emptyList(), val net: Long = 0L, val accounts: List<AccountBalance> = emptyList(), val drafts: Int = 0)
+data class LedgerState(val rows: List<Transaction> = emptyList(), val net: Long = 0L, val accounts: List<AccountBalance> = emptyList(), val drafts: Int = 0,
+    /** True until the first real emission so the placeholder frame never shows figures. */
+    val hideAmounts: Boolean = true,
+)
 data class InsightsState(
     val days: Int = INSIGHT_WINDOWS.first(),
     val windows: List<WindowInsights> = emptyList(),
@@ -65,10 +68,11 @@ class HomeModel(
     private val preferences: AppPreferences,
     private val ledger: LedgerRepository,
 ) : ScreenModel() {
-    val state = combine(repository.observeAll(), ledger.observeAccounts(), ledger.observeDrafts()) { rows, accounts, drafts ->
+    val state = combine(repository.observeAll(), ledger.observeAccounts(), ledger.observeDrafts(), preferences.hideAmounts) { rows, accounts, drafts, hide ->
         val balances = accountBalances(accounts, rows)
-        LedgerState(rows, balances.sumOf { it.netValue }, balances, drafts.size)
+        LedgerState(rows, balances.sumOf { it.netValue }, balances, drafts.size, hide)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LedgerState())
+    fun hideAmounts(value: Boolean) = work { preferences.setHideAmounts(value) }
     fun setBalance(id: Long, minor: Long?) = work {
         val account = ledger.observeAccounts().first().first { it.id == id }
         ledger.saveAccount(account.copy(balanceMinor = minor ?: 0L,

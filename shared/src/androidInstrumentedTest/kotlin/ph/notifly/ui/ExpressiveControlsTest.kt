@@ -9,6 +9,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -49,6 +50,28 @@ class ExpressiveControlsTest {
         compose.onNodeWithContentDescription("Add transaction").assertExists()
         compose.onNode(hasScrollAction()).performScrollToIndex(3)
         compose.onNodeWithContentDescription("Add transaction").assertExists()
+    }
+
+    @Test fun hideAmountsToggleObscuresHomeFigures() {
+        val store = object : DataStore<Preferences> {
+            private val state = MutableStateFlow(emptyPreferences())
+            override val data = state
+            override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences) =
+                transform(state.value).also { state.value = it }
+        }
+        val model = DemoTransactions().let { HomeModel(it, DemoAllowList(), AppPreferences(store), DemoLedger(it)) }
+        compose.setContent { NotiflyTheme { HomeScreen(model) } }
+        val full = "SM Supermarket, ₱2,450.50, needs review"
+        compose.waitUntil { model.state.value.rows.isNotEmpty() }
+        compose.onNodeWithContentDescription(full).assertExists()
+        compose.onNodeWithContentDescription("Hide amounts").performClick()
+        compose.waitUntil { model.state.value.hideAmounts }
+        compose.onNodeWithContentDescription(full).assertDoesNotExist()
+        compose.onNodeWithContentDescription("SM Supermarket, needs review").assertExists()
+        compose.onAllNodesWithContentDescription("Amount hidden").onFirst().assertExists()
+        compose.onNodeWithContentDescription("Hide amounts").performClick()
+        compose.waitUntil { !model.state.value.hideAmounts }
+        compose.onNodeWithContentDescription(full).assertExists()
     }
 
     @Test fun editorShowsFieldErrorsOnFields() {
