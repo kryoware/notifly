@@ -19,6 +19,7 @@ minSdk = "26"
 targetSdk = "36"
 sentry = "8.57.0"
 sentryPlugin = "6.22.0"
+aboutLibraries = "15.2.0"
 
 [libraries]
 compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "composeMultiplatform" }
@@ -45,6 +46,7 @@ koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
 sentry-android = { module = "io.sentry:sentry-android", version.ref = "sentry" }
+aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutLibraries" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
@@ -56,3 +58,4 @@ composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "k
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 room = { id = "androidx.room", version.ref = "room" }
 sentry = { id = "io.sentry.android.gradle", version.ref = "sentryPlugin" }
+aboutLibraries = { id = "com.mikepenz.aboutlibraries.plugin", version.ref = "aboutLibraries" }

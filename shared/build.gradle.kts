@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
+    alias(libs.plugins.aboutLibraries)
 }
 
 kotlin {
@@ -30,6 +31,7 @@ kotlin {
             implementation(libs.compose.material3)
             implementation(libs.compose.material3.navigation.suite)
             implementation(compose.components.resources)
+            implementation(libs.aboutlibraries.compose.m3)
 
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.datetime)
@@ -66,6 +68,13 @@ kotlin {
 
 room {
     schemaDirectory("$projectDir/schemas")
+}
+
+aboutLibraries {
+    export {
+        outputFile = file("src/commonMain/composeResources/files/aboutlibraries.json")
+        variant = "release"
+    }
 }
 
 dependencies {
