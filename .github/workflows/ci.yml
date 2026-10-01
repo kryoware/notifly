@@ -39,6 +39,9 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      - name: Regenerate license catalog
+        run: ./gradlew :shared:exportLibraryDefinitions --rerun-tasks
+
       - name: Run lint
         run: ./gradlew lint
 
