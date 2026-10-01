@@ -15,6 +15,8 @@ interface TransactionRepository {
     fun observeConfirmedSince(since: Instant, limit: Int): Flow<List<Transaction>>
     suspend fun byId(id: Long): Transaction?
     suspend fun upsert(transaction: Transaction): Long
+    /** Atomically appends drafts, skipping exact duplicates. Never overwrites existing rows. */
+    suspend fun importTransactions(transactions: List<Transaction>): Int
     suspend fun delete(id: Long)
     /** Confirmed only. NEEDS_REVIEW must not move the headline balance. */
     fun observeConfirmedNetMinor(): Flow<Long>

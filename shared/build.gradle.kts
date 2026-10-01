@@ -47,6 +47,7 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
         }
         androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
             implementation(compose.preview)
             implementation(libs.koin.android)
             implementation(libs.sentry.android)

@@ -23,6 +23,24 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun byId(id: Long): TransactionEntity?
 
+    @Query("SELECT * FROM transactions")
+    suspend fun all(): List<TransactionEntity>
+
+    @androidx.room.Transaction
+    suspend fun importDrafts(entities: List<TransactionEntity>): Int {
+        fun TransactionEntity.draft() = copy(id = 0, captureId = null, status = "NEEDS_REVIEW")
+        // ponytail: dedupe loads the ledger into memory; persist import fingerprints if large ledgers make this costly.
+        val known = all().map { it.draft() }.toMutableSet()
+        var inserted = 0
+        entities.forEach { entity ->
+            require(entity.title.isNotBlank() && entity.amountMinor > 0 && entity.currency == "PHP")
+            require(entity.type in listOf("INCOME", "EXPENSE", "TRANSFER") && entity.category.isNotBlank())
+            val draft = entity.draft()
+            if (known.add(draft)) { upsert(draft); inserted++ }
+        }
+        return inserted
+    }
+
     @Upsert
     suspend fun upsert(entity: TransactionEntity): Long
 

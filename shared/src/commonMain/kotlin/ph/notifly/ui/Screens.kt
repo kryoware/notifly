@@ -696,6 +696,9 @@ fun SettingsScreen(
     isDebugBuild: Boolean,
     biometricAvailable: Boolean = false,
     authenticateBiometric: (onSuccess: () -> Unit) -> Unit = {},
+    transactions: ph.notifly.domain.repository.TransactionRepository? = null,
+    allowDataTransfer: Boolean = true,
+    onDataMessage: suspend (String) -> Unit = {},
 ) {
     val s by model.state.collectAsState()
     val source = org.koin.compose.koinInject<ph.notifly.domain.source.TransactionSource>()
@@ -719,6 +722,11 @@ fun SettingsScreen(
             SettingsGroup {
                 SettingsRow("Category budgets", "Set a monthly limit for each spending category", onClick = { model.navigate("budgets") })
             }
+        }
+
+        if (transactions != null) {
+            item { SettingsSection("Your data") }
+            item { SettingsGroup { TransactionDataControls(transactions, !allowDataTransfer, onDataMessage) } }
         }
 
         item { SettingsSection("Security") }

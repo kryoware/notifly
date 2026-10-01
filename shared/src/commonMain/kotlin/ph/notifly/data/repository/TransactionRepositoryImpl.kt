@@ -38,6 +38,9 @@ class TransactionRepositoryImpl(
     override suspend fun delete(id: Long) =
         dao.deleteLocally(id)
 
+    override suspend fun importTransactions(transactions: List<Transaction>): Int =
+        dao.importDrafts(transactions.map { it.toEntity() })
+
     override fun observeConfirmedNetMinor(): Flow<Long> =
         dao.observeConfirmedNetMinor()
 }

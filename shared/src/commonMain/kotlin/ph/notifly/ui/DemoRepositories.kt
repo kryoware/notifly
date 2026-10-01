@@ -24,6 +24,12 @@ class DemoTransactions : TransactionRepository {
             .take(limit)
     }
     override suspend fun byId(id: Long) = rows.value.find { it.id == id }
+    override suspend fun importTransactions(transactions: List<Transaction>): Int {
+        val known = rows.value.map { it.copy(id = 0, captureId = null, status = TransactionStatus.NEEDS_REVIEW) }.toMutableSet()
+        val added = transactions.map { it.copy(id = 0, captureId = null, status = TransactionStatus.NEEDS_REVIEW) }.filter { known.add(it) }
+        added.forEach { upsert(it) }
+        return added.size
+    }
     override suspend fun upsert(transaction: Transaction): Long {
         val id = transaction.id.takeIf { it != 0L } ?: nextId++
         rows.value = (rows.value.filterNot { it.id == id } + transaction.copy(id = id))

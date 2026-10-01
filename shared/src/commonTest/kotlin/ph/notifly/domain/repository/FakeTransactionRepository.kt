@@ -42,6 +42,13 @@ class FakeTransactionRepository : TransactionRepository {
         store.update { list -> list.filterNot { it.id == id } }
     }
 
+    override suspend fun importTransactions(transactions: List<Transaction>): Int {
+        val known = store.value.map { it.copy(id = 0, captureId = null, status = TransactionStatus.NEEDS_REVIEW) }.toMutableSet()
+        val added = transactions.map { it.copy(id = 0, captureId = null, status = TransactionStatus.NEEDS_REVIEW) }.filter { known.add(it) }
+        added.forEach { upsert(it) }
+        return added.size
+    }
+
     override fun observeConfirmedNetMinor(): Flow<Long> =
         store.map { list ->
             list.filter { it.status == TransactionStatus.CONFIRMED }
