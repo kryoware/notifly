@@ -41,7 +41,8 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     private val themeModeKey = stringPreferencesKey("theme_mode")
     private val onboardingKey = booleanPreferencesKey("onboarding_complete")
     private val offlineKey = booleanPreferencesKey("offline")
-    private val retentionKey = booleanPreferencesKey("keep_raw_text")
+    private val hideAmountsKey = booleanPreferencesKey("hide_amounts")
+    private val retentionKey =booleanPreferencesKey("keep_raw_text")
     private val crashReportingKey = booleanPreferencesKey("crash_reporting")
     private val pinHashKey = stringPreferencesKey("pin_hash")
     private val pinSaltKey = stringPreferencesKey("pin_salt")
@@ -58,6 +59,7 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     val themeMode = data.map { prefs -> ThemeMode.entries.firstOrNull { it.name == prefs[themeModeKey] } ?: ThemeMode.SYSTEM }
     val onboardingComplete = data.map { it[onboardingKey] ?: false }
     val offline = data.map { it[offlineKey] ?: true }
+    val hideAmounts = data.map { it[hideAmountsKey] ?: false }
     val keepRawText = data.map { it[retentionKey] ?: false }
     val crashReporting = data.map { it[crashReportingKey] ?: false }
     val pinSet = data.map { it[pinHashKey] != null }
@@ -89,6 +91,7 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     suspend fun completeOnboarding() { store.edit { it[onboardingKey] = true } }
     suspend fun resetOnboarding() { store.edit { it[onboardingKey] = false } }
     suspend fun setOffline(value: Boolean) { store.edit { it[offlineKey] = value } }
+    suspend fun setHideAmounts(value: Boolean) { store.edit { it[hideAmountsKey] = value } }
     suspend fun setKeepRawText(value: Boolean) { store.edit { it[retentionKey] = value } }
     suspend fun setCrashReporting(value: Boolean) { store.edit { it[crashReportingKey] = value } }
     /** Stores the monthly limit in minor units, or removes it when [minor] is null. */
