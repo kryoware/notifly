@@ -28,8 +28,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import kotlin.math.abs
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
@@ -42,7 +45,7 @@ fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyM
     val s by model.state.collectAsState()
     var editingBudget by remember { mutableStateOf(false) }
     val w = s.selected ?: return
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 INSIGHT_WINDOWS.forEachIndexed { index, days ->
@@ -68,14 +71,15 @@ fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyM
         item { CashFlowCard(w) }
         item { DailySpendingCard(w) }
         item { PaceCard(s.windows, s.days, model::days) }
-        s.month?.let { month -> item { BudgetCard(month, s.budget) { editingBudget = true } } }
-        s.month?.takeIf { s.categoryBudgets.isNotEmpty() }?.let { month ->
-            item { CategoryBudgetCard(month, s.categoryBudgets) { model.navigate("budgets") } }
-        }
         item { CategoryCard(w) }
         if (w.largest.isNotEmpty()) {
             item { SectionHeader("Largest expenses · last ${w.days} days") }
             items(w.largest, key = { it.id }) { t -> TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") }) }
+        }
+        s.month?.let { month ->
+            item { SectionHeader("This month") }
+            item { BudgetCard(month, s.budget) { editingBudget = true } }
+            if (s.categoryBudgets.isNotEmpty()) item { CategoryBudgetCard(month, s.categoryBudgets) { model.navigate("budgets") } }
         }
     }
     if (editingBudget) BudgetDialog(s.budget, dismiss = { editingBudget = false }) { model.budget(it); editingBudget = false }
@@ -105,7 +109,7 @@ private fun Change(current: Long, previous: Long, compared: String?, lowerIsBett
         else -> "${if (change > 0) "▲" else "▼"} ${abs(change)}%${compared?.let { " vs $it" }.orEmpty()}" to
             if ((change > 0) == lowerIsBetter) MaterialTheme.accents.expense else MaterialTheme.accents.income
     }
-    Text(text, style = MaterialTheme.typography.bodySmall, color = color,
+    Text(text, style = MaterialTheme.typography.bodySmall.tabular(), color = color,
         modifier = Modifier.semantics { contentDescription = text.replace("▲", "up").replace("▼", "down") })
 }
 
@@ -114,24 +118,26 @@ private fun CashFlowCard(w: WindowInsights) {
     val net = w.current.net
     Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Net cash flow · last ${w.days} days", style = MaterialTheme.typography.labelLarge)
-            Text(signedMoney(net), style = MaterialTheme.typography.headlineLarge.tabular(), color = when {
+            Text("Net cash flow · last ${w.days} days", style = MaterialTheme.typography.titleMedium)
+            val color = when {
                 net > 0 -> MaterialTheme.accents.income
                 net < 0 -> MaterialTheme.accents.expense
                 else -> MaterialTheme.colorScheme.onSurface
-            })
+            }
+            Text(AnnotatedString(if (net > 0) "+" else "") + splitMoney(net, color.copy(alpha = 0.55f)), color = color,
+                style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.035).em).tabular())
             Text("Previous ${w.days} days: ${signedMoney(w.previous.net)}", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Column(Modifier.weight(1f)) {
                     Text("Money in", style = MaterialTheme.typography.labelMedium)
-                    Text(money(w.current.income), style = MaterialTheme.typography.titleMedium)
+                    Text(money(w.current.income), style = MaterialTheme.typography.titleMedium.tabular())
                     Change(w.current.income, w.previous.income, null, lowerIsBetter = false)
                 }
                 Column(Modifier.weight(1f)) {
                     Text("Money out", style = MaterialTheme.typography.labelMedium)
-                    Text(money(w.current.spent), style = MaterialTheme.typography.titleMedium)
+                    Text(money(w.current.spent), style = MaterialTheme.typography.titleMedium.tabular())
                     Change(w.current.spent, w.previous.spent, null)
                 }
             }
@@ -203,8 +209,8 @@ private fun PaceCard(windows: List<WindowInsights>, selected: Int, select: (Int)
     // Without history before the longest window its average is diluted by days that predate any data.
     val change = if (baseline.previous == CashFlow()) null else percentChange(recent.dailyAverage, baseline.dailyAverage)
     Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
-        Column(Modifier.padding(vertical = 12.dp)) {
-            Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.padding(top = 20.dp, bottom = 10.dp)) {
+            Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Spending pace", style = MaterialTheme.typography.titleMedium)
                 Text(when {
                     change == null -> "Average spending per day. A pace comparison appears once you have over ${baseline.days} days of history."
@@ -217,16 +223,16 @@ private fun PaceCard(windows: List<WindowInsights>, selected: Int, select: (Int)
                 Row(
                     Modifier.fillMaxWidth()
                         .selectable(selected = w.days == selected, onClick = { select(w.days) }, role = Role.Tab)
-                        .background(if (w.days == selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0f))
+                        .background(if (w.days == selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
                         .padding(horizontal = 20.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text("Last ${w.days} days", style = MaterialTheme.typography.bodyLarge)
-                        Text("${money(w.dailyAverage)}/day", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${money(w.dailyAverage)}/day", style = MaterialTheme.typography.bodySmall.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(money(w.current.spent), style = MaterialTheme.typography.titleSmall)
+                        Text(money(w.current.spent), style = MaterialTheme.typography.titleSmall.tabular())
                         Change(w.current.spent, w.previous.spent, "previous ${w.days} days")
                     }
                 }
@@ -253,8 +259,8 @@ private fun BudgetCard(m: MonthInsights, budget: Long?, edit: () -> Unit) {
                 val trendingOver = m.projected > budget
                 Meter(ratio(spent, budget), if (over || trendingOver) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("${money(spent)} spent", style = MaterialTheme.typography.titleSmall)
-                    Text("of ${money(budget)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${money(spent)} spent", style = MaterialTheme.typography.titleSmall.tabular())
+                    Text("of ${money(budget)}", style = LocalTextStyle.current.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Text(if (over) "Over budget by ${money(spent - budget)}."
                     else "${money(budget - spent)} left · about ${money(m.perDayLeft(budget))}/day for ${m.daysLeft} day${if (m.daysLeft == 1) "" else "s"}")
@@ -283,7 +289,7 @@ private fun CategoryCard(w: WindowInsights) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(c.category, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                        Text(money(c.spent), style = MaterialTheme.typography.titleSmall)
+                        Text(money(c.spent), style = MaterialTheme.typography.titleSmall.tabular())
                     }
                     Meter(ratio(c.spent, w.current.spent), MaterialTheme.colorScheme.primary)
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -312,7 +318,7 @@ private fun CategoryBudgetCard(m: MonthInsights, budgets: Map<String, Long>, man
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(category, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                        Text("${money(spent)} of ${money(budget)}", style = MaterialTheme.typography.titleSmall)
+                        Text("${money(spent)} of ${money(budget)}", style = MaterialTheme.typography.titleSmall.tabular())
                     }
                     Meter(ratio(spent, budget), if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                     Text(if (over) "Over by ${money(spent - budget)}" else "${money(budget - spent)} left",
