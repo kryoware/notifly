@@ -1,4 +1,7 @@
 package ph.notifly.ui
 
-/** CSV sharing is unavailable on iOS; this call has no effect. */
-actual fun shareCsv(csv: String, filename: String) = Unit
+import androidx.compose.runtime.Composable
+
+/** Saving CSV files is unavailable on iOS; the launcher has no effect. */
+@Composable
+actual fun rememberCsvSaver(csv: () -> String): (filename: String) -> Unit = {}

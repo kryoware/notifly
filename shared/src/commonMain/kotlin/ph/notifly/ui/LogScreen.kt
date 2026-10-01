@@ -77,6 +77,7 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap()) {
     var expanded by remember { mutableStateOf<Long?>(null) }
     var clear by remember { mutableStateOf(false) }
     val parser = remember { NotificationParser() }
+    val saveCsv = rememberCsvSaver { s.captures.toCsv() }
     Column(Modifier.fillMaxSize()) {
         val filters = listOf(null) + CaptureResult.entries.filter { it != CaptureResult.IGNORED }
         SingleChoiceSegmentedButtonRow(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -97,7 +98,7 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap()) {
         Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             IconTooltip("Export CSV") { IconButton(onClick = {
                 val tab = s.filter?.exportName() ?: "all"
-                shareCsv(s.captures.toCsv(), "${tab}_${Clock.System.now().epochSeconds}.csv")
+                saveCsv("${tab}_${Clock.System.now().epochSeconds}.csv")
             }, enabled = s.captures.isNotEmpty()) {
                 Icon(painterResource(Res.drawable.symbol_file_download), contentDescription = "Export CSV")
             } }

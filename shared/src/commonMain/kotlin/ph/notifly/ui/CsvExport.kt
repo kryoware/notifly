@@ -1,4 +1,7 @@
 package ph.notifly.ui
 
-/** Requests platform sharing for [csv] under [filename]; unsupported platforms may do nothing. */
-expect fun shareCsv(csv: String, filename: String)
+import androidx.compose.runtime.Composable
+
+/** Returns a launcher that asks where to save the CSV built by [csv]; unsupported platforms do nothing. */
+@Composable
+expect fun rememberCsvSaver(csv: () -> String): (filename: String) -> Unit
