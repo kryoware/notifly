@@ -14,10 +14,16 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
@@ -37,8 +43,13 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -153,12 +164,34 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
                snackbar: SnackbarHostState? = null, demo: Boolean = false,
                listeningApps: List<String> = emptyList(), accessOn: Boolean = true, requestAccess: () -> Unit = {}) {
     val s by model.state.collectAsState()
+    val saving by model.savingOrder.collectAsState(false)
+    val currentAccounts by rememberUpdatedState(s.accounts)
     val pendingRows = s.rows.filter { it.status == TransactionStatus.NEEDS_REVIEW }
     val pendingTotal = pendingRows.sumOf { when (it.type) { TransactionType.INCOME -> it.amountMinor; TransactionType.EXPENSE -> -it.amountMinor; TransactionType.TRANSFER -> 0L } }
-    val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
+    val drag = remember(gridState) { HomeAccountDrag(gridState) }
+    var reordering by remember { mutableStateOf(false) }
     var editingAccount by remember { mutableStateOf<AccountBalance?>(null) }
+    val accounts = drag.order?.let { preview ->
+        homeAccountOrder(s.accounts, preview.map { it.account.id })
+    } ?: s.accounts
+    val density = LocalDensity.current
+    val edge = with(density) { 64.dp.toPx() }
+    val scrollStep = with(density) { 12.dp.toPx() }
+    LaunchedEffect(drag.draggedId) {
+        while (drag.draggedId != null) {
+            withFrameNanos { }
+            drag.scrollAtEdge(edge, scrollStep)
+        }
+    }
+    LaunchedEffect(s.accounts.map { it.account.id }.toSet()) {
+        if (drag.draggedId != null && drag.order?.map { it.account.id }?.toSet() != s.accounts.map { it.account.id }.toSet()) drag.cancel()
+        if (s.accounts.size < 2) reordering = false
+    }
+    fun finishReordering() { drag.cancel(); reordering = false }
+    ReorderBackHandler(reordering, ::finishReordering)
     editingAccount?.let { account ->
-        BalanceDialog(account, hidden = s.hideAmounts, dismiss ={ editingAccount = null }) { model.setBalance(account.account.id, it); editingAccount = null }
+        BalanceDialog(account, hidden = s.hideAmounts, dismiss = { editingAccount = null }) { model.setBalance(account.account.id, it); editingAccount = null }
     }
     Scaffold(
         topBar = {
@@ -172,48 +205,87 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
             })
         },
         snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) },
-        floatingActionButton = { AddTransactionFab(expanded = !listState.canScrollBackward) { model.navigate("edit/0") } }
+        floatingActionButton = { AddTransactionFab(expanded = !gridState.canScrollBackward) { model.navigate("edit/0") } }
     ) { padding ->
-    LazyColumn(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).padding(horizontal = 16.dp), state = listState,
-        contentPadding = PaddingValues(bottom = FAB_CLEARANCE)) {
-        item { Box(Modifier.padding(bottom = 8.dp)) { BalanceHero(s.net, pendingRows.size, pendingTotal, s.hideAmounts) { model.navigate("transactions") } } }
-        if (s.drafts > 0) item {
-            FilledTonalButton(onClick = { model.navigate("account-review") }, modifier = Modifier.fillMaxWidth()) {
-                Text("Assign accounts · ${s.drafts} to review")
+        LazyVerticalGrid(columns = GridCells.Fixed(2),
+            modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).padding(horizontal = 16.dp)
+                .onGloballyPositioned { drag.coordinates = it }
+                .accountDragGestures(drag, reordering && !saving, { currentAccounts }, model::reorderAccounts),
+            state = gridState, horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(bottom = FAB_CLEARANCE)) {
+            item(key = "balance", span = { GridItemSpan(maxLineSpan) }) {
+                Box(Modifier.padding(bottom = 8.dp)) { BalanceHero(s.net, pendingRows.size, pendingTotal, s.hideAmounts) { model.navigate("transactions") } }
             }
-        }
-        item { NextBillLine(s.nextBill, s.detectedBills, s.hideAmounts) { model.navigate("bills") } }
-        if (s.accounts.isNotEmpty()) {
-            item { AccountsHeader(s.accounts.sumOf { it.netValue }, s.hideAmounts) }
-            items(s.accounts, key = { "account:" + it.account.id }) { account ->
-                AccountRow(account, s.hideAmounts) { editingAccount = account }
-            }
-        }
-        item {
-            SectionHeader("Recent") {
-                if (s.rows.size > 5) TextButton(onClick = { model.navigate("transactions") }) { Text("See all") }
-            }
-        }
-        items(s.rows.take(5), key = { it.id }) { t ->
-            TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") },
-                accountNames = s.accounts.associate { it.account.id to it.account.name }, hideAmount = s.hideAmounts, confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null)
-        }
-        // First value is the first captured draft, so the empty ledger says what it is waiting on.
-        if (s.rows.isEmpty()) item {
-            when {
-                !accessOn -> EmptyState("Nothing counts until you do.",
-                    "Notification access is off, so payment alerts can't become drafts yet. You can still add transactions manually.") {
-                    FilledTonalButton(onClick = requestAccess) { Text("Turn on access") }
+            if (s.drafts > 0) item(key = "drafts", span = { GridItemSpan(maxLineSpan) }) {
+                FilledTonalButton(onClick = { model.navigate("account-review") }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Assign accounts · ${s.drafts} to review")
                 }
-                listeningApps.isEmpty() -> EmptyState("Nothing counts until you do.",
-                    "No apps chosen yet. Pick the bank and wallet apps whose payment alerts should become drafts.") {
-                    FilledTonalButton(onClick = { model.navigate("allow-list") }) { Text("Choose apps") }
+            }
+            item(key = "next-bill", span = { GridItemSpan(maxLineSpan) }) {
+                NextBillLine(s.nextBill, s.detectedBills, s.hideAmounts) { model.navigate("bills") }
+            }
+            if (accounts.isNotEmpty()) {
+                item(key = "accounts-heading", span = { GridItemSpan(maxLineSpan) }) {
+                    AccountsHeader(accounts.sumOf { it.netValue }, s.hideAmounts, accounts.size >= 2, reordering) {
+                        if (reordering) finishReordering() else { editingAccount = null; reordering = true }
+                    }
                 }
-                else -> EmptyState("Listening for your first ping.",
-                    "Your next payment alert from ${spokenList(listeningApps)} lands here as a draft. Confirm it and it counts.")
+                items(accounts, key = { "account:" + it.account.id }) { account ->
+                    val id = account.account.id
+                    val index = accounts.indexOfFirst { it.account.id == id }
+                    val dragging = drag.draggedId == id
+                    val tileModifier = Modifier.padding(top = 12.dp).zIndex(if (dragging) 1f else 0f)
+                        .animateItem(placementSpec = if (dragging) null else androidx.compose.animation.core.spring())
+                        .graphicsLayer {
+                            val offset = drag.translation(id)
+                            translationX = offset.x
+                            translationY = offset.y
+                        }
+                        .semantics {
+                            if (reordering) {
+                                stateDescription = "Position ${index + 1} of ${accounts.size}"
+                                liveRegion = LiveRegionMode.Polite
+                                customActions = if (saving || drag.draggedId != null) emptyList() else buildList {
+                                    fun move(to: Int): Boolean {
+                                        model.reorderAccounts(accounts.toMutableList().apply { add(to, removeAt(index)) }.map { it.account.id })
+                                        return true
+                                    }
+                                    if (index > 0) add(CustomAccessibilityAction("Move earlier") { move(index - 1) })
+                                    if (index < accounts.lastIndex) add(CustomAccessibilityAction("Move later") { move(index + 1) })
+                                }
+                            }
+                        }
+                    AccountTile(account, s.hideAmounts, reordering, tileModifier,
+                        handleModifier = Modifier.onGloballyPositioned { drag.handles[id] = it },
+                        edit = { editingAccount = account })
+                    DisposableEffect(id) { onDispose { drag.handles.remove(id) } }
+                }
+            }
+            item(key = "recent-heading", span = { GridItemSpan(maxLineSpan) }) {
+                SectionHeader("Recent") {
+                    if (s.rows.size > 5) TextButton(onClick = { model.navigate("transactions") }) { Text("See all") }
+                }
+            }
+            items(s.rows.take(5), key = { "transaction:${it.id}" }, span = { GridItemSpan(maxLineSpan) }) { t ->
+                TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") },
+                    accountNames = accounts.associate { it.account.id to it.account.name }, hideAmount = s.hideAmounts,
+                    confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null)
+            }
+            if (s.rows.isEmpty()) item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
+                when {
+                    !accessOn -> EmptyState("Nothing counts until you do.",
+                        "Notification access is off, so payment alerts can't become drafts yet. You can still add transactions manually.") {
+                        FilledTonalButton(onClick = requestAccess) { Text("Turn on access") }
+                    }
+                    listeningApps.isEmpty() -> EmptyState("Nothing counts until you do.",
+                        "No apps chosen yet. Pick the bank and wallet apps whose payment alerts should become drafts.") {
+                        FilledTonalButton(onClick = { model.navigate("allow-list") }) { Text("Choose apps") }
+                    }
+                    else -> EmptyState("Listening for your first ping.",
+                        "Your next payment alert from ${spokenList(listeningApps)} lands here as a draft. Confirm it and it counts.")
+                }
             }
         }
-    }
     }
 }
 
@@ -267,35 +339,50 @@ private fun BalanceHero(net: Long, pending: Int, pendingTotal: Long, hidden: Boo
 }
 
 @Composable
-private fun AccountsHeader(total: Long, hidden: Boolean) {
+private fun AccountsHeader(total: Long, hidden: Boolean, canReorder: Boolean, reordering: Boolean, reorder: () -> Unit) {
     Column {
         SectionHeader("Accounts") {
-            Text(splitMoney(total, LocalContentColor.current.copy(alpha = 0.55f)), style = MaterialTheme.typography.titleMedium.tabular(),
-                modifier = hiddenMoneyModifier(hidden))
+            if (canReorder || reordering) TextButton(onClick = reorder) { Text(if (reordering) "Done" else "Reorder") }
         }
-        Text("Estimated from confirmed transactions. Tap an account to enter its actual balance.",
+        Text(splitMoney(total, LocalContentColor.current.copy(alpha = 0.55f)), style = MaterialTheme.typography.titleMedium.tabular(),
+            modifier = Modifier.padding(horizontal = 4.dp).then(hiddenMoneyModifier(hidden)))
+        Text(if (reordering) "Drag a handle to move an account. Moves are saved on this device."
+            else "Estimated from confirmed transactions. Tap an account to enter its actual balance.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 4.dp))
     }
 }
 
 @Composable
-private fun AccountRow(account: AccountBalance, hidden: Boolean, edit: () -> Unit) {
+private fun AccountTile(account: AccountBalance, hidden: Boolean, reordering: Boolean, modifier: Modifier,
+                        handleModifier: Modifier, edit: () -> Unit) {
     val source = account.manual?.let {
         val on = shortDate(it.setAt.toLocalDateTime(TimeZone.currentSystemDefault()).date)
         if (hidden) "Set on $on" else "Set to ${money(it.minor)} on $on"
+    } ?: "From captured transactions"
+    Surface(modifier = modifier.fillMaxWidth()
+        .then(if (reordering) Modifier else Modifier.clickable(onClickLabel = "Edit ${account.account.name} balance", onClick = edit))
+        .semantics(mergeDescendants = true) {},
+        shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainer) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween) {
+                AppIcon(account.account.linkedApps.firstOrNull().orEmpty(), account.account.name)
+                if (reordering) Box(handleModifier.size(48.dp), contentAlignment = Alignment.Center) {
+                    Icon(painterResource(Res.drawable.symbol_drag_indicator), contentDescription = "Drag to reorder",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Text(account.account.name, style = MaterialTheme.typography.titleMedium)
+            Text(splitMoney(account.estimate, LocalContentColor.current.copy(alpha = 0.55f)),
+                style = MaterialTheme.typography.titleMedium.tabular(), modifier = hiddenMoneyModifier(hidden))
+            if (account.account.type == AccountType.CARD) Text("Debt owed", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (account.account.archived) Text("Archived", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(source, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
-        ?: "From captured transactions"
-    ListItem(
-        onClick = edit,
-        leadingContent = { AppIcon(account.account.linkedApps.firstOrNull().orEmpty(), account.account.name) },
-        supportingContent = { Text((if (account.account.type == ph.notifly.domain.model.AccountType.CARD) "Debt owed · " else "") + source + if (account.account.archived) " · Archived" else "", style = MaterialTheme.typography.bodySmall) },
-        trailingContent = {
-            Text(splitMoney(account.estimate, LocalContentColor.current.copy(alpha = 0.55f)), style = MaterialTheme.typography.titleMedium.tabular(),
-                modifier = hiddenMoneyModifier(hidden))
-        },
-        content = { Text(account.account.name, style = MaterialTheme.typography.titleMedium) },
-    )
 }
 
 /** Edits a nonnegative balance in minor units; reset passes null to [save]. The caller dismisses after saving. */

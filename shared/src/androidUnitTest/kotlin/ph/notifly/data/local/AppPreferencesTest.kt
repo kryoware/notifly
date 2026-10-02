@@ -33,24 +33,28 @@ class AppPreferencesTest {
             transform(state.value).also { state.value = it }
     }
 
-    @Test fun paletteSurvivesReopeningStore() = runBlocking {
-        val file = File.createTempFile("notifly", ".preferences_pb")
-        file.delete()
-        val firstScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        val secondScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        try {
-            val first = AppPreferences(PreferenceDataStoreFactory.create(scope = firstScope) { file })
-            assertEquals(NotiflyPalette.Ube, first.palette.first())
-            first.setPalette(NotiflyPalette.Clay)
-            firstScope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
-            firstScope.coroutineContext[kotlinx.coroutines.Job]!!.join()
-            val reopened = AppPreferences(PreferenceDataStoreFactory.create(scope = secondScope) { file })
-            assertEquals(NotiflyPalette.Clay, reopened.palette.first())
-        } finally {
-            firstScope.cancel()
-            secondScope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
-            secondScope.coroutineContext[kotlinx.coroutines.Job]!!.join()
+    @Test fun paletteAndHomeOrderSurviveReopeningStore() = runBlocking {
+        for (order in listOf(false, true)) {
+            val file = File.createTempFile("notifly", ".preferences_pb")
             file.delete()
+            val firstScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            val secondScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            try {
+                val first = AppPreferences(PreferenceDataStoreFactory.create(scope = firstScope) { file })
+                assertEquals(NotiflyPalette.Ube, first.palette.first())
+                assertEquals(emptyList(), first.homeAccountOrder.first())
+                if (order) first.setHomeAccountOrder(listOf(8L, 3L, 12L)) else first.setPalette(NotiflyPalette.Clay)
+                firstScope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
+                firstScope.coroutineContext[kotlinx.coroutines.Job]!!.join()
+                val reopened = AppPreferences(PreferenceDataStoreFactory.create(scope = secondScope) { file })
+                if (order) assertEquals(listOf(8L, 3L, 12L), reopened.homeAccountOrder.first())
+                else assertEquals(NotiflyPalette.Clay, reopened.palette.first())
+            } finally {
+                firstScope.cancel()
+                secondScope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
+                secondScope.coroutineContext[kotlinx.coroutines.Job]!!.join()
+                file.delete()
+            }
         }
     }
 
@@ -62,6 +66,7 @@ class AppPreferencesTest {
         assertEquals(true, preferences.offline.first())
         assertEquals(false, preferences.keepRawText.first())
         assertEquals(false, preferences.crashReporting.first())
+        assertEquals(emptyList(), preferences.homeAccountOrder.first())
     }
 
     @Test fun nonIoReadFailuresAreRethrown() {

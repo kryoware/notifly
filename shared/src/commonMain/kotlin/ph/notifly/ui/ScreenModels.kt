@@ -82,11 +82,31 @@ class HomeModel(
         val next = upcoming(all, today).all.firstOrNull()?.let { NextBill(it.bill.name, it.bill.amountMinor, (it.dueOn.toEpochDays() - today.toEpochDays()).toInt()) }
         next to all.count { it.status == TransactionStatus.NEEDS_REVIEW }
     }
-    val state = combine(repository.observeAll(), ledger.observeAccounts(), ledger.observeDrafts(), preferences.hideAmounts) { rows, accounts, drafts, hide ->
-        val balances = accountBalances(accounts, rows)
+    private val pendingOrder = MutableStateFlow<List<Long>?>(null)
+    val savingOrder = pendingOrder.map { it != null }
+    private val savedState = combine(repository.observeAll(), ledger.observeAccounts(), ledger.observeDrafts(),
+        preferences.hideAmounts, preferences.homeAccountOrder) { rows, accounts, drafts, hide, order ->
+        val balances = homeAccountOrder(accountBalances(accounts, rows), order)
         LedgerState(rows, balances.sumOf { it.netValue }, balances, drafts.size, hide, loaded = true)
+    }
+    val state = combine(savedState, pendingOrder) { saved, pending ->
+        if (pending == null) saved else saved.copy(accounts = homeAccountOrder(saved.accounts, pending))
     }.combine(billLine) { s, (next, detected) -> s.copy(nextBill = next, detectedBills = detected)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LedgerState())
+
+    fun reorderAccounts(ids: List<Long>) {
+        if (pendingOrder.value != null || ids == state.value.accounts.map { it.account.id }) return
+        pendingOrder.value = ids
+        work {
+            try {
+                preferences.setHomeAccountOrder(ids)
+                // Wait for the saved flow before removing the optimistic order.
+                savedState.first { it.accounts == homeAccountOrder(it.accounts, ids) }
+            } finally {
+                pendingOrder.value = null
+            }
+        }
+    }
     fun hideAmounts(value: Boolean) = work { preferences.setHideAmounts(value) }
     fun setBalance(id: Long, minor: Long?) = work {
         val account = ledger.observeAccounts().first().first { it.id == id }
