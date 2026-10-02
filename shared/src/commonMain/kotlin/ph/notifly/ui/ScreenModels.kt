@@ -117,10 +117,10 @@ class BudgetsModel(private val preferences: AppPreferences, private val ledger: 
         BudgetsState(monthly, categories.filter { it.type == TransactionType.EXPENSE })
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     /** Writes the cap and every category whose budget changed; the caller has already checked the cap. */
-    fun save(monthly: Long?, budgets: Map<Long, Long?>) {
-        if (mutableBusy.value) return
+    fun save(monthly: Long?, budgets: Map<Long, Long?>): kotlinx.coroutines.Job {
+        if (mutableBusy.value) return work {}
         mutableBusy.value = true
-        work {
+        return work {
         try {
         val categories = ledger.observeCategories().first().filter { it.type == TransactionType.EXPENSE }.associateBy { it.id }
         require(budgets.keys.all { it in categories }) { "A category no longer exists. Reload budgets and try again." }
