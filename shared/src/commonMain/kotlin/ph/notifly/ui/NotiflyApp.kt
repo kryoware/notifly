@@ -254,7 +254,7 @@ private fun AppDestination(
 private fun EditorDestination(title: String, snackbar: SnackbarHostState, model: EditorModel,
                               appLabels: Map<String, String>, exit: () -> Unit) {
     val s by model.state.collectAsState()
-    var discard by remember { mutableStateOf(false) }
+    var discard by rememberSaveable { mutableStateOf(false) }
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = s.dirty, onBackCompleted = { discard = true })
     AppDestination(title, snackbar, onBack = { if (s.dirty) discard = true else exit() }) { EditorScreen(model, appLabels) }
     if (discard) AlertDialog(onDismissRequest = { discard = false }, title = { Text("Discard changes?") },

@@ -82,10 +82,10 @@ fun BillsScreen(model: BillsModel, appLabels: Map<String, String> = emptyMap(), 
     val s by model.state.collectAsState()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
-    var paying by remember { mutableStateOf<BillDue?>(null) }
+    var payingId by rememberSaveable { mutableStateOf<Long?>(null) }
     val selectedDay = selected?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: s.today
     val listState = rememberLazyListState()
-    paying = paying?.let { p -> s.bills.find { it.id == p.bill.id }?.nextDue?.let { BillDue(s.bills.first { b -> b.id == p.bill.id }, it) } }
+    val paying = payingId?.let { id -> s.bills.find { it.id == id }?.let { b -> b.nextDue?.let { BillDue(b, it) } } }
     Scaffold(
         topBar = { TopAppBar(title = { Text(if (demo) "Bills · Demo" else "Bills") }) },
         snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) },
@@ -102,12 +102,12 @@ fun BillsScreen(model: BillsModel, appLabels: Map<String, String> = emptyMap(), 
                 }
             }
             Crossfade(tab, label = "bills-tab") { current ->
-                if (current == 0) UpcomingTab(model, s, appLabels, listState, notificationsAllowed, requestNotifications) { paying = it }
-                else CalendarTab(model, s, appLabels, selectedDay, { selected = it.toString() }) { paying = it }
+                if (current == 0) UpcomingTab(model, s, appLabels, listState, notificationsAllowed, requestNotifications) { payingId = it.bill.id }
+                else CalendarTab(model, s, appLabels, selectedDay, { selected = it.toString() }) { payingId = it.bill.id }
             }
         }
     }
-    paying?.let { due -> PaySheet(model, s, due, onDismiss = { paying = null }) }
+    paying?.let { due -> PaySheet(model, s, due, onDismiss = { payingId = null }) }
 }
 
 @Composable
@@ -396,8 +396,8 @@ private fun PaySheet(model: BillsModel, s: BillsState, due: BillDue, onDismiss: 
 @Composable
 fun BillEditorScreen(model: BillEditorModel, appLabels: Map<String, String> = emptyMap()) {
     val s by model.state.collectAsState()
-    var showDate by remember { mutableStateOf(false) }
-    var delete by remember { mutableStateOf(false) }
+    var showDate by rememberSaveable { mutableStateOf(false) }
+    var delete by rememberSaveable { mutableStateOf(false) }
     val reviewing = s.reviewing
     LazyColumn(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(vertical = 12.dp)) {

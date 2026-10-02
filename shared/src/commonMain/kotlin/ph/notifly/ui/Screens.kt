@@ -43,6 +43,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -183,7 +185,8 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
     val gridState = rememberLazyGridState()
     val drag = remember(gridState) { HomeAccountDrag(gridState) }
     var reordering by remember { mutableStateOf(false) }
-    var editingAccount by remember { mutableStateOf<AccountBalance?>(null) }
+    var editingAccountId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val editingAccount = editingAccountId?.let { id -> s.accounts.find { it.account.id == id } }
     val accounts = drag.order?.let { preview ->
         homeAccountOrder(s.accounts, preview.map { it.account.id })
     } ?: s.accounts
@@ -203,7 +206,7 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
     fun finishReordering() { drag.cancel(); reordering = false }
     ReorderBackHandler(reordering, ::finishReordering)
     editingAccount?.let { account ->
-        BalanceDialog(account, hidden = s.hideAmounts, dismiss = { editingAccount = null }) { model.setBalance(account.account.id, it); editingAccount = null }
+        BalanceDialog(account, hidden = s.hideAmounts, dismiss = { editingAccountId = null }) { model.setBalance(account.account.id, it); editingAccountId = null }
     }
     Scaffold(
         topBar = {
@@ -239,7 +242,7 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
             if (accounts.isNotEmpty()) {
                 item(key = "accounts-heading", span = { GridItemSpan(maxLineSpan) }) {
                     AccountsHeader(accounts.sumOf { it.netValue }, s.hideAmounts, accounts.size >= 2, reordering) {
-                        if (reordering) finishReordering() else { editingAccount = null; reordering = true }
+                        if (reordering) finishReordering() else { editingAccountId = null; reordering = true }
                     }
                 }
                 items(accounts, key = { "account:" + it.account.id }) { account ->
@@ -269,7 +272,7 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
                         }
                     AccountTile(account, s.hideAmounts, reordering, tileModifier,
                         handleModifier = Modifier.onGloballyPositioned { drag.handles[id] = it },
-                        edit = { editingAccount = account })
+                        edit = { editingAccountId = account.account.id })
                     DisposableEffect(id) { onDispose { drag.handles.remove(id) } }
                 }
             }
@@ -453,8 +456,8 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                        snackbar: SnackbarHostState? = null, demo: Boolean = false) {
     val s by model.state.collectAsState()
     val listState = rememberLazyListState()
-    var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
-    var confirmBulkDelete by remember { mutableStateOf(false) }
+    var selectedIds by rememberSaveable(stateSaver = IdSetSaver) { mutableStateOf<Set<Long>>(emptySet()) }
+    var confirmBulkDelete by rememberSaveable { mutableStateOf(false) }
     val selectionMode = selectedIds.isNotEmpty()
     val selectedRows = s.rows.filter { it.id in selectedIds }
     LaunchedEffect(s.rows) { selectedIds = selectedIds.intersect(s.rows.map { it.id }.toSet()) }
@@ -624,8 +627,8 @@ internal fun CategoryField(value: String, categories: List<String>, onValueChang
 internal fun DateTimeFields(date: String, time: String, onDate: (String) -> Unit, onTime: (String) -> Unit,
                            dateError: String? = null, timeError: String? = null,
                            focusDateError: Boolean = false, focusTimeError: Boolean = false) {
-    var showDate by remember { mutableStateOf(false) }
-    var showTime by remember { mutableStateOf(false) }
+    var showDate by rememberSaveable { mutableStateOf(false) }
+    var showTime by rememberSaveable { mutableStateOf(false) }
     val is24Hour = is24HourClock()
     val dateFocus = remember { FocusRequester() }
     val timeFocus = remember { FocusRequester() }
@@ -704,7 +707,7 @@ internal fun DateTimeFields(date: String, time: String, onDate: (String) -> Unit
 @Composable
 fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()) {
     val s by model.state.collectAsState()
-    var delete by remember { mutableStateOf(false) }
+    var delete by rememberSaveable { mutableStateOf(false) }
     val titleFocus = remember { FocusRequester() }
     val amountFocus = remember { FocusRequester() }
     val feeFocus = remember { FocusRequester() }
@@ -1412,3 +1415,5 @@ fun AuthScreen(model: AuthModel, demo: Boolean) {
         OutlinedButton(onClick = { model.startOffline() }, modifier = WideButton) { Text("Continue offline") }
     }
 }
+
+private val IdSetSaver = Saver<Set<Long>, Any>(save = { it.toLongArray() }, restore = { (it as LongArray).toSet() })
