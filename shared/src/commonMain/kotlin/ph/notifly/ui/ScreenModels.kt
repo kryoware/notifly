@@ -3,6 +3,8 @@ package ph.notifly.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -29,7 +31,8 @@ import org.koin.mp.KoinPlatformTools
 
 sealed interface UiEvent {
     data class Navigate(val route: String) : UiEvent
-    data class Message(val text: String, val undo: Transaction? = null) : UiEvent
+    /** [undo] restores a deleted or confirmed transaction; [onUndo] reverses anything else, such as a bill payment. */
+    data class Message(val text: String, val undo: Transaction? = null, val onUndo: (suspend () -> Unit)? = null) : UiEvent
 }
 
 open class ScreenModel : ViewModel() {
@@ -53,7 +56,11 @@ data class LedgerState(val rows: List<Transaction> = emptyList(), val net: Long 
     val hideAmounts: Boolean = true,
     /** False until the saved hide preference arrives; the toggle stays disabled meanwhile. */
     val loaded: Boolean = false,
+    val nextBill: NextBill? = null,
+    val detectedBills: Int = 0,
 )
+/** [days] is negative once the bill is overdue. */
+data class NextBill(val name: String, val amountMinor: Long, val days: Int)
 data class InsightsState(
     val days: Int = INSIGHT_WINDOWS.first(),
     val windows: List<WindowInsights> = emptyList(),
@@ -69,10 +76,16 @@ class HomeModel(
     apps: AllowListRepository,
     private val preferences: AppPreferences,
     private val ledger: LedgerRepository,
+    bills: BillRepository? = null,
 ) : ScreenModel() {
+    private val billLine = (bills?.observeBills() ?: flowOf(emptyList())).combine(localToday()) { all, today ->
+        val next = upcoming(all, today).all.firstOrNull()?.let { NextBill(it.bill.name, it.bill.amountMinor, (it.dueOn.toEpochDays() - today.toEpochDays()).toInt()) }
+        next to all.count { it.status == TransactionStatus.NEEDS_REVIEW }
+    }
     val state = combine(repository.observeAll(), ledger.observeAccounts(), ledger.observeDrafts(), preferences.hideAmounts) { rows, accounts, drafts, hide ->
         val balances = accountBalances(accounts, rows)
         LedgerState(rows, balances.sumOf { it.netValue }, balances, drafts.size, hide, loaded = true)
+    }.combine(billLine) { s, (next, detected) -> s.copy(nextBill = next, detectedBills = detected)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LedgerState())
     fun hideAmounts(value: Boolean) = work { preferences.setHideAmounts(value) }
     fun setBalance(id: Long, minor: Long?) = work {
@@ -105,15 +118,33 @@ class InsightsModel(repository: TransactionRepository, private val preferences: 
             budget, rows.count { it.status == TransactionStatus.NEEDS_REVIEW }, categoryBudgets)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InsightsState())
     fun days(value: Int) { days.value = value }
-    fun budget(minor: Long?) = work { preferences.setMonthlyBudget(minor) }
 }
+/** The monthly cap and expense categories; null until both have loaded. */
+data class BudgetsState(val monthly: Long?, val categories: List<Category>)
 class BudgetsModel(private val preferences: AppPreferences, private val ledger: LedgerRepository) : ScreenModel() {
-    val categories = ledger.observeCategories().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val state = categories.map { list -> list.filter { it.type == TransactionType.EXPENSE && it.budgetMinor != null }
-        .associate { it.name to it.budgetMinor!! } }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
-    fun budget(name: String, minor: Long?) = work {
-        val category = ledger.observeCategories().first().first { it.name == name && it.type == TransactionType.EXPENSE }
-        ledger.saveCategory(category.copy(budgetMinor = minor))
+    private val mutableBusy = MutableStateFlow(false)
+    val busy = mutableBusy.asStateFlow()
+    val state = combine(preferences.monthlyBudget, ledger.observeCategories()) { monthly, categories ->
+        BudgetsState(monthly, categories.filter { it.type == TransactionType.EXPENSE })
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    /** Writes the cap and every category whose budget changed; the caller has already checked the cap. */
+    fun save(monthly: Long?, budgets: Map<Long, Long?>): kotlinx.coroutines.Job {
+        if (mutableBusy.value) return work {}
+        mutableBusy.value = true
+        return work {
+        try {
+        val categories = ledger.observeCategories().first().filter { it.type == TransactionType.EXPENSE }.associateBy { it.id }
+        require(budgets.keys.all { it in categories }) { "A category no longer exists. Reload budgets and try again." }
+        // Navigation must not cancel halfway through writes to these separate stores.
+        withContext(NonCancellable) {
+            preferences.setMonthlyBudget(monthly)
+            budgets.forEach { (id, minor) ->
+                categories.getValue(id).takeIf { it.budgetMinor != minor }?.let { ledger.saveCategory(it.copy(budgetMinor = minor)) }
+            }
+        }
+        mutableEvents.emit(UiEvent.Message("Budgets saved"))
+        } finally { mutableBusy.value = false }
+        }
     }
 }
 enum class TransactionFilter { ALL, NEEDS_REVIEW, INCOME, EXPENSE, TRANSFER }
@@ -173,9 +204,13 @@ data class EditorState(
 )
 class EditorModel(private val repository: TransactionRepository, id: Long,
                   captures: CaptureRepository? = null, captureId: Long? = null,
-                  private val ledger: LedgerRepository, apps: AllowListRepository, private val draftId: Long? = null) : ScreenModel() {
+                  private val ledger: LedgerRepository, apps: AllowListRepository, private val draftId: Long? = null,
+                  private val bills: BillRepository? = null, private val billId: Long? = null) : ScreenModel() {
     private val mutableState = MutableStateFlow(EditorState())
     val state = mutableState.asStateFlow()
+    /** Set when this editor records a bill payment: the occurrence being paid and the bill's name. */
+    private var billDue: LocalDate? = null
+    private var billName: String = ""
     init { work {
         ledger.initialize()
         val t = if (id == 0L) null else repository.byId(id)
@@ -198,6 +233,16 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
                 toAccountId = if (draft.type == TransactionType.TRANSFER && draft.inbound == true) draft.accountId else draft.toAccountId,
                 sourceApp = draft.sourceApp, captureId = draft.captureId, date = local.date.toString(),
                 time = local.hour.toString().padStart(2, '0') + ":" + local.minute.toString().padStart(2, '0'))
+        }
+        if (billId != null) {
+            val bill = bills?.byId(billId)
+            val due = bill?.nextDue
+            if (bill == null || due == null) { mutableState.value = state.value.copy(ready = false, error = "Bill no longer exists."); return@work }
+            billDue = due
+            billName = bill.name
+            val categoryId = ledger.observeCategories().first().find { it.type == TransactionType.EXPENSE && it.name == bill.category }?.id
+            mutableState.value = state.value.copy(type = TransactionType.EXPENSE, title = bill.name, amount = amountText(bill.amountMinor),
+                category = bill.category, categoryId = categoryId, accountId = bill.accountId)
         }
         val linkedCaptureId = captureId ?: draft?.captureId ?: t?.captureId
         if (linkedCaptureId != null) {
@@ -228,8 +273,11 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
     }
     /**
      * Validates the editor fields and asynchronously saves a confirmed transaction, then navigates
-     * to the list. Calls before loading or during a save are ignored. Invalid fields and save failures
-     * are exposed in [state]; coroutine cancellation is rethrown.
+     * to Transactions, or to Bills after linking a bill payment. Bill payments offer Undo that removes
+     * the settlement and saved transaction. A rejected settlement removes a newly created transaction
+     * and shows an error. Other save failures attempt to remove a newly inserted manual transaction.
+     * Calls before loading or during a save are ignored. Invalid fields and save failures are exposed
+     * in [state]; coroutine cancellation is rethrown.
      */
     fun save() {
         val s = state.value
@@ -257,6 +305,7 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
         mutableState.value = s.copy(saving = true)
         val occurredAt = date.atTime(time).toInstant(TimeZone.currentSystemDefault())
         work {
+            var createdId: Long? = null
             try {
                 val transaction = s.original?.copy(title = s.title.trim(), amountMinor = amount,
                     category = s.category, categoryId = s.categoryId, type = s.type, status = TransactionStatus.CONFIRMED,
@@ -266,11 +315,23 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
                         status = TransactionStatus.CONFIRMED, category = s.category, categoryId = s.categoryId,
                         occurredAt = occurredAt, createdAt = Clock.System.now(), sourceApp = s.sourceApp,
                         captureId = s.captureId, accountId = account.id, toAccountId = s.toAccountId)
-                if (draftId != null) ledger.confirmDraft(draftId, transaction) else repository.upsert(transaction)
-                mutableEvents.emit(UiEvent.Navigate("transactions"))
+                val savedId = if (draftId != null) ledger.confirmDraft(draftId, transaction) else repository.upsert(transaction)
+                if (s.original == null && draftId == null) createdId = savedId
+                val due = billDue
+                val paymentId = if (billId != null && due != null && bills != null) bills.settle(billId, due, savedId) else -1L
+                if (billId != null && paymentId < 0) {
+                    if (s.original == null) repository.delete(savedId)
+                    mutableState.value = state.value.copy(error = "This bill occurrence changed. No payment was recorded; please try again.")
+                    return@work
+                }
+                if (paymentId > 0) {
+                    mutableEvents.emit(UiEvent.Navigate("bills"))
+                    mutableEvents.emit(UiEvent.Message("$billName marked paid", onUndo = { bills?.unsettle(paymentId); repository.delete(savedId) }))
+                } else mutableEvents.emit(UiEvent.Navigate("transactions"))
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (_: Exception) {
+                createdId?.let { runCatching { repository.delete(it) } }
                 mutableState.value = state.value.copy(error = "Couldn't save the transaction. Please try again.")
             } finally { mutableState.value = state.value.copy(saving = false) }
         }
@@ -284,12 +345,15 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
 
 data class SettingsState(val palette: NotiflyPalette = NotiflyPalette.Ube, val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val offline: Boolean = true, val pending: Int = 0, val crashReporting: Boolean = false,
-    val pinSet: Boolean = false, val biometric: Boolean = false)
+    val pinSet: Boolean = false, val biometric: Boolean = false, val billReminderDays: Int? = null)
 class SettingsModel(private val preferences: AppPreferences, pending: Flow<Int>) : ScreenModel() {
     val state = combine(preferences.palette, preferences.themeMode, preferences.offline, pending, preferences.crashReporting, ::SettingsState)
         .combine(preferences.pinSet) { s, pin -> s.copy(pinSet = pin) }
         .combine(preferences.biometricUnlock) { s, bio -> s.copy(biometric = bio) }
+        .combine(preferences.billReminderDays) { s, days -> s.copy(billReminderDays = days) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsState())
+    /** Asynchronously stores the reminder lead time in days, or disables reminders for null; non-cancellation failures become UI messages. */
+    fun billReminders(days: Int?) = work { preferences.setBillReminderDays(days) }
     fun palette(value: NotiflyPalette) = work { preferences.setPalette(value) }
     fun themeMode(value: ThemeMode) = work { preferences.setThemeMode(value) }
     fun offline(value: Boolean) = work {
@@ -312,6 +376,161 @@ class SettingsModel(private val preferences: AppPreferences, pending: Flow<Int>)
         navigate("onboarding/0")
     }
 }
+private fun today() = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+
+data class BillsState(
+    val today: LocalDate = today(),
+    val bills: List<Bill> = emptyList(),
+    val payments: List<BillPayment> = emptyList(),
+    /** Every status: a NEEDS_REVIEW expense is still a candidate payment, and linking it confirms it. */
+    val transactions: List<Transaction> = emptyList(),
+    val accountNames: Map<Long, String> = emptyMap(),
+    /** True until the saved preference arrives, so the placeholder frame never shows figures. */
+    val hideAmounts: Boolean = true,
+    val reminderDays: Int? = null,
+    /** True until the saved preference arrives, so the prompt never flashes. */
+    val promptDismissed: Boolean = true,
+    val loaded: Boolean = false,
+) {
+    val due = upcoming(bills, today)
+    val detected = bills.filter { it.status == TransactionStatus.NEEDS_REVIEW }
+    val summary = due.summary(today)
+}
+
+class BillsModel(private val bills: BillRepository, private val transactions: TransactionRepository,
+                 ledger: LedgerRepository, private val preferences: AppPreferences) : ScreenModel() {
+    val state = combine(bills.observeBills(), bills.observePayments(), transactions.observeAll(), ledger.observeAccounts()) { b, p, t, a ->
+        BillsState(bills = b, payments = p, transactions = t, accountNames = a.associate { it.id to it.name }, loaded = true)
+    }.combine(preferences.hideAmounts) { s, hide -> s.copy(hideAmounts = hide) }
+        .combine(preferences.billReminderDays) { s, days -> s.copy(reminderDays = days) }
+        .combine(preferences.billPromptDismissed) { s, dismissed -> s.copy(promptDismissed = dismissed) }
+        .combine(localToday()) { s, day -> s.copy(today = day) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BillsState())
+
+    /** Asynchronously confirms or merges the bill and emits a success message; non-cancellation failures become UI messages. */
+    fun confirm(bill: Bill) = work {
+        bills.confirm(bill.id)
+        mutableEvents.emit(UiEvent.Message("${bill.name} bill confirmed"))
+    }
+    /** Deletes the bill and emits Undo to restore the supplied bill, without its payment history; non-cancellation failures become UI messages. */
+    fun dismiss(bill: Bill) = work {
+        bills.delete(bill.id)
+        mutableEvents.emit(UiEvent.Message("${bill.name} bill dismissed", onUndo = { bills.save(bill) }))
+    }
+    /** The user's tap is the confirmation, so a NEEDS_REVIEW expense is confirmed as it is linked. */
+    fun link(bill: Bill, due: LocalDate, transaction: Transaction) = work {
+        val review = transaction.status == TransactionStatus.NEEDS_REVIEW
+        if (review) transactions.upsert(transaction.copy(status = TransactionStatus.CONFIRMED))
+        settle(bill, due, transaction.id, "${bill.name} marked paid") { if (review) transactions.upsert(transaction) }
+    }
+    /** Asynchronously records the occurrence as skipped and offers Undo; non-cancellation failures become UI messages. */
+    fun skip(bill: Bill, due: LocalDate) = work { settle(bill, due, null, "${bill.name} skipped") {} }
+    /**
+     * Records a payment or skip and emits [text] with Undo that reverses it before calling [undoExtra].
+     * A rejected occurrence emits nothing. Repository failures propagate to the caller.
+     */
+    private suspend fun settle(bill: Bill, due: LocalDate, transactionId: Long?, text: String, undoExtra: suspend () -> Unit) {
+        val paymentId = bills.settle(bill.id, due, transactionId)
+        if (paymentId < 0) return
+        mutableEvents.emit(UiEvent.Message(text, onUndo = { bills.unsettle(paymentId); undoExtra() }))
+    }
+    /** One day before is the default; the lead time can be changed in Settings. */
+    fun turnOnReminders() = work { preferences.setBillReminderDays(1) }
+    /** Persists dismissal of the reminder prompt asynchronously; non-cancellation failures become UI messages. */
+    fun dismissPrompt() = work { preferences.setBillPromptDismissed(true) }
+}
+
+data class BillEditorState(
+    val original: Bill? = null, val name: String = "", val amount: String = "",
+    val due: LocalDate = today(), val repeat: BillRepeat = BillRepeat.MONTHLY,
+    val category: String = "Bills", val accountId: Long? = null,
+    val nameError: String? = null, val amountError: String? = null, val error: String? = null,
+    val ready: Boolean = false, val saving: Boolean = false,
+    val categories: List<String> = emptyList(), val accounts: List<Account> = emptyList(),
+) {
+    val reviewing get() = original?.status == TransactionStatus.NEEDS_REVIEW
+}
+
+class BillEditorModel(private val bills: BillRepository, ledger: LedgerRepository, id: Long, prefillDue: LocalDate? = null) : ScreenModel() {
+    private val mutableState = MutableStateFlow(BillEditorState())
+    val state = mutableState.asStateFlow()
+    init { work {
+        ledger.initialize()
+        val bill = if (id == 0L) null else bills.byId(id)
+        if (id != 0L && bill == null) { mutableState.value = BillEditorState(error = "Bill no longer exists."); return@work }
+        mutableState.value = BillEditorState(bill, bill?.name.orEmpty(), bill?.let { amountText(it.amountMinor) }.orEmpty(),
+            due = bill?.let { it.nextDue ?: it.startsOn } ?: prefillDue ?: today(), repeat = bill?.repeat ?: BillRepeat.MONTHLY,
+            category = bill?.category ?: "Bills", accountId = bill?.accountId, ready = true)
+        viewModelScope.launch {
+            combine(ledger.observeCategories(), ledger.observeAccounts()) { categories, accounts ->
+                categories.filter { it.type == TransactionType.EXPENSE && !it.archived }.map { it.name } to accounts
+            }.collect { (categories, accounts) ->
+                mutableState.value = state.value.copy(categories = categories, accounts = accounts.filter { !it.archived || it.id == state.value.accountId })
+            }
+        }
+    } }
+    /** Updates bill editor fields and clears inline errors without saving. */
+    fun edit(name: String = state.value.name, amount: String = state.value.amount, due: LocalDate = state.value.due,
+             repeat: BillRepeat = state.value.repeat, category: String = state.value.category, accountId: Long? = state.value.accountId) {
+        mutableState.value = state.value.copy(name = name, amount = amount, due = due, repeat = repeat, category = category,
+            accountId = accountId, nameError = null, amountError = null, error = null)
+    }
+    /**
+     * Builds a bill from the editor, setting inline errors and returning null for a blank name or an
+     * invalid amount (including nonpositive, overflowing, or more than two decimal places).
+     * Changing the due date or repeat schedule resets the anchor, settled count, and reminder marker.
+     */
+    private fun build(): Bill? {
+        val s = state.value
+        val amount = parseAmountMinor(s.amount)
+        if (s.name.isBlank() || amount == null) {
+            mutableState.value = s.copy(nameError = if (s.name.isBlank()) "Add a bill name." else null,
+                amountError = if (amount == null) "Enter an amount above zero, with at most two decimal places." else null)
+            return null
+        }
+        val original = s.original ?: return Bill(name = s.name.trim(), amountMinor = amount, category = s.category, accountId = s.accountId,
+            startsOn = s.due, repeat = s.repeat, status = TransactionStatus.CONFIRMED, createdAt = Clock.System.now())
+        // Moving the due date or the schedule re-anchors the series at the chosen date.
+        val moved = s.due != (original.nextDue ?: original.startsOn) || s.repeat != original.repeat
+        return original.copy(name = s.name.trim(), amountMinor = amount, category = s.category, accountId = s.accountId, repeat = s.repeat,
+            startsOn = if (moved) s.due else original.startsOn,
+            remindedFor = if (moved) null else original.remindedFor)
+    }
+    /**
+     * Validates fields, then runs [action] asynchronously if loaded and idle. On success, navigates to
+     * Bills and shows the returned message. Non-cancellation failures become UI messages; the saving
+     * flag is cleared when the action finishes or throws.
+     */
+    private fun finish(action: suspend (Bill) -> String) {
+        val bill = build() ?: return
+        if (!state.value.ready || state.value.saving) return
+        mutableState.value = state.value.copy(saving = true)
+        work {
+            try {
+                val text = action(bill)
+                mutableEvents.emit(UiEvent.Navigate("bills"))
+                mutableEvents.emit(UiEvent.Message(text))
+            } finally { mutableState.value = state.value.copy(saving = false) }
+        }
+    }
+    /** Validates and saves the bill asynchronously, then returns to Bills; non-cancellation failures become UI messages. */
+    fun save() = finish { bills.save(it); "${it.name} saved" }
+    /** Saves the edits, then confirms; confirming may update an existing bill from the same app instead. */
+    fun confirm() = finish { bills.confirm(bills.save(it)); "${it.name} bill confirmed" }
+    fun dismiss() = work {
+        val bill = state.value.original ?: return@work
+        bills.delete(bill.id)
+        mutableEvents.emit(UiEvent.Navigate("bills"))
+        mutableEvents.emit(UiEvent.Message("${bill.name} bill dismissed", onUndo = { bills.save(bill) }))
+    }
+    fun delete() = work {
+        val bill = state.value.original ?: return@work
+        bills.delete(bill.id)
+        mutableEvents.emit(UiEvent.Navigate("bills"))
+        mutableEvents.emit(UiEvent.Message("${bill.name} deleted"))
+    }
+}
+
 /** [checked] counts every enabled app, not just those matching [query]. */
 data class AllowListState(val apps: List<AllowedApp> = emptyList(), val query: String = "", val finance: Boolean = false, val checked: Int = 0)
 /** In [finance] mode, lists only allowed apps and toggles whether each one takes part in transfer detection. */

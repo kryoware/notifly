@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Needed to list installed apps for the allow-list picker. Play Store
          requires a declared justification for this one. -->
     <uses-permission
@@ -40,6 +41,10 @@
         -->
         <service
             android:name=".service.CaptureMaintenanceService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+        <service
+            android:name=".service.BillReminderService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
         <service

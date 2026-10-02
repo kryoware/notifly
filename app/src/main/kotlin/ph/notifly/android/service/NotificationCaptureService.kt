@@ -12,7 +12,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.koin.android.ext.android.inject
-import ph.notifly.android.BuildConfig
 import ph.notifly.domain.diagnostics.ErrorReporter
 import ph.notifly.domain.diagnostics.ErrorSite
 import ph.notifly.domain.source.NotificationContent
@@ -68,32 +67,10 @@ class NotificationCaptureService : NotificationListenerService() {
                     title = extras?.getCharSequence("android.title")?.toString().orEmpty(),
                     text = (extras?.getCharSequence("android.bigText")
                         ?: extras?.getCharSequence("android.text"))?.toString().orEmpty(),
-                    extras = if (BuildConfig.DEBUG) rawFields() else emptyMap(),
+                    extras = emptyMap(),
                 )
             },
         )
     }
 
-    /** Debug-only dump of every text-like field, for parser training exports. */
-    private fun StatusBarNotification.rawFields(): Map<String, String> {
-        val n = notification ?: return emptyMap()
-        val bundle = n.extras
-        @Suppress("DEPRECATION")
-        val extras = bundle?.keySet().orEmpty().mapNotNull { key ->
-            when (val value = bundle.get(key)) {
-                is CharSequence, is Number, is Boolean -> value.toString()
-                // textLines (InboxStyle) and messages (MessagingStyle bundles)
-                is Array<*> -> value.mapNotNull { (it as? CharSequence ?: (it as? android.os.Bundle)?.getCharSequence("text"))?.toString() }
-                    .joinToString("\n").ifEmpty { null }
-                else -> null
-            }?.let { key to it }
-        }.toMap()
-        return extras + listOfNotNull(
-            "packageName" to packageName,
-            n.channelId?.let { "channelId" to it },
-            n.category?.let { "category" to it },
-            n.group?.let { "group" to it },
-            n.tickerText?.let { "tickerText" to it.toString() },
-        )
-    }
 }

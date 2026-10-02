@@ -61,6 +61,7 @@ private fun CaptureResult.label() = when (this) {
     CaptureResult.NEEDS_REVIEW -> "Needs review"
     CaptureResult.UNRECOGNIZED -> "Not recognised"
     CaptureResult.IGNORED -> "Ignored"
+    CaptureResult.BILL -> "Bill"
 }
 
 private fun CaptureResult?.icon() = when (this) {
@@ -69,6 +70,7 @@ private fun CaptureResult?.icon() = when (this) {
     CaptureResult.NEEDS_REVIEW -> Res.drawable.symbol_pending_actions
     CaptureResult.UNRECOGNIZED -> Res.drawable.symbol_help
     CaptureResult.IGNORED -> Res.drawable.symbol_clear
+    CaptureResult.BILL -> Res.drawable.symbol_event_upcoming
 }
 
 @Composable
@@ -77,7 +79,7 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDe
     var expanded by remember { mutableStateOf<Long?>(null) }
     var clear by remember { mutableStateOf(false) }
     val parser = remember { NotificationParser() }
-    val saveCsv = rememberCsvSaver { s.captures.toCsv(raw = isDebugBuild) }
+    val saveCsv = rememberCsvSaver { s.captures.toCsv() }
     Column(Modifier.fillMaxSize()) {
         val filters = listOf(null) + CaptureResult.entries.filter { it != CaptureResult.IGNORED }
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -93,7 +95,7 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDe
         }
         Column(Modifier.padding(horizontal = 16.dp)) {
             SettingsGroup { SettingsRow("Keep raw text on device", checked = s.keepRaw, onCheckedChange = model::retain) }
-            Text(if (isDebugBuild) "Debug build: raw text is included in CSV exports and removed after 7 days."
+            Text(if (isDebugBuild) "Debug build: raw text stays on this device for 7 days; CSV exports contain metadata only."
                 else "Raw text is never uploaded and is removed after 24 hours.", style = MaterialTheme.typography.bodySmall)
         }
         Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -118,6 +120,7 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDe
                     CaptureResult.NEEDS_REVIEW -> MaterialTheme.colorScheme.tertiary
                     CaptureResult.UNRECOGNIZED -> MaterialTheme.colorScheme.error
                     CaptureResult.IGNORED -> MaterialTheme.colorScheme.onSurfaceVariant
+                    CaptureResult.BILL -> MaterialTheme.colorScheme.tertiary
                 }
                 val isExpanded = expanded == capture.id
                 val rotation by animateFloatAsState(if (isExpanded) 180f else 0f)
@@ -179,4 +182,5 @@ private fun CaptureResult.exportName() = when (this) {
     CaptureResult.NEEDS_REVIEW -> "needs_review"
     CaptureResult.UNRECOGNIZED -> "unrecognized"
     CaptureResult.IGNORED -> "ignored"
+    CaptureResult.BILL -> "bill"
 }

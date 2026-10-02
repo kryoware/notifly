@@ -17,9 +17,13 @@ Compose Multiplatform.
   No hardcoded hex in app sources outside `ui/theme/Color.kt`; the local generator
   stores the four seed hex values.
 
-Platform-rendered launcher and Android 12 splash assets are the sole scoped
+Platform-rendered launcher and Android 12 splash assets have a scoped
 exception: they may use Android system black/white resources because they are
 outside Compose and cannot access `MaterialTheme`.
+
+Material Symbols vector XML may also use a literal opaque black mask fill:
+Compose's resource parser cannot resolve Android color references. The visible
+icon tint must still come from `MaterialTheme`.
 
 ## UI guides
 

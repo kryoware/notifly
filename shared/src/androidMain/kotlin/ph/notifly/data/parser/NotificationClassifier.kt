@@ -35,7 +35,7 @@ class NotificationClassifier(modelJson: String) {
 
     init {
         val model = JSONObject(modelJson)
-        require(model.getInt("format_version") == 1) { "Unsupported model format" }
+        require(model.getInt("format_version") == 2) { "Unsupported model format" }
         labels = model.getJSONArray("labels").let { values -> List(values.length()) { values.getString(it) } }
         require(labels.toSet() == setOf("expense", "income", "other") && labels.size == 3)
         val vocabulary = model.getJSONObject("vocab")
@@ -82,7 +82,9 @@ class NotificationClassifier(modelJson: String) {
     ): Prediction {
         require(minConfidence in 0.0..1.0) { "Confidence threshold must be between 0 and 1" }
         require(text.codePointCount(0, text.length) <= maxChars) { "Notification is too long" }
-        val normalized = whitespace.replace(numbers.replace(text.lowercase(Locale.ROOT), "0"), " ").trim()
+        val context = AmountContexts.select(text)
+        val scoped = context?.text ?: text
+        val normalized = whitespace.replace(numbers.replace(scoped.lowercase(Locale.ROOT), "0"), " ").trim()
         require(normalized.isNotEmpty()) { "Notification text must be nonempty" }
         val counts = mutableMapOf<Int, Int>()
         for (token in normalized.split(' ')) {
@@ -109,8 +111,12 @@ class NotificationClassifier(modelJson: String) {
         val maximum = scores.maxOrNull()!!
         val exps = scores.map { exp(it - maximum) }
         val total = exps.sum()
-        val probabilities = labels.indices.associate { labels[it] to exps[it] / total }
-        val index = scores.indices.maxByOrNull { scores[it] }!!
+        val factor = context?.factor ?: 1.0
+        val probabilities = labels.indices.associate {
+            val p = exps[it] / total
+            labels[it] to if (labels[it] == "other") 1 - (1 - p) * factor else p * factor
+        }
+        val index = labels.indices.maxByOrNull { probabilities.getValue(labels[it]) }!!
         val direction = labels[index]
         val confidence = probabilities.getValue(direction)
         val reason = when {
@@ -126,4 +132,3 @@ class NotificationClassifier(modelJson: String) {
         return Prediction(label, direction, confidence, reason, probabilities)
     }
 }
-
