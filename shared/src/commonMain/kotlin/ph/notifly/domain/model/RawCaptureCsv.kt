@@ -1,16 +1,15 @@
 package ph.notifly.domain.model
 
 /**
- * Returns metadata-only CSV; raw notification bodies never leave the device.
- * [raw] (debug builds only) appends the stored body and one column per notification extra.
+ * Returns metadata-only CSV for the notification log export.
+ *
+ * Raw notification bodies and extras never leave the device (see AGENTS.md).
+ * This export contains only parse-result metadata — no notification text.
  */
-fun List<RawCapture>.toCsv(raw: Boolean = false): String = buildString {
-    val keys = if (raw) this@toCsv.flatMap { it.extras.keys }.distinct().sorted() else emptyList()
-    val rawHeader = if (raw) (listOf("body") + keys).joinToString("") { ",${it.csvField()}" } else ""
-    appendLine("id,source_app,captured_at,result,matched_amount,matched_direction,reason$rawHeader")
+fun List<RawCapture>.toCsv(): String = buildString {
+    appendLine("id,source_app,captured_at,result,matched_amount,matched_direction,reason")
     this@toCsv.forEach { capture ->
-        val rawFields = if (raw) listOf(capture.body) + keys.map { capture.extras[it] } else emptyList()
-        appendLine((listOf(
+        appendLine(listOf(
             capture.id,
             capture.sourceApp,
             capture.capturedAt,
@@ -18,8 +17,20 @@ fun List<RawCapture>.toCsv(raw: Boolean = false): String = buildString {
             capture.matchedAmount,
             capture.matchedDirection,
             capture.reason,
-        ) + rawFields).joinToString(",") { it.csvField() })
+        ).joinToString(",") { it.csvField() })
     }
 }
 
-private fun Any?.csvField(): String = (this?.toString() ?: "").replace("\"", "\"\"").let { "\"$it\"" }
+/**
+ * Quotes a value for CSV. Doubles internal quotes per RFC 4180 and prefixes
+ * formula-starting characters with a single-quote so spreadsheets treat the
+ * cell as plain text rather than evaluating it.
+ */
+private fun Any?.csvField(): String {
+    val s = this?.toString() ?: ""
+    val escaped = s.replace("\"", "\"\"")
+    val safe = if (escaped.isNotEmpty() && escaped[0] in FORMULA_CHARS) "'$escaped" else escaped
+    return "\"$safe\""
+}
+
+private val FORMULA_CHARS = setOf('=', '+', '-', '@', '\t', '\r')

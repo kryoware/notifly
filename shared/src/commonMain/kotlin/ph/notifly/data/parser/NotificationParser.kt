@@ -32,8 +32,17 @@ class NotificationParser {
         val text = body.trim()
         if (text.isEmpty()) return ParseOutcome.Unrecognized("Empty notification body.")
         if (text.length > 8192) return ParseOutcome.Unrecognized("Notification exceeds the parser input limit.")
-        val candidates = AmountContexts.find(text).filter {
-            !Regex("(?i)^(?:USD|EUR|GBP|\\$|€|£)").containsMatchIn(it.match.value)
+        val candidates = AmountContexts.find(text).filter { ctx ->
+            val v = ctx.match.value
+            // Reject amounts whose matched text starts with a foreign currency prefix.
+            if (Regex("(?i)^(?:USD|EUR|GBP|\\$|€|£)").containsMatchIn(v)) return@filter false
+            // Also reject when a foreign currency code/symbol sits immediately
+            // before or after the matched amount in the surrounding text (e.g. "50k USD").
+            val before = text.substring(0, ctx.match.range.first)
+            val after = text.substring(ctx.match.range.last + 1)
+            val foreignAdjacentAfter = Regex("^\\s*(?:USD|EUR|GBP)\\b").containsMatchIn(after)
+            val foreignAdjacentBefore = Regex("(?:USD|EUR|GBP)\\s*$", RegexOption.IGNORE_CASE).containsMatchIn(before)
+            !foreignAdjacentAfter && !foreignAdjacentBefore
         }
         if (candidates.isEmpty()) return ParseOutcome.Unrecognized("No supported amount found.")
         val usable = candidates.filter { !it.blocked && it.cue != null }
@@ -44,8 +53,13 @@ class NotificationParser {
         val document = context.nearest(AmountContexts.documents)
         var inEvidence = context.nearest(AmountContexts.inbound)
         // Receiving a receipt/document does not mean receiving money.
+        // Only null out "received" if no phrase confirms an actual money transfer.
         if (document != null && inEvidence?.word == "received" &&
-            context.nearest(listOf("payment received", "received payment", "received money")) == null) inEvidence = null
+            context.nearest(listOf(
+                "payment received", "received payment", "received money",
+                "received your payment", "we received your payment",
+                "we received payment", "received a payment",
+            )) == null) inEvidence = null
         val inWord = inEvidence?.word
         val outEvidence = context.nearest(AmountContexts.outbound.filter { it != "payment" || inWord == null })
         val outWord = outEvidence?.word
