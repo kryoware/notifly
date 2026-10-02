@@ -56,6 +56,7 @@ internal fun <T> ChoiceField(title: String, value: String, options: List<T>,
     label: (T) -> String, choose: (T) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf(TextFieldValue(value)) }
+    var searching by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(expanded, searchable) {
         if (expanded && searchable) {
@@ -63,28 +64,31 @@ internal fun <T> ChoiceField(title: String, value: String, options: List<T>,
             query = query.copy(selection = TextRange(0, query.text.length))
         }
     }
-    val untouchedSelection = query.text.isNotEmpty() && query.selection.min == 0 && query.selection.max == query.text.length
-    val search = query.text.trim().takeUnless { untouchedSelection }
-    val filtered = if (searchable && !search.isNullOrEmpty()) options.filter {
+    val search = query.text.trim()
+    val filtered = if (searchable && searching && search.isNotEmpty()) options.filter {
         label(it).contains(search, ignoreCase = true)
     } else options
     fun close() { expanded = false; query = TextFieldValue(value); keyboard?.hide() }
     ExposedDropdownMenuBox(expanded, { shouldExpand ->
         if (shouldExpand) {
             query = TextFieldValue(value, selection = TextRange(0, value.length))
+            searching = false
             expanded = true
         } else close()
     }) {
         OutlinedTextField(
             value = if (searchable && expanded) query else TextFieldValue(value),
-            onValueChange = { if (searchable) query = it },
+            onValueChange = { if (searchable) {
+                if (it.text != query.text) searching = true
+                query = it
+            } },
             readOnly = !searchable,
             singleLine = true,
             label = { Text(title) }, isError = error != null,
             supportingText = error?.let { { Text(it) } },
             trailingIcon = {
                 if (searchable && expanded && query.text.isNotEmpty()) IconButton(
-                    onClick = { query = TextFieldValue(""); expanded = true },
+                    onClick = { query = TextFieldValue(""); searching = true; expanded = true },
                     modifier = Modifier.semantics { contentDescription = "Clear search" }) {
                     Icon(painterResource(Res.drawable.symbol_clear), contentDescription = null)
                 } else ExposedDropdownMenuDefaults.TrailingIcon(expanded)

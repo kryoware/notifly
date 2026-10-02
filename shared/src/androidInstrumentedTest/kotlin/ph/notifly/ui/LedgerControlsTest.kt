@@ -5,6 +5,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.Density
@@ -202,6 +205,136 @@ class LedgerControlsTest {
         compose.onNodeWithText("Source: com.paymaya").performScrollTo().assertExists()
         compose.onNodeWithText("Source app").assertDoesNotExist()
         Assert.assertEquals("com.paymaya", editor.state.value.sourceApp)
+    }
+
+    @Test fun allSearchableFieldsDiscardQueriesOnDismissDoneAndFocusLoss() {
+        val transactions = DemoTransactions()
+        val editor = EditorModel(transactions, 0, ledger = DemoLedger(transactions), apps = DemoAllowList())
+        lateinit var focusManager: FocusManager
+        compose.setContent { NotiflyTheme { Surface(Modifier.fillMaxSize()) {
+            focusManager = LocalFocusManager.current
+            EditorScreen(editor, mapOf("com.globe.gcash.android" to "GCash"))
+        } } }
+        compose.waitUntil { editor.state.value.accounts.isNotEmpty() }
+        // title, selected label, partial query, matching option, nonmatching option, empty-result noun
+        val fields = listOf(
+            listOf("Account", "Maya wallet", "  gCa ", "GCash wallet", "Maya wallet", "accounts"),
+            listOf("Category", "Other", "  sAL ", "Salary", "Income", "categories"),
+            listOf("Source app", "com.paymaya", "  gCa ", "GCash", "Manual", "sources"),
+            listOf("From account", "Maya wallet", "  gCa ", "GCash wallet", "Maya wallet", "accounts"),
+            listOf("To account", "GCash wallet", "  gCa ", "GCash wallet", "Maya wallet", "accounts"),
+        )
+        for (field in fields) {
+            val (title, selected, query, match, excluded) = field
+            val noun = field[5]
+            compose.runOnIdle { editor.edit(title = "Search dismissal", amount = "25",
+                type = if (title.endsWith("account")) TransactionType.TRANSFER else TransactionType.INCOME,
+                accountId = 2, toAccountId = 1, category = "Other", sourceApp = "com.paymaya") }
+            val before = editor.state.value
+            fun open() { compose.onNodeWithText(title).performScrollTo().performClick() }
+            fun unchanged() { compose.runOnIdle { Assert.assertEquals(before, editor.state.value) } }
+            open()
+            compose.onNode(isFocused()).performTextInput("zz-no-match")
+            compose.onNodeWithText("No matching $noun").assertExists()
+            unchanged()
+            if (title == "Source app") screenshotPopup("search-source-no-matches.png")
+            compose.onNodeWithContentDescription("Clear search").performClick()
+            compose.onNode(hasText(match).and(hasAnyAncestor(isPopup()))).assertExists()
+            unchanged()
+            compose.onNode(isFocused()).performTextInput(query)
+            compose.onNode(hasText(match).and(hasAnyAncestor(isPopup()))).assertExists()
+            compose.onNode(hasText(excluded).and(hasAnyAncestor(isPopup()))).assertDoesNotExist()
+            // Selecting the query text must not reset the filter to the entire option list.
+            compose.onNode(isFocused()).performTextInputSelection(TextRange(0, query.length))
+            compose.onNode(hasText(excluded).and(hasAnyAncestor(isPopup()))).assertDoesNotExist()
+            unchanged()
+            if (title == "Source app") screenshotPopup("search-source-filtered.png")
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+                .sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+            compose.onNode(isPopup()).assertDoesNotExist()
+            compose.onNodeWithText(selected).assertExists()
+            unchanged()
+            open()
+            compose.onNode(hasText(match).and(hasAnyAncestor(isPopup()))).assertExists()
+            compose.onNode(isFocused()).performTextInput("uncommitted")
+            compose.onNode(isFocused()).performImeAction()
+            compose.onNode(isPopup()).assertDoesNotExist()
+            compose.onNodeWithText(selected).assertExists()
+            unchanged()
+            open()
+            compose.onNode(isFocused()).performTextInput("uncommitted")
+            compose.runOnIdle { focusManager.clearFocus() }
+            compose.onNode(isPopup()).assertDoesNotExist()
+            compose.onNodeWithText(selected).assertExists()
+            unchanged()
+        }
+        Assert.assertEquals(2, transactions.observeAll().value.size)
+    }
+
+    @Test fun emptyChoicesExplainAvailabilityAndKeepCreateAccountAction() {
+        val transactions = DemoTransactions()
+        val baseLedger = DemoLedger(transactions)
+        val ledger = object : LedgerRepository by baseLedger {
+            override fun observeAccounts() = kotlinx.coroutines.flow.flowOf(emptyList<Account>())
+        }
+        val editor = EditorModel(transactions, 0, ledger = ledger, apps = DemoAllowList())
+        var emptyCategories by mutableStateOf(false)
+        compose.setContent { NotiflyTheme { Surface(Modifier.fillMaxSize()) {
+            if (emptyCategories) ChoiceField("Category", "", emptyList<String>(), searchable = true,
+                emptyLabel = "categories", label = { it }, choose = { Assert.fail("Empty list cannot select") })
+            else EditorScreen(editor)
+        } } }
+        compose.waitUntil { editor.state.value.ready }
+        compose.onNodeWithText("Account").performScrollTo().performClick()
+        compose.onNodeWithText("No accounts available").assertExists()
+        compose.onNode(isFocused()).performTextInput("missing")
+        compose.onNodeWithText("No accounts available").assertExists()
+        compose.onNode(isFocused()).performImeAction()
+        compose.onNodeWithText("Create an account").assertExists()
+        compose.runOnIdle { emptyCategories = true }
+        compose.onNodeWithText("Category").performClick()
+        compose.onNodeWithText("No categories available").assertExists()
+    }
+
+    @Test fun editingRetainsCurrentArchivedChoicesAndExcludesOtherArchivedChoices() {
+        val transactions = DemoTransactions(listOf(Transaction(id = 1, title = "Existing transfer",
+            amountMinor = 500, type = TransactionType.TRANSFER, status = TransactionStatus.CONFIRMED,
+            category = "Transfer", occurredAt = kotlin.time.Clock.System.now(), sourceApp = null, captureId = null,
+            accountId = 1, toAccountId = 2)))
+        val baseLedger = DemoLedger(transactions)
+        val accounts = listOf(Account(1, "Archived from", AccountType.WALLET, archived = true),
+            Account(2, "Archived destination", AccountType.WALLET, archived = true),
+            Account(3, "Other archived", AccountType.WALLET, archived = true),
+            Account(4, "Active wallet", AccountType.WALLET))
+        val categories = listOf(Category(1, "Retained category", TransactionType.EXPENSE, archived = true),
+            Category(2, "Hidden category", TransactionType.EXPENSE, archived = true),
+            Category(3, "Income only", TransactionType.INCOME))
+        val ledger = object : LedgerRepository by baseLedger {
+            override fun observeAccounts() = kotlinx.coroutines.flow.flowOf(accounts)
+            override fun observeCategories() = kotlinx.coroutines.flow.flowOf(categories)
+        }
+        val editor = EditorModel(transactions, 1, ledger = ledger, apps = DemoAllowList())
+        compose.setContent { NotiflyTheme { Surface(Modifier.fillMaxSize()) { EditorScreen(editor) } } }
+        compose.waitUntil { editor.state.value.accounts.size == 4 }
+        compose.onNodeWithText("From account").performScrollTo().performClick()
+        compose.onAllNodesWithText("Archived from").assertCountEquals(2)
+        compose.onNode(hasText("Archived destination").and(hasAnyAncestor(isPopup()))).assertDoesNotExist()
+        compose.onNode(hasText("Other archived").and(hasAnyAncestor(isPopup()))).assertDoesNotExist()
+        compose.onNode(isFocused()).performImeAction()
+        compose.onNodeWithText("To account").performScrollTo().performClick()
+        compose.onAllNodesWithText("Archived destination").assertCountEquals(2)
+        compose.onNode(hasText("Archived from").and(hasAnyAncestor(isPopup()))).assertDoesNotExist()
+        compose.onNode(hasText("Other archived").and(hasAnyAncestor(isPopup()))).assertDoesNotExist()
+        compose.onNode(isFocused()).performImeAction()
+        // A retained legacy category remains searchable even when it is absent from eligible categories.
+        compose.runOnIdle { editor.edit(type = TransactionType.EXPENSE, category = "Retained category") }
+        compose.onNodeWithText("Category").performScrollTo().performClick()
+        compose.onNode(isFocused()).performTextInput("  ReTAIN ")
+        compose.onNodeWithText("Retained category").assertExists()
+        compose.onNodeWithText("Hidden category").assertDoesNotExist()
+        compose.onNodeWithText("Income only").assertDoesNotExist()
+        compose.onNodeWithText("Retained category").performClick()
+        Assert.assertEquals("Retained category", editor.state.value.category)
     }
 
     @Test fun searchableLongAccountMenuScrollsAtLargeTextInBothThemes() {
