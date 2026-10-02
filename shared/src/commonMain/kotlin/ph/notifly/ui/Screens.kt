@@ -508,7 +508,7 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
             })
         } },
         snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) },
-        floatingActionButton = { AddTransactionFab(expanded = !listState.canScrollBackward) { model.navigate("edit/0") } }
+        floatingActionButton = { if (!selectionMode) AddTransactionFab(expanded = !listState.canScrollBackward) { model.navigate("edit/0") } }
     ) { padding ->
     Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
