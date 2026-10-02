@@ -64,9 +64,10 @@ fun NotiflyApp(
     val realBills = koinInject<BillRepository>()
     var demo by rememberSaveable { mutableStateOf(demo) }
     val captures = remember(demo) { if (demo) DemoCaptures() else realCaptures }
-    val transactions = remember(demo) { if (demo) DemoTransactions(demoRows()) else realTransactions }
+    val demoSeed = rememberSaveable { kotlin.random.Random.nextInt() }
+    val transactions = remember(demo) { if (demo) DemoTransactions(demoRows(kotlin.random.Random(demoSeed))) else realTransactions }
     val ledger = remember(demo) { if (demo) DemoLedger(transactions) else realLedger }
-    val bills = remember(demo) { if (demo) DemoBills(demoRows()) else realBills }
+    val bills = remember(demo) { if (demo) DemoBills(demoRows(kotlin.random.Random(demoSeed))) else realBills }
     val apps = remember(demo) { if (demo) DemoAllowList() else realApps }
     val allowed by apps.observeAll().collectAsState(emptyList())
     val appLabels = remember(allowed) { allowed.associate { it.packageName to it.label } }
