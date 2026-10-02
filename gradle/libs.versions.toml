@@ -18,7 +18,7 @@ compileSdk = "37"
 minSdk = "26"
 targetSdk = "36"
 sentry = "8.57.0"
-sentryPlugin = "6.22.0"
+sentryPlugin = "6.23.0"
 aboutLibraries = "15.2.0"
 
 [libraries]
