@@ -1,15 +1,14 @@
 package ph.notifly.domain.model
 
 /**
- * Returns metadata-only CSV for the notification log export.
- *
- * Raw notification bodies and extras never leave the device (see AGENTS.md).
- * This export contains only parse-result metadata — no notification text.
+ * Returns metadata-only CSV by default. Debug builds may include the stored body and extras.
  */
-fun List<RawCapture>.toCsv(): String = buildString {
-    appendLine("id,source_app,captured_at,result,matched_amount,matched_direction,reason")
+fun List<RawCapture>.toCsv(raw: Boolean = false): String = buildString {
+    val keys = if (raw) this@toCsv.flatMap { it.extras.keys }.distinct().sorted() else emptyList()
+    val rawHeader = if (raw) (listOf("body") + keys).joinToString("") { ",${it.csvField()}" } else ""
+    appendLine("id,source_app,captured_at,result,matched_amount,matched_direction,reason$rawHeader")
     this@toCsv.forEach { capture ->
-        appendLine(listOf(
+        val fields = listOf(
             capture.id,
             capture.sourceApp,
             capture.capturedAt,
@@ -17,7 +16,8 @@ fun List<RawCapture>.toCsv(): String = buildString {
             capture.matchedAmount,
             capture.matchedDirection,
             capture.reason,
-        ).joinToString(",") { it.csvField() })
+        ) + if (raw) listOf(capture.body) + keys.map { capture.extras[it] } else emptyList()
+        appendLine(fields.joinToString(",") { it.csvField() })
     }
 }
 
