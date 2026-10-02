@@ -136,7 +136,7 @@ private fun CashFlowCard(w: WindowInsights) {
             }
             Text(AnnotatedString(if (net > 0) "+" else "") + splitMoney(net, color.copy(alpha = 0.55f)), color = color,
                 style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.035).em).tabular())
-            Text("Previous ${w.days} days: ${signedMoney(w.previous.net)}", style = MaterialTheme.typography.bodySmall,
+            Text("Previous ${w.days} days: ${signedMoney(w.previous.net)}", style = MaterialTheme.typography.bodySmall.tabular(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -171,7 +171,7 @@ private fun DailySpendingCard(w: WindowInsights) {
     Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Daily spending", style = MaterialTheme.typography.titleMedium)
-            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(detail, style = MaterialTheme.typography.bodySmall.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
             Canvas(Modifier.fillMaxWidth().height(128.dp)
                 .pointerInput(w.days, w.start) {
                     detectTapGestures { tap ->
@@ -235,13 +235,13 @@ private fun PaceCard(windows: List<WindowInsights>, selected: Int, select: (Int)
                     abs(change) < 5 -> "Your last ${recent.days} days match your ${baseline.days}-day daily average."
                     change > 0 -> "Your last ${recent.days} days cost $change% more per day than your ${baseline.days}-day average."
                     else -> "Your last ${recent.days} days cost ${-change}% less per day than your ${baseline.days}-day average."
-                }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }, style = MaterialTheme.typography.bodySmall.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             windows.forEach { w ->
                 Row(
                     Modifier.fillMaxWidth()
                         .selectable(selected = w.days == selected, onClick = { select(w.days) }, role = Role.Tab)
-                        .background(if (w.days == selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+                        .background(if (w.days == selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0f))
                         .padding(horizontal = 20.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -276,9 +276,9 @@ private fun BudgetCard(m: MonthInsights, budget: Long?, edit: () -> Unit) {
                 TextButton(onClick = edit) { Text(if (budget == null) "Set budget" else "Edit") }
             }
             if (budget == null) {
-                Text("You've spent ${money(spent)} so far this month.")
+                Text("You've spent ${money(spent)} so far this month.", style = LocalTextStyle.current.tabular())
                 Text("At this pace: ${money(m.projected)} by month end. Set a budget to see what's left per day.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    style = MaterialTheme.typography.bodySmall.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 val over = spent > budget
                 val trendingOver = m.projected > budget
@@ -288,13 +288,14 @@ private fun BudgetCard(m: MonthInsights, budget: Long?, edit: () -> Unit) {
                     Text("of ${money(budget)}", style = LocalTextStyle.current.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Text(if (over) "Over budget by ${money(spent - budget)}."
-                    else "${money(budget - spent)} left · about ${money(m.perDayLeft(budget))}/day for ${m.daysLeft} day${if (m.daysLeft == 1) "" else "s"}")
+                    else "${money(budget - spent)} left · about ${money(m.perDayLeft(budget))}/day for ${m.daysLeft} day${if (m.daysLeft == 1) "" else "s"}",
+                    style = LocalTextStyle.current.tabular())
                 Text(if (trendingOver) "At this pace: ${money(m.projected)} by month end, ${money(m.projected - budget)} over."
                     else "At this pace: ${money(m.projected)} by month end, within budget.",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.tabular(),
                     color = if (trendingOver) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text("Money in this month: ${money(m.flow.income)}", style = MaterialTheme.typography.bodySmall,
+            Text("Money in this month: ${money(m.flow.income)}", style = MaterialTheme.typography.bodySmall.tabular(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -324,7 +325,7 @@ private fun CategoryCard(w: WindowInsights) {
                     }
                     Meter(ratio(c.spent, w.current.spent), MaterialTheme.colorScheme.primary)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${c.spent * 100 / w.current.spent}% of spending", style = MaterialTheme.typography.bodySmall,
+                        Text("${c.spent * 100 / w.current.spent}% of spending", style = MaterialTheme.typography.bodySmall.tabular(),
                             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
                         Change(c.spent, c.previous, null)
                     }
@@ -360,7 +361,7 @@ private fun CategoryBudgetCard(m: MonthInsights, budgets: Map<String, Long>, man
                     }
                     Meter(ratio(spent, budget), if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                     Text(if (over) "Over by ${money(spent - budget)}" else "${money(budget - spent)} left",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodySmall.tabular(),
                         color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }

@@ -72,12 +72,12 @@ private fun CaptureResult?.icon() = when (this) {
 }
 
 @Composable
-fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap()) {
+fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDebugBuild: Boolean = false) {
     val s by model.state.collectAsState()
     var expanded by remember { mutableStateOf<Long?>(null) }
     var clear by remember { mutableStateOf(false) }
     val parser = remember { NotificationParser() }
-    val saveCsv = rememberCsvSaver { s.captures.toCsv() }
+    val saveCsv = rememberCsvSaver { s.captures.toCsv(raw = isDebugBuild) }
     Column(Modifier.fillMaxSize()) {
         val filters = listOf(null) + CaptureResult.entries.filter { it != CaptureResult.IGNORED }
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -93,7 +93,8 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap()) {
         }
         Column(Modifier.padding(horizontal = 16.dp)) {
             SettingsGroup { SettingsRow("Keep raw text on device", checked = s.keepRaw, onCheckedChange = model::retain) }
-            Text("Raw text is never uploaded and is removed after 24 hours.", style = MaterialTheme.typography.bodySmall)
+            Text(if (isDebugBuild) "Debug build: raw text is included in CSV exports and removed after 7 days."
+                else "Raw text is never uploaded and is removed after 24 hours.", style = MaterialTheme.typography.bodySmall)
         }
         Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             IconTooltip("Export CSV") { IconButton(onClick = {
