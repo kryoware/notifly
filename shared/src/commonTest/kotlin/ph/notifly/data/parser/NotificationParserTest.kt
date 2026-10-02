@@ -203,11 +203,14 @@ class NotificationParserTest {
             assertEquals(TransactionType.INCOME, income.draft.type)
             assertEquals(true, income.draft.inbound)
             assertEquals(50_000L, income.draft.amountMinor)
-            val receipt = assertIs<ParseOutcome.Parsed>(parser.parse(
-                "You received a receipt for PHP 500 from ACME.", directionHint = hint,
-            ))
-            assertEquals(TransactionType.EXPENSE, receipt.draft.type)
-            assertEquals(Confidence.LOW, receipt.draft.directionConfidence)
+            for (body in listOf(
+                "You received a receipt for PHP 500 from ACME.",
+                "Received PHP 500 invoice for your subscription.",
+            )) {
+                val receipt = assertIs<ParseOutcome.Parsed>(parser.parse(body, directionHint = hint))
+                assertEquals(TransactionType.EXPENSE, receipt.draft.type)
+                assertEquals(Confidence.LOW, receipt.draft.directionConfidence)
+            }
         }
     }
 
