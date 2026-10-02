@@ -83,7 +83,19 @@ class NotificationCaptureService : NotificationListenerService() {
             when (val value = bundle.get(key)) {
                 is CharSequence, is Number, is Boolean -> value.toString()
                 // textLines (InboxStyle) and messages (MessagingStyle bundles)
-                is Array<*> -> value.mapNotNull { (it as? CharSequence ?: (it as? android.os.Bundle)?.getCharSequence("text"))?.toString() }
+                is Array<*> -> value.mapNotNull { item ->
+                    when (item) {
+                        is CharSequence -> item.toString()
+                        is android.os.Bundle -> {
+                            val text = item.getCharSequence("text")?.toString() ?: return@mapNotNull null
+                            // MessagingStyle: preserve sender for parser training.
+                            val sender = (item.getParcelable("sender_person") as? android.app.Person)?.name
+                                ?: item.getCharSequence("sender")
+                            if (sender != null) "$sender: $text" else text
+                        }
+                        else -> null
+                    }
+                }
                     .joinToString("\n").ifEmpty { null }
                 else -> null
             }?.let { key to it }

@@ -1,7 +1,5 @@
 package ph.notifly.domain.model
 
-import ph.notifly.data.local.toDomain
-import ph.notifly.data.local.toEntity
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Instant
@@ -26,21 +24,42 @@ class RawCaptureCsvTest {
     }
 
     @Test
-    fun rawExportAddsBodyAndOneColumnPerExtraSurvivingStorage() {
-        val tricky = "line1\nline\t2 \\n literal"
-        val captures = listOf(
-            RawCapture(id = 1, sourceApp = "A", capturedAt = Instant.fromEpochMilliseconds(0), body = "b1",
-                result = CaptureResult.PARSED, reason = "r", extras = mapOf("android.title" to "T", "android.text" to tricky)),
-            RawCapture(id = 2, sourceApp = "B", capturedAt = Instant.fromEpochMilliseconds(0), body = null,
-                result = CaptureResult.UNRECOGNIZED, reason = "r", extras = mapOf("android.subText" to "S")),
-        ).map { it.toEntity().toDomain() }
+    fun formulaStartingCharsAreNeutralised() {
+        val csv = listOf(RawCapture(
+            id = 1,
+            sourceApp = "=cmd|calc|",
+            capturedAt = Instant.fromEpochMilliseconds(0),
+            body = null,
+            result = CaptureResult.UNRECOGNIZED,
+            reason = "+alert(1)",
+        )).toCsv()
 
-        assertEquals(tricky, captures[0].extras["android.text"])
+        // Source app and reason should have formula-starting chars neutralised with a leading '
         assertEquals(
-            "id,source_app,captured_at,result,matched_amount,matched_direction,reason,\"body\",\"android.subText\",\"android.text\",\"android.title\"\n" +
-                "\"1\",\"A\",\"1970-01-01T00:00:00Z\",\"PARSED\",\"\",\"\",\"r\",\"b1\",\"\",\"$tricky\",\"T\"\n" +
-                "\"2\",\"B\",\"1970-01-01T00:00:00Z\",\"UNRECOGNIZED\",\"\",\"\",\"r\",\"\",\"S\",\"\",\"\"\n",
-            captures.toCsv(raw = true),
+            "id,source_app,captured_at,result,matched_amount,matched_direction,reason\n" +
+                "\"1\",\"'=cmd|calc|\",\"1970-01-01T00:00:00Z\",\"UNRECOGNIZED\",\"\",\"\",\"'+alert(1)\"\n",
+            csv,
         )
+    }
+
+    @Test
+    fun noRawExportParameter() {
+        // Verify toCsv() has no raw parameter — the function signature must be
+        // List<RawCapture>.toCsv(): String with no optional arguments.
+        // This test simply ensures the metadata-only export works.
+        val csv = listOf(RawCapture(
+            id = 1,
+            sourceApp = "A",
+            capturedAt = Instant.fromEpochMilliseconds(0),
+            body = "secret notification text",
+            result = CaptureResult.PARSED,
+            reason = "r",
+            extras = mapOf("android.title" to "T"),
+        )).toCsv()
+
+        // The body and extras must NOT appear anywhere in the output.
+        assertEquals(false, csv.contains("secret notification text"))
+        assertEquals(false, csv.contains("android.title"))
+        assertEquals(false, csv.contains("body"))
     }
 }
