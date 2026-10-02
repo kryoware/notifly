@@ -9,6 +9,14 @@ data class AccountBalance(val account: Account, val estimate: Long) {
     val netValue get() = if (account.type == AccountType.CARD) -estimate else estimate
 }
 
+/** Keeps known IDs in their saved positions, then appends new accounts in repository order. */
+internal fun homeAccountOrder(accounts: List<AccountBalance>, ids: List<Long>): List<AccountBalance> {
+    val byId = accounts.associateBy { it.account.id }
+    val saved = ids.distinct().mapNotNull(byId::get)
+    val known = ids.toSet()
+    return saved + accounts.filter { it.account.id !in known }
+}
+
 fun accountBalances(accounts: List<Account>, rows: List<Transaction>): List<AccountBalance> = accounts.map { account ->
     val movement = rows.filter { it.status == TransactionStatus.CONFIRMED && it.currency == "PHP" &&
         it.occurredAt > account.balanceAsOf }.sumOf { row ->

@@ -5,6 +5,17 @@ import kotlin.time.Instant
 import ph.notifly.domain.model.*
 
 class AccountsTest {
+    @Test fun homeOrderReconcilesWithoutChangingBalancesOrVisibility() {
+        val accounts = listOf(
+            AccountBalance(Account(1, "Alpha", AccountType.BANK), -50L),
+            AccountBalance(Account(2, "Beta", AccountType.WALLET, archived = true), 100L),
+            AccountBalance(Account(3, "New account", AccountType.CARD), 500L))
+        assertEquals(accounts, homeAccountOrder(accounts, emptyList()))
+        assertEquals(listOf(2L, 1L, 3L), homeAccountOrder(accounts, listOf(9L, 2L, 2L, 1L)).map { it.account.id })
+        assertEquals(listOf(accounts[1], accounts[2]), homeAccountOrder(accounts.drop(1), listOf(2L, 1L)))
+        assertEquals(emptyList(), homeAccountOrder(emptyList(), listOf(2L, 1L)))
+        assertEquals(accounts.take(1), homeAccountOrder(accounts.take(1), listOf(2L, 1L)))
+    }
     private val at = Instant.fromEpochMilliseconds(1000)
     private fun row(account: Long, amount: Long, type: TransactionType, status: TransactionStatus = TransactionStatus.CONFIRMED,
         to: Long? = null, time: Long = 2000) = Transaction(title = "Test", amountMinor = amount,

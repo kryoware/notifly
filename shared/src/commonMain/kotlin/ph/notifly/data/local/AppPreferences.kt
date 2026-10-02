@@ -42,6 +42,7 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     private val onboardingKey = booleanPreferencesKey("onboarding_complete")
     private val offlineKey = booleanPreferencesKey("offline")
     private val hideAmountsKey = booleanPreferencesKey("hide_amounts")
+    private val homeAccountOrderKey = stringPreferencesKey("home_account_order")
     private val retentionKey =booleanPreferencesKey("keep_raw_text")
     private val crashReportingKey = booleanPreferencesKey("crash_reporting")
     private val pinHashKey = stringPreferencesKey("pin_hash")
@@ -60,6 +61,10 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     val onboardingComplete = data.map { it[onboardingKey] ?: false }
     val offline = data.map { it[offlineKey] ?: true }
     val hideAmounts = data.map { it[hideAmountsKey] ?: false }
+    /** Device-local Home order; an empty list preserves repository ordering. */
+    val homeAccountOrder = data.map { prefs ->
+        prefs[homeAccountOrderKey]?.split(',')?.mapNotNull(String::toLongOrNull)?.distinct().orEmpty()
+    }
     val keepRawText = data.map { it[retentionKey] ?: false }
     val crashReporting = data.map { it[crashReportingKey] ?: false }
     val pinSet = data.map { it[pinHashKey] != null }
@@ -92,6 +97,7 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     suspend fun resetOnboarding() { store.edit { it[onboardingKey] = false } }
     suspend fun setOffline(value: Boolean) { store.edit { it[offlineKey] = value } }
     suspend fun setHideAmounts(value: Boolean) { store.edit { it[hideAmountsKey] = value } }
+    suspend fun setHomeAccountOrder(ids: List<Long>) { store.edit { it[homeAccountOrderKey] = ids.distinct().joinToString(",") } }
     suspend fun setKeepRawText(value: Boolean) { store.edit { it[retentionKey] = value } }
     suspend fun setCrashReporting(value: Boolean) { store.edit { it[crashReportingKey] = value } }
     /** Stores the monthly limit in minor units, or removes it when [minor] is null. */
