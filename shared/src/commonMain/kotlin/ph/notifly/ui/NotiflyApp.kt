@@ -184,6 +184,7 @@ fun NotiflyApp(
                     AppDestination("Theme palettes", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { ThemeGallery(m) } }
                 composable("log") { val m = viewModel { LogModel(captures, preferences) }; Events(m, handle)
                     AppDestination("Notification log", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { LogScreen(m, appLabels, isDebugBuild) } }
+                composable("licenses") { AppDestination("Open source licenses", snackbar, onBack = { nav.popBackStack() }) { LicensesScreen() } }
                 composable("from-log/{captureId}", arguments = listOf(navArgument("captureId") { type = NavType.LongType })) {
                     val m = viewModel { EditorModel(transactions, 0L, captures, it.arguments?.read { getLong("captureId") }, ledger, apps) }; Events(m, handle)
                     AppDestination("Add transaction", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { EditorScreen(m, appLabels) }

@@ -6,6 +6,8 @@ import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import notifly.shared.generated.resources.Res
 import notifly.shared.generated.resources.*
+import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
+import com.mikepenz.aboutlibraries.ui.compose.produceLibraries
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -924,6 +926,7 @@ fun SettingsScreen(
             SettingsGroup {
                 SettingsRow("Version", versionName)
                 SettingsRow("Release notes", "What changed in each version", onClick = { uriHandler.openUri(RELEASE_NOTES_URL) }, external = true)
+                SettingsRow("Open source licenses", "Libraries Notifly is built with", onClick = { model.navigate("licenses") })
             }
         }
 
@@ -1029,6 +1032,12 @@ private fun Allocation(allocated: Long, cap: Long?) {
             color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+@Composable
+fun LicensesScreen() {
+    val libraries by produceLibraries { Res.readBytes("files/aboutlibraries.json").decodeToString() }
+    LibrariesContainer(libraries, Modifier.fillMaxSize())
 }
 
 @Composable

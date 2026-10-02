@@ -31,32 +31,28 @@ class NotificationParser {
         require(directionHint != TransactionType.TRANSFER) { "Direction cannot establish account ownership" }
         val text = body.trim()
         if (text.isEmpty()) return ParseOutcome.Unrecognized("Empty notification body.")
-        if (text.length > 8192) return ParseOutcome.Unrecognized("Notification exceeds the parser input limit.")
-        val candidates = AmountContexts.find(text).filter { supportedCurrency(text, it.match) }
-        if (candidates.isEmpty()) return ParseOutcome.Unrecognized("No supported amount found.")
-        val usable = candidates.filter { !it.blocked && it.cue != null }
-        val context = usable.minWithOrNull(compareBy<AmountContexts.Context> { it.cue!!.distance }.thenBy { it.cue!!.lines })
-            ?: return ParseOutcome.Unrecognized("No nearby transaction evidence, or a balance notice, price alert or incomplete transaction.")
-        val match = context.match
-        val local = context.text
-        val document = context.nearest(AmountContexts.documents)
-        var inEvidence = context.nearest(AmountContexts.inbound)
-        // Receiving a receipt/document does not mean receiving money.
-        // Only null out "received" if no phrase confirms an actual money transfer.
-        if (document != null && inEvidence?.word == "received" &&
-            context.nearest(listOf(
-                "payment received", "received payment", "received money",
-                "received your payment", "we received your payment",
-                "we received payment", "received a payment",
-            )) == null) inEvidence = null
-        val inWord = inEvidence?.word
-        val outEvidence = context.nearest(AmountContexts.outbound.filter { it != "payment" || inWord == null })
-        val outWord = outEvidence?.word
-        val isHold = context.nearest(AmountContexts.holds) != null
-        val evidence = inEvidence ?: outEvidence ?: document ?: context.cue!!
-        val distant = evidence.distance > 2 || evidence.lines > 0
-        val documentExpense = document != null && inWord == null
-        val hint = if (documentExpense) null else directionHint
+        if (incomplete.containsMatchIn(text)) return ParseOutcome.Unrecognized("Transaction is incomplete or unsuccessful.")
+
+        val match = amountRegex.find(text) ?: gcashAmountRegex.find(text)
+            ?: return ParseOutcome.Unrecognized(
+                "No amount found. This app's format may not be covered by the current rules yet.",
+            )
+
+        val lower = text.lowercase()
+        val inWord = inbound.firstOrNull { lower.contains(it) }
+        // "Payment" is a noun in incoming payments; actual outbound verbs still conflict.
+        val outWord = outbound.firstOrNull { lower.contains(it) && (it != "payment" || inWord == null) }
+        val isHold = holdWords.any { lower.contains(it) }
+
+        if (inWord == null && outWord == null && !isHold &&
+            (directionHint == null || balanceWords.any { lower.contains(it) })) {
+            val why = if (balanceWords.any { lower.contains(it) }) {
+                "Found an amount but no transaction verb. Reads as a balance notice, so nothing was created."
+            } else {
+                "Found an amount but could not tell whether money came in or went out."
+            }
+            return ParseOutcome.Unrecognized(why)
+        }
 
         val merchant = extractMerchant(local, hint ?: if (inWord != null && outWord == null) TransactionType.INCOME else null)
         val mentionedApp = merchant?.let { mentionedApp(it, financeApps) }
