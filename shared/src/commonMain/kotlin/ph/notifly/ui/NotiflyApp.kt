@@ -156,7 +156,7 @@ fun NotiflyApp(
                 composable("themes") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle)
                     AppDestination("Theme palettes", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { ThemeGallery(m) } }
                 composable("log") { val m = viewModel { LogModel(captures, preferences) }; Events(m, handle)
-                    AppDestination("Notification log", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { LogScreen(m, appLabels) } }
+                    AppDestination("Notification log", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { LogScreen(m, appLabels, isDebugBuild) } }
                 composable("from-log/{captureId}", arguments = listOf(navArgument("captureId") { type = NavType.LongType })) {
                     val m = viewModel { EditorModel(transactions, 0L, captures, it.arguments?.read { getLong("captureId") }, ledger, apps) }; Events(m, handle)
                     AppDestination("Add transaction", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { EditorScreen(m, appLabels) }

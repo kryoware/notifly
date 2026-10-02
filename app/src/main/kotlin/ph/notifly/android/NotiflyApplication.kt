@@ -22,6 +22,7 @@ class NotiflyApplication : Application(), KoinComponent {
         super.onCreate()
         startKoin {
             androidContext(this@NotiflyApplication)
+            properties(mapOf("debug" to BuildConfig.DEBUG))
             modules(sharedModule, androidModule)
         }
         val scheduler = getSystemService(android.app.job.JobScheduler::class.java)

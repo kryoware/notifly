@@ -59,7 +59,7 @@ class NotificationTransactionSource(
         val fingerprint = digest("${event.key}\u0000$body")
         val otherFinanceApps = allowList.observeAll().first().filter { it.finance && it.packageName != event.sourceApp }.map { it.label }
         val id = when (val result = parser.parse(sourceAppLabel, body, otherFinanceApps)) {
-            is ParseOutcome.Unrecognized -> captures.record(RawCapture(sourceApp = sourceAppLabel, capturedAt = now, body = body,
+            is ParseOutcome.Unrecognized -> captures.record(RawCapture(sourceApp = sourceAppLabel, capturedAt = now, body = body, extras = content.extras,
                 result = CaptureResult.UNRECOGNIZED, reason = result.reason, fingerprint = fingerprint))
             is ParseOutcome.Parsed -> {
                 val draft = result.draft
@@ -67,7 +67,7 @@ class NotificationTransactionSource(
                 val (from, to) = ph.notifly.domain.model.resolveTransactionAccounts(accounts, event.sourceApp, body, draft.type, draft.inbound)
                 val account = if (draft.type == TransactionType.TRANSFER && draft.inbound == true) to else from
                 val reason = if (account == null) "Choose an account before creating this transaction. ${result.reason}" else result.reason
-                captures.recordDraft(RawCapture(sourceApp = sourceAppLabel, capturedAt = now, body = body,
+                captures.recordDraft(RawCapture(sourceApp = sourceAppLabel, capturedAt = now, body = body, extras = content.extras,
                     result = CaptureResult.NEEDS_REVIEW, matchedAmount = draft.matchedAmount,
                     matchedDirection = draft.matchedDirection, reason = reason, fingerprint = fingerprint),
                     ph.notifly.domain.model.CapturedDraft(title = draft.merchant ?: "Payment from $sourceAppLabel",
