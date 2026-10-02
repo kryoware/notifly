@@ -294,7 +294,7 @@ private fun CalendarTab(model: BillsModel, s: BillsState, appLabels: Map<String,
         } else dayRows.forEach { occ ->
             val tx = occ.payment?.transactionId?.let { id -> s.transactions.find { it.id == id } }
             val paidText = if (occ.paid) listOfNotNull("Paid", tx?.let { appLabels[it.sourceApp] ?: s.accountNames[it.accountId] },
-                tx?.let { "−" + money(it.amountMinor) }).joinToString(" · ") else null
+                tx?.let { if (s.hideAmounts) null else "−" + money(it.amountMinor) }).joinToString(" · ") else null
             BillRow(occ.bill.name, occ.bill.amountMinor, occ.dueOn, s.today, occ.bill.repeat, s.hideAmounts,
                 open = { model.navigate("bill/${occ.bill.id}") },
                 pay = if (occ.paid) null else { { pay(BillDue(occ.bill, occ.dueOn)) } }, paidText = paidText)
@@ -332,7 +332,7 @@ private fun DayCell(date: LocalDate, inMonth: Boolean, today: Boolean, selected:
     val scheme = MaterialTheme.colorScheme
     Column(modifier.heightIn(min = 48.dp).clickable(onClick = onClick).semantics { contentDescription = description; this.selected = selected },
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Box(Modifier.size(28.dp).background(if (selected) scheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, CircleShape), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(28.dp).background(if (selected) scheme.primaryContainer else scheme.surface, CircleShape), contentAlignment = Alignment.Center) {
             Text(date.day.toString(), style = MaterialTheme.typography.bodyMedium.tabular(),
                 color = when { today -> scheme.primary; inMonth -> scheme.onSurface; else -> scheme.onSurface.copy(alpha = 0.38f) },
                 fontWeight = if (today) FontWeight.SemiBold else null)

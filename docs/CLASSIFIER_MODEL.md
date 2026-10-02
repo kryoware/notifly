@@ -6,7 +6,7 @@ then classifies the installed app's display label plus notification title/text.
 Package names are the fallback when Android cannot resolve a label. Both are
 observed input; derived amounts, categories and transaction types are not features.
 
-The asset is a 124,482-byte, format-version-1 export from the `notifly-model`
+The asset is a 124,898-byte, format-version-2 export from the `notifly-model`
 training project: character 3–5 gram TF-IDF and logistic regression with int8
 weights. Kotlin performs inference using Android's built-in JSON support and
 standard math. No network, downloaded model, GPU or extra ML runtime is needed.
@@ -23,6 +23,20 @@ using exact `Long` minor units.
 - PHP, peso-sign, `P` amounts and explicit paid/received/sent GCash amounts are
   supported. Unsupported currencies, sub-cent amounts, overflow, failed/pending
   payments and inputs longer than 4,096 Unicode code points are unrecognized.
+- Whole-word evidence is scoped to fewer than ten intervening words and at most
+  two physical lines from the amount. `Holdings`, `withholding`, `unpaid` and
+  `unreceived` do not match `hold`, `paid` or `received`. Training and inference
+  use the same amount window. Transaction probability decreases with word/line
+  distance; nearby balance, price/promotion and incomplete-payment notices are
+  rejected. A distant email footer cannot establish an incoming payment.
+- `PHP10000.00` remains 10,000 pesos. `400K` becomes 400,000, `20k` becomes
+  20,000 and `1.25k` becomes 1,250 using exact minor-unit arithmetic. Bare compact
+  amounts require nearby transaction evidence and assume PHP. `400KB`, `20km`,
+  malformed amounts and overflow cannot be partially parsed into smaller amounts.
+- Receipts/invoices suggest expenses with low direction confidence and require
+  settlement review. Explicit incoming payment wording still suggests income.
+  Several plausible amounts also lower amount confidence; a nearby balance is
+  excluded before transaction amount selection.
 - Transfer ownership cannot be established by the model. Existing finance-app
   counterparty and own-account hints still flag likely transfers for review;
   existing capture deduplication and transfer-leg pairing are retained.
@@ -43,9 +57,14 @@ Ownership and custom categories still require user configuration or review.
 
 To update, retrain/export in `notifly-model`, copy the JSON asset and port any
 runtime format changes to `NotificationClassifier.kt`. Keep the Kotlin runtime
-in agreement with `classifier.py`; the Android tests include Python reference
+and shared `AmountContext.kt` helper in agreement with `classifier.py` and
+`amount_context.py`; the Android tests include Python reference
 probabilities, numeric invariance, filtering, rule fallback and a capture-to-Room
 check that verifies review status, zero confirmed balance, privacy and deduplication.
+`shared/src/androidUnitTest/resources/notifications.regression.json` replays the
+same 62 regression cases maintained in the training project, including the two
+reported screenshots. Related training templates exist; passing these checks
+demonstrates regression behavior, not accuracy on unseen notifications.
 
 Run `./gradlew :shared:testDebugUnitTest :app:assembleDebug` after an update.
 `allTests` also includes the declared iOS targets; existing iOS compilation errors

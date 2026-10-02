@@ -3,6 +3,8 @@ package ph.notifly.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -116,15 +118,33 @@ class InsightsModel(repository: TransactionRepository, private val preferences: 
             budget, rows.count { it.status == TransactionStatus.NEEDS_REVIEW }, categoryBudgets)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InsightsState())
     fun days(value: Int) { days.value = value }
-    fun budget(minor: Long?) = work { preferences.setMonthlyBudget(minor) }
 }
+/** The monthly cap and expense categories; null until both have loaded. */
+data class BudgetsState(val monthly: Long?, val categories: List<Category>)
 class BudgetsModel(private val preferences: AppPreferences, private val ledger: LedgerRepository) : ScreenModel() {
-    val categories = ledger.observeCategories().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val state = categories.map { list -> list.filter { it.type == TransactionType.EXPENSE && it.budgetMinor != null }
-        .associate { it.name to it.budgetMinor!! } }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
-    fun budget(name: String, minor: Long?) = work {
-        val category = ledger.observeCategories().first().first { it.name == name && it.type == TransactionType.EXPENSE }
-        ledger.saveCategory(category.copy(budgetMinor = minor))
+    private val mutableBusy = MutableStateFlow(false)
+    val busy = mutableBusy.asStateFlow()
+    val state = combine(preferences.monthlyBudget, ledger.observeCategories()) { monthly, categories ->
+        BudgetsState(monthly, categories.filter { it.type == TransactionType.EXPENSE })
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    /** Writes the cap and every category whose budget changed; the caller has already checked the cap. */
+    fun save(monthly: Long?, budgets: Map<Long, Long?>): kotlinx.coroutines.Job {
+        if (mutableBusy.value) return work {}
+        mutableBusy.value = true
+        return work {
+        try {
+        val categories = ledger.observeCategories().first().filter { it.type == TransactionType.EXPENSE }.associateBy { it.id }
+        require(budgets.keys.all { it in categories }) { "A category no longer exists. Reload budgets and try again." }
+        // Navigation must not cancel halfway through writes to these separate stores.
+        withContext(NonCancellable) {
+            preferences.setMonthlyBudget(monthly)
+            budgets.forEach { (id, minor) ->
+                categories.getValue(id).takeIf { it.budgetMinor != minor }?.let { ledger.saveCategory(it.copy(budgetMinor = minor)) }
+            }
+        }
+        mutableEvents.emit(UiEvent.Message("Budgets saved"))
+        } finally { mutableBusy.value = false }
+        }
     }
 }
 enum class TransactionFilter { ALL, NEEDS_REVIEW, INCOME, EXPENSE, TRANSFER }
@@ -282,6 +302,7 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
         mutableState.value = s.copy(saving = true)
         val occurredAt = date.atTime(time).toInstant(TimeZone.currentSystemDefault())
         work {
+            var createdId: Long? = null
             try {
                 val transaction = s.original?.copy(title = s.title.trim(), amountMinor = amount,
                     category = s.category, categoryId = s.categoryId, type = s.type, status = TransactionStatus.CONFIRMED,
@@ -292,8 +313,14 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
                         occurredAt = occurredAt, createdAt = Clock.System.now(), sourceApp = s.sourceApp,
                         captureId = s.captureId, accountId = account.id, toAccountId = s.toAccountId)
                 val savedId = if (draftId != null) ledger.confirmDraft(draftId, transaction) else repository.upsert(transaction)
+                if (s.original == null && draftId == null) createdId = savedId
                 val due = billDue
                 val paymentId = if (billId != null && due != null && bills != null) bills.settle(billId, due, savedId) else -1L
+                if (billId != null && paymentId < 0) {
+                    if (s.original == null) repository.delete(savedId)
+                    mutableState.value = state.value.copy(error = "This bill occurrence changed. No payment was recorded; please try again.")
+                    return@work
+                }
                 if (paymentId > 0) {
                     mutableEvents.emit(UiEvent.Navigate("bills"))
                     mutableEvents.emit(UiEvent.Message("$billName marked paid", onUndo = { bills?.unsettle(paymentId); repository.delete(savedId) }))
@@ -301,6 +328,7 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (_: Exception) {
+                createdId?.let { runCatching { repository.delete(it) } }
                 mutableState.value = state.value.copy(error = "Couldn't save the transaction. Please try again.")
             } finally { mutableState.value = state.value.copy(saving = false) }
         }

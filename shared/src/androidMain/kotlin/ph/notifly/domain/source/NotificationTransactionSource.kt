@@ -63,13 +63,15 @@ class NotificationTransactionSource(
         // Before the model parser: it would class a due notice as "other" and drop it.
         val today = kotlinx.datetime.TimeZone.currentSystemDefault().let { now.toLocalDateTime(it).date }
         billParser.parse(sourceAppLabel, body, today)?.let { found ->
-            bills.recordDetected(ph.notifly.domain.model.Bill(name = found.name, amountMinor = found.amountMinor, startsOn = found.dueOn,
-                repeat = ph.notifly.domain.model.BillRepeat.ONCE, status = TransactionStatus.NEEDS_REVIEW, detected = true,
-                sourceApp = event.sourceApp, createdAt = now))
             val due = found.dueOn.month.name.lowercase().replaceFirstChar { it.uppercase() } + " " + found.dueOn.day
             val captured = captures.record(RawCapture(sourceApp = sourceAppLabel, capturedAt = now, body = body, extras = content.extras,
                 result = CaptureResult.BILL, reason = "Bill reminder: due $due. Review it in Bills.", fingerprint = fingerprint))
-            if (captured != -1L) allowList.incrementCapturedCount(event.sourceApp)
+            if (captured != -1L) {
+                bills.recordDetected(ph.notifly.domain.model.Bill(name = found.name, amountMinor = found.amountMinor, startsOn = found.dueOn,
+                    repeat = ph.notifly.domain.model.BillRepeat.ONCE, status = TransactionStatus.NEEDS_REVIEW, detected = true,
+                    sourceApp = event.sourceApp, createdAt = now))
+                allowList.incrementCapturedCount(event.sourceApp)
+            }
             return
         }
         val otherFinanceApps = allowList.observeAll().first().filter { it.finance && it.packageName != event.sourceApp }.map { it.label }

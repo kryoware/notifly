@@ -15,6 +15,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
@@ -30,6 +31,7 @@ class MainActivity : ComponentActivity() {
     private val batteryExempt = mutableStateOf(false)
     private val biometricAvailable = mutableStateOf(false)
     private val launchRoute = mutableStateOf<String?>(null)
+    private val launchRouteKey = mutableIntStateOf(0)
     private val notificationsAllowed = mutableStateOf(true)
     private val notificationPermission = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) {
         notificationsAllowed.value = it
@@ -79,12 +81,14 @@ class MainActivity : ComponentActivity() {
                 notificationsAllowed = notificationsAllowed.value,
                 requestNotifications = { if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS) },
                 launchRoute = launchRoute.value,
+                launchRouteKey = launchRouteKey.intValue,
             )
         }
     }
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         launchRoute.value = intent.getStringExtra(EXTRA_ROUTE)
+        launchRouteKey.intValue++
     }
     override fun onResume() {
         super.onResume()

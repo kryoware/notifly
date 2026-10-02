@@ -25,6 +25,7 @@ import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import androidx.savedstate.read
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
 import org.koin.compose.koinInject
 import ph.notifly.data.local.AppPreferences
 import ph.notifly.domain.repository.*
@@ -45,6 +46,7 @@ fun NotiflyApp(
     notificationsAllowed: Boolean = true,
     requestNotifications: () -> Unit = {},
     launchRoute: String? = null,
+    launchRouteKey: Int = 0,
 ) {
     val preferences = koinInject<AppPreferences>()
     val database = koinInject<ph.notifly.data.local.AppDatabase>()
@@ -143,7 +145,7 @@ fun NotiflyApp(
                             ledger = ledger, demo = demo, onDemo = { demo = it }, transactions = transactions, allowDataTransfer = !demo, notificationsAllowed = notificationsAllowed, requestNotifications = requestNotifications,
                             onDataMessage = { snackbar.showSnackbar(it) }) } }
                 composable("budgets") { val m = viewModel { BudgetsModel(preferences, ledger) }; Events(m, handle)
-                    AppDestination("Category budgets", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { BudgetsScreen(m) } }
+                    AppDestination("Budgets", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { BudgetsScreen(m) } }
                 composable("allow-list") { val m = viewModel { AllowListModel(apps) }; Events(m, handle)
                     AppDestination("Allowed apps", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { AllowListScreen(m) } }
                 composable("choose-apps") { val m = viewModel { AllowListModel(apps) }; Events(m, handle)
@@ -166,9 +168,13 @@ fun NotiflyApp(
                     AppDestination("Categories", snackbar, onBack = { nav.popBackStack() }) { CategoriesScreen(m) } }
                 composable("category/{id}/{type}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val m = viewModel { LedgerSettingsModel(ledger, apps) }; Events(m, handle)
+                    val monthlyBudget by remember(preferences) {
+                        preferences.monthlyBudget.map { it to true }
+                    }.collectAsState(null to false)
                     AppDestination("Category details", snackbar, onBack = { nav.popBackStack() }) {
                         CategoryEditorScreen(m, it.arguments?.read { getLong("id") } ?: 0L,
-                            ph.notifly.domain.model.TransactionType.valueOf(it.arguments?.read { getString("type") } ?: "EXPENSE")) } }
+                            ph.notifly.domain.model.TransactionType.valueOf(it.arguments?.read { getString("type") } ?: "EXPENSE"),
+                            monthlyBudget.first, monthlyBudgetLoaded = monthlyBudget.second) } }
                 composable("account-review") { val m = viewModel { LedgerSettingsModel(ledger, apps) }; Events(m, handle)
                     AppDestination("Assign accounts", snackbar, onBack = { nav.popBackStack() }) { AccountReviewScreen(m) } }
                 composable("draft/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
@@ -184,7 +190,7 @@ fun NotiflyApp(
                 }
             }
         }
-        LaunchedEffect(launchRoute) { if (launchRoute != null && onboarded == true) navigate(launchRoute) }
+        LaunchedEffect(launchRoute, launchRouteKey) { if (launchRoute != null && onboarded == true) navigate(launchRoute) }
         val locked = pinSet == true && !unlocked
         Box(Modifier.fillMaxSize()) {
             NavigationSuiteScaffold(

@@ -232,7 +232,7 @@ class DemoBills(rows: List<Transaction> = emptyList()) : BillRepository {
         val existing = bills.value.find { it.id != id && it.status == TransactionStatus.CONFIRMED && draft.sourceApp != null &&
             it.sourceApp == draft.sourceApp && it.name.equals(draft.name, ignoreCase = true) }
         if (existing == null) save(draft.copy(status = TransactionStatus.CONFIRMED))
-        else { save(existing.copy(amountMinor = draft.amountMinor, startsOn = draft.startsOn, settled = 0, remindedFor = null)); delete(id) }
+        else { save(existing.copy(amountMinor = draft.amountMinor, remindedFor = null)); delete(id) }
     }
     override suspend fun recordDetected(bill: Bill): Boolean {
         if (bills.value.any { it.sourceApp == bill.sourceApp && it.name.equals(bill.name, true) && it.startsOn == bill.startsOn }) return false

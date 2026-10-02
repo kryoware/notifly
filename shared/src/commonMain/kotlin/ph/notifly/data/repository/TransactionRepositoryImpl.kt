@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import ph.notifly.domain.repository.LedgerRepository
 import ph.notifly.data.local.TransactionDao
+import ph.notifly.data.local.BillDao
 import ph.notifly.data.local.toDomain
 import ph.notifly.data.local.toEntity
 import ph.notifly.domain.model.Transaction
@@ -14,6 +15,7 @@ import ph.notifly.domain.repository.TransactionRepository
 class TransactionRepositoryImpl(
     private val dao: TransactionDao,
     private val ledger: LedgerRepository? = null,
+    private val bills: BillDao? = null,
 ) : TransactionRepository {
 
     override fun observeAll(): Flow<List<Transaction>> =
@@ -38,8 +40,10 @@ class TransactionRepositoryImpl(
         return dao.saveLocally(transaction.toEntity())
     }
 
-    override suspend fun delete(id: Long) =
+    override suspend fun delete(id: Long) {
+        bills?.transactionDeleted(id)
         dao.deleteLocally(id)
+    }
 
     override suspend fun importTransactions(transactions: List<Transaction>): Int {
         ledger?.initialize(); return dao.importDrafts(transactions.map { it.toEntity() })

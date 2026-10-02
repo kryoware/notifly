@@ -13,6 +13,7 @@ interface BillDao {
     @Query("SELECT * FROM bill_payments ORDER BY dueOnDay") fun observePayments(): Flow<List<BillPaymentEntity>>
     @Query("SELECT * FROM bills WHERE id = :id") suspend fun byId(id: Long): BillEntity?
     @Query("SELECT * FROM bill_payments WHERE id = :id") suspend fun paymentById(id: Long): BillPaymentEntity?
+    @Query("SELECT * FROM bill_payments WHERE billId = :id") suspend fun paymentsFor(id: Long): List<BillPaymentEntity>
     @Query("SELECT * FROM bills WHERE status = 'CONFIRMED' AND id != :excluding AND sourceApp = :sourceApp AND name = :name COLLATE NOCASE LIMIT 1")
     suspend fun activeFrom(sourceApp: String, name: String, excluding: Long): BillEntity?
     @Query("SELECT COUNT(*) FROM bills WHERE sourceApp = :sourceApp AND name = :name COLLATE NOCASE AND startsOnDay = :day")
@@ -30,7 +31,7 @@ interface BillDao {
         val draft = byId(id) ?: return
         val existing = draft.sourceApp?.let { activeFrom(it, draft.name, id) }
         if (existing == null) { markConfirmed(id); return }
-        upsert(existing.copy(amountMinor = draft.amountMinor, startsOnDay = draft.startsOnDay, settled = 0, remindedForDay = null))
+        upsert(existing.copy(amountMinor = draft.amountMinor, remindedForDay = null))
         delete(id)
     }
 
@@ -46,15 +47,41 @@ interface BillDao {
     @androidx.room.Transaction
     suspend fun settle(billId: Long, dueOn: LocalDate, transactionId: Long?, settledAtMillis: Long): Long {
         val bill = byId(billId)?.toDomain() ?: return -1
-        if (bill.nextDue != dueOn) return -1
-        setSettled(billId, bill.settled + 1)
-        return insertPayment(BillPaymentEntity(billId = billId, dueOnDay = dueOn.toEpochDays(), transactionId = transactionId, settledAtMillis = settledAtMillis))
+        val paymentDays = paymentsFor(billId).map { it.dueOnDay }.toSet()
+        val next = if (bill.repeat == ph.notifly.domain.model.BillRepeat.ONCE) {
+            bill.occurrence(0).takeIf { it.toEpochDays() !in paymentDays }
+        } else generateSequence(bill.settled) { it + 1 }
+            .firstOrNull { bill.occurrence(it).toEpochDays() !in paymentDays }
+            ?.let(bill::occurrence)
+        if (next != dueOn) return -1
+        val id = insertPayment(BillPaymentEntity(billId = billId, dueOnDay = dueOn.toEpochDays(), transactionId = transactionId, settledAtMillis = settledAtMillis))
+        setSettled(billId, contiguousSettled(billId, bill))
+        return id
     }
 
     @androidx.room.Transaction
     suspend fun unsettle(paymentId: Long) {
         val payment = paymentById(paymentId) ?: return
         deletePayment(paymentId)
-        byId(payment.billId)?.let { setSettled(it.id, maxOf(0, it.settled - 1)) }
+        byId(payment.billId)?.let { bill ->
+            setSettled(bill.id, contiguousSettled(bill.id, bill.toDomain()))
+        }
+    }
+
+    @androidx.room.Transaction
+    suspend fun transactionDeleted(transactionId: Long) {
+        val affected = paymentsForTransaction(transactionId)
+        affected.forEach { payment ->
+            deletePayment(payment.id)
+            byId(payment.billId)?.let { bill -> setSettled(bill.id, contiguousSettled(bill.id, bill.toDomain())) }
+        }
+    }
+
+    @Query("SELECT * FROM bill_payments WHERE transactionId = :id") suspend fun paymentsForTransaction(id: Long): List<BillPaymentEntity>
+
+    suspend fun contiguousSettled(id: Long, bill: ph.notifly.domain.model.Bill): Int {
+        val dates = paymentsFor(id).map { it.dueOnDay }.toSet()
+        if (bill.repeat == ph.notifly.domain.model.BillRepeat.ONCE) return if (bill.startsOn.toEpochDays() in dates) 1 else 0
+        return generateSequence(0) { it + 1 }.takeWhile { bill.occurrence(it).toEpochDays() in dates }.count()
     }
 }

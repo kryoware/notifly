@@ -62,8 +62,15 @@ fun billOccurrences(bills: List<Bill>, payments: List<BillPayment>, from: LocalD
     return bills.filter { it.status == TransactionStatus.CONFIRMED }.flatMap { bill ->
         val made = byBill[bill.id].orEmpty().associateBy { it.dueOn }
         val limit = if (bill.repeat == BillRepeat.ONCE) 1 else Int.MAX_VALUE
-        generateSequence(0) { it + 1 }.take(limit).map { n -> n to bill.occurrence(n) }
-            .dropWhile { it.second < from }.takeWhile { it.second <= to }
+        var low = 0
+        var high = 1
+        while (bill.occurrence(high).let { it < from } && high < Int.MAX_VALUE / 2) high *= 2
+        while (low < high) {
+            val middle = low + (high - low) / 2
+            if (bill.occurrence(middle) < from) low = middle + 1 else high = middle
+        }
+        val scheduled = generateSequence(low) { it + 1 }.take(limit - low).map { n -> n to bill.occurrence(n) }
+            .takeWhile { it.second <= to }
             .mapNotNull { (n, due) ->
                 val payment = made[due]
                 when {
@@ -72,6 +79,10 @@ fun billOccurrences(bills: List<Bill>, payments: List<BillPayment>, from: LocalD
                     else -> BillOccurrence(bill, due, payment)
                 }
             }.toList()
+        val scheduledDates = scheduled.mapTo(mutableSetOf()) { it.dueOn }
+        (scheduled + made.values.asSequence().filter { it.dueOn in from..to && it.dueOn !in scheduledDates }
+            .filter { it.transactionId != null }
+            .map { BillOccurrence(bill, it.dueOn, it) }.toList())
     }.sortedWith(compareBy({ it.dueOn }, { it.bill.name.lowercase() }))
 }
 
