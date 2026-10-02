@@ -1,11 +1,12 @@
 # Build plan
 
-Working plan for Claude Code. Rules and constraints live in `CLAUDE.md` — read
-that first; this file is only the order of work.
+Working plan for all agents. Read [development rules](docs/DEVELOPMENT.md)
+first; this file is only the order of work.
 
-Behavioural spec for every screen: `docs/prototype.html`. Open it in a browser
-and use it, don't just read it. When this plan says "match the prototype", it
-means the interaction, not a pixel copy.
+The previously referenced `docs/prototype.html` was deleted from this branch.
+Use [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md) for available guidance;
+prototype-dependent checks remain unperformed until the reference is restored.
+"Match the prototype" below means interactions, not a pixel copy.
 
 ## Phase 4 — Theme check
 
@@ -147,14 +148,6 @@ Android backup/device transfer explicitly exclude the local ledger and notificat
 `iosApp/` and shouldn't be until the iOS capture story is decided. iOS cannot
 read other apps' notifications; it needs a bank aggregator, file import, or
 manual entry. That's a product decision, not a coding task.
-
----
-
-## First session prompt
-
-> Read CLAUDE.md and PLAN.md. Work Phase 0 only. Get `./gradlew :app:assembleDebug`
-> succeeding — fix version resolution first, then compilation. Tell me every
-> version you changed and why. Don't start Phase 1.
 
 ---
 

@@ -4,11 +4,8 @@ Parses payment notifications into a personal ledger. Android (KMP-ready).
 
 ## Setup
 
-1. `gradle wrapper` — the wrapper is not committed.
-2. Open in Android Studio, let it sync.
-3. Versions in `gradle/libs.versions.toml` are unverified; fix resolution first.
-4. `./gradlew :shared:allTests` to run the parser suite.
+Use the committed Gradle wrapper; follow [development setup and checks](docs/DEVELOPMENT.md#build-and-verification).
 
-See `CLAUDE.md` for architecture rules and build order.
-See `PLAN.md` for the phased build order.
-See `docs/prototype.html` for the interaction spec.
+See [AGENTS.md](AGENTS.md) / [CLAUDE.md](CLAUDE.md) for shared agent instructions,
+[PLAN.md](PLAN.md) for build order, [PRODUCT.md](PRODUCT.md) for behaviour,
+and [EMULATORS.md](docs/EMULATORS.md) for the emulator queue.
