@@ -1187,7 +1187,7 @@ fun LicensesScreen() {
 fun AllowListScreen(model: AllowListModel, onFinish: (() -> Unit)? = null) {
     val s by model.state.collectAsState()
     var searchText by remember { mutableStateOf("") }
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = if (onFinish != null) 24.dp else 16.dp)) {
         if (onFinish != null) Box(Modifier.padding(top = 8.dp, bottom = 4.dp)) { StepTrail(3) }
         Text(if (onFinish != null) "Only apps you select are read. Pick the bank and e-wallet apps that send you payment alerts."
             else if (s.finance) "Pick the bank and wallet apps you move money between. Matching in and out alerts become one transfer."
