@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
         if (resources.configuration.smallestScreenWidthDp < 600) requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        launchRoute.value = intent.getStringExtra(EXTRA_ROUTE)
+        if (savedInstanceState == null) launchRoute.value = intent.getStringExtra(EXTRA_ROUTE)
         refreshNotificationsAllowed()
 
         setContent {
