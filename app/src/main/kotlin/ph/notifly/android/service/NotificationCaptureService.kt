@@ -1,7 +1,6 @@
 package ph.notifly.android.service
 
 import android.content.ComponentName
-import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import kotlinx.coroutines.CancellationException
@@ -13,7 +12,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.koin.android.ext.android.inject
-import ph.notifly.android.BuildConfig
 import ph.notifly.domain.diagnostics.ErrorReporter
 import ph.notifly.domain.diagnostics.ErrorSite
 import ph.notifly.domain.source.NotificationContent
@@ -69,46 +67,10 @@ class NotificationCaptureService : NotificationListenerService() {
                     title = extras?.getCharSequence("android.title")?.toString().orEmpty(),
                     text = (extras?.getCharSequence("android.bigText")
                         ?: extras?.getCharSequence("android.text"))?.toString().orEmpty(),
-                    extras = if (BuildConfig.DEBUG) rawFields() else emptyMap(),
+                    extras = emptyMap(),
                 )
             },
         )
     }
 
-    /** Debug-only dump of every text-like field, for parser training exports. */
-    private fun StatusBarNotification.rawFields(): Map<String, String> {
-        val n = notification ?: return emptyMap()
-        val bundle = n.extras
-        @Suppress("DEPRECATION")
-        val extras = bundle?.keySet().orEmpty().mapNotNull { key ->
-            when (val value = bundle.get(key)) {
-                is CharSequence, is Number, is Boolean -> value.toString()
-                // textLines (InboxStyle) and messages (MessagingStyle bundles)
-                is Array<*> -> value.mapNotNull { item ->
-                    when (item) {
-                        is CharSequence -> item.toString()
-                        is android.os.Bundle -> {
-                            val text = item.getCharSequence("text")?.toString() ?: return@mapNotNull null
-                            // MessagingStyle: preserve sender for parser training.
-                            val personName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                (item.getParcelable("sender_person") as? android.app.Person)?.name
-                            } else null
-                            val sender = personName ?: item.getCharSequence("sender")
-                            if (sender != null) "$sender: $text" else text
-                        }
-                        else -> null
-                    }
-                }
-                    .joinToString("\n").ifEmpty { null }
-                else -> null
-            }?.let { key to it }
-        }.toMap()
-        return extras + listOfNotNull(
-            "packageName" to packageName,
-            n.channelId?.let { "channelId" to it },
-            n.category?.let { "category" to it },
-            n.group?.let { "group" to it },
-            n.tickerText?.let { "tickerText" to it.toString() },
-        )
-    }
 }
