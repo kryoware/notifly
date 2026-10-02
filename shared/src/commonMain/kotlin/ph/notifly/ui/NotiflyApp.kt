@@ -122,7 +122,7 @@ fun NotiflyApp(
                             ledger = ledger, demo = demo, onDemo = { demo = it }, transactions = transactions, allowDataTransfer = !demo,
                             onDataMessage = { snackbar.showSnackbar(it) }) } }
                 composable("budgets") { val m = viewModel { BudgetsModel(preferences, ledger) }; Events(m, handle)
-                    AppDestination("Category budgets", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { BudgetsScreen(m) } }
+                    AppDestination("Budgets", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { BudgetsScreen(m) } }
                 composable("allow-list") { val m = viewModel { AllowListModel(apps) }; Events(m, handle)
                     AppDestination("Allowed apps", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { AllowListScreen(m) } }
                 composable("choose-apps") { val m = viewModel { AllowListModel(apps) }; Events(m, handle)
@@ -145,9 +145,10 @@ fun NotiflyApp(
                     AppDestination("Categories", snackbar, onBack = { nav.popBackStack() }) { CategoriesScreen(m) } }
                 composable("category/{id}/{type}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val m = viewModel { LedgerSettingsModel(ledger, apps) }; Events(m, handle)
+                    val monthlyBudget by preferences.monthlyBudget.collectAsState(null)
                     AppDestination("Category details", snackbar, onBack = { nav.popBackStack() }) {
                         CategoryEditorScreen(m, it.arguments?.read { getLong("id") } ?: 0L,
-                            ph.notifly.domain.model.TransactionType.valueOf(it.arguments?.read { getString("type") } ?: "EXPENSE")) } }
+                            ph.notifly.domain.model.TransactionType.valueOf(it.arguments?.read { getString("type") } ?: "EXPENSE"), monthlyBudget) } }
                 composable("account-review") { val m = viewModel { LedgerSettingsModel(ledger, apps) }; Events(m, handle)
                     AppDestination("Assign accounts", snackbar, onBack = { nav.popBackStack() }) { AccountReviewScreen(m) } }
                 composable("draft/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
