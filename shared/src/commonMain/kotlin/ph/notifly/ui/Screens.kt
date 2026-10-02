@@ -180,6 +180,7 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
                 Text("Assign accounts · ${s.drafts} to review")
             }
         }
+        item { NextBillLine(s.nextBill, s.detectedBills, s.hideAmounts) { model.navigate("bills") } }
         if (s.accounts.isNotEmpty()) {
             item { AccountsHeader(s.accounts.sumOf { it.netValue }, s.hideAmounts) }
             items(s.accounts, key = { "account:" + it.account.id }) { account ->
@@ -215,16 +216,16 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
 }
 
 @Composable
-private fun AddTransactionFab(expanded: Boolean, onClick: () -> Unit) {
+internal fun AddTransactionFab(label: String = "Add transaction", expanded: Boolean, onClick: () -> Unit) {
     ExtendedFloatingActionButton(
         onClick = onClick,
         expanded = expanded,
         // M3 1.5 clears the text slot's semantics, so the name must sit on the button itself.
-        modifier = Modifier.semantics { contentDescription = "Add transaction" },
+        modifier = Modifier.semantics { contentDescription = label },
         containerColor = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
         icon = { Icon(painterResource(Res.drawable.symbol_add), contentDescription = null) },
-        text = { Text("Add transaction") },
+        text = { Text(label) },
     )
 }
 
@@ -476,7 +477,7 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
 }
 
 @Composable
-private fun CategoryField(value: String, categories: List<String>, onValueChange: (String) -> Unit) {
+internal fun CategoryField(value: String, categories: List<String>, onValueChange: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val options = if (value in categories) categories else categories + value
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
@@ -785,6 +786,8 @@ fun SettingsScreen(
     onDataMessage: suspend (String) -> Unit = {},
     allowDataTransfer: Boolean = true,
     ledger: ph.notifly.domain.repository.LedgerRepository? = null,
+    notificationsAllowed: Boolean = true,
+    requestNotifications: () -> Unit = {},
 ) {
     val s by model.state.collectAsState()
     val source = org.koin.compose.koinInject<ph.notifly.domain.source.TransactionSource>()
@@ -816,6 +819,7 @@ fun SettingsScreen(
                 SettingsRow("Categories", "Customize income and expense categories", onClick = { model.navigate("categories") })
                 SettingsRow("Assign accounts", "Review captured transactions without an account", onClick = { model.navigate("account-review") })
                 SettingsRow("Category budgets", "Set a monthly limit for each spending category", onClick = { model.navigate("budgets") })
+                BillReminderRow(s.billReminderDays, notificationsAllowed, requestNotifications, model::billReminders)
                 SettingsRow("Demo mode", "Explore with random sample transactions. Your own data is left untouched.",
                     checked = demo, onCheckedChange = onDemo)
             }
@@ -934,6 +938,16 @@ fun SettingsScreen(
             }
         }
         item { BrandFooter() }
+    }
+}
+
+@Composable
+private fun BillReminderRow(days: Int?, notificationsAllowed: Boolean, requestNotifications: () -> Unit, choose: (Int?) -> Unit) {
+    val options = listOf<Int?>(null, 0, 1, 3)
+    fun label(d: Int?) = when (d) { null -> "Off"; 0 -> "On the day"; 1 -> "1 day before"; else -> "$d days before" }
+    ChoiceField("Bill reminders", label(days), options, label = ::label) {
+        if (it != null && !notificationsAllowed) requestNotifications()
+        choose(it)
     }
 }
 

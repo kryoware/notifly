@@ -13,6 +13,7 @@ NAMES = (
     "expand_more", "file_download", "help", "home", "keyboard_arrow_right", "list", "lock",
     "north_east", "notifications", "open_in_new", "battery_android_full", "pending_actions", "pie_chart", "receipt_long",
     "schedule", "search", "settings", "south_west", "swap_horiz", "visibility", "visibility_off",
+    "event_upcoming", "chevron_left", "chevron_right",
 )
 target = Path("shared/src/commonMain/composeResources/drawable")
 target.mkdir(parents=True, exist_ok=True)

@@ -61,6 +61,7 @@ private fun CaptureResult.label() = when (this) {
     CaptureResult.NEEDS_REVIEW -> "Needs review"
     CaptureResult.UNRECOGNIZED -> "Not recognised"
     CaptureResult.IGNORED -> "Ignored"
+    CaptureResult.BILL -> "Bill"
 }
 
 private fun CaptureResult?.icon() = when (this) {
@@ -69,6 +70,7 @@ private fun CaptureResult?.icon() = when (this) {
     CaptureResult.NEEDS_REVIEW -> Res.drawable.symbol_pending_actions
     CaptureResult.UNRECOGNIZED -> Res.drawable.symbol_help
     CaptureResult.IGNORED -> Res.drawable.symbol_clear
+    CaptureResult.BILL -> Res.drawable.symbol_event_upcoming
 }
 
 @Composable
@@ -118,6 +120,7 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDe
                     CaptureResult.NEEDS_REVIEW -> MaterialTheme.colorScheme.tertiary
                     CaptureResult.UNRECOGNIZED -> MaterialTheme.colorScheme.error
                     CaptureResult.IGNORED -> MaterialTheme.colorScheme.onSurfaceVariant
+                    CaptureResult.BILL -> MaterialTheme.colorScheme.tertiary
                 }
                 val isExpanded = expanded == capture.id
                 val rotation by animateFloatAsState(if (isExpanded) 180f else 0f)
@@ -179,4 +182,5 @@ private fun CaptureResult.exportName() = when (this) {
     CaptureResult.NEEDS_REVIEW -> "needs_review"
     CaptureResult.UNRECOGNIZED -> "unrecognized"
     CaptureResult.IGNORED -> "ignored"
+    CaptureResult.BILL -> "bill"
 }

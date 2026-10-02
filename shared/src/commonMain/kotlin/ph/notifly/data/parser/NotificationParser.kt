@@ -125,6 +125,10 @@ class NotificationParser {
         return ParseOutcome.Parsed(draft, reason)
     }
 
+    /** First PHP amount in [text] at or after [from], in centavos, or null. Shared with [BillReminderParser]. */
+    internal fun firstAmountMinor(text: String, from: Int = 0): Long? =
+        amountRegex.find(text, from)?.let { runCatching { toMinorUnits(it.groupValues[1]) }.getOrNull() }
+
     /** "48,000.00" -> 4800000. String maths only; never Double for money. */
     internal fun toMinorUnits(raw: String): Long {
         val cleaned = raw.replace(",", "")
