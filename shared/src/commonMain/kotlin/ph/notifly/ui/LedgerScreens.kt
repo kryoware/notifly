@@ -179,10 +179,10 @@ fun CategoriesScreen(model: LedgerSettingsModel) {
 }
 
 @Composable
-fun CategoryEditorScreen(model: LedgerSettingsModel, id: Long, type: TransactionType, monthlyBudget: Long?) {
+fun CategoryEditorScreen(model: LedgerSettingsModel, id: Long, type: TransactionType, monthlyBudget: Long?, monthlyBudgetLoaded: Boolean) {
     val s by model.state.collectAsState()
     val busy by model.busy.collectAsState()
-    if (!s.loaded) { CircularProgressIndicator(); return }
+    if (!s.loaded || !monthlyBudgetLoaded) { CircularProgressIndicator(); return }
     val original = s.categories.find { it.id == id }
     if (id != 0L && original == null) { Text("Category no longer exists."); return }
     var name by remember(id) { mutableStateOf(original?.name.orEmpty()) }

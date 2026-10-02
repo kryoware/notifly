@@ -3,6 +3,8 @@ package ph.notifly.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -113,11 +115,15 @@ class BudgetsModel(private val preferences: AppPreferences, private val ledger: 
         BudgetsState(monthly, categories.filter { it.type == TransactionType.EXPENSE })
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     /** Writes the cap and every category whose budget changed; the caller has already checked the cap. */
-    fun save(monthly: Long?, budgets: Map<String, Long?>) = work {
-        preferences.setMonthlyBudget(monthly)
-        val categories = ledger.observeCategories().first().filter { it.type == TransactionType.EXPENSE }
-        budgets.forEach { (name, minor) ->
-            categories.firstOrNull { it.name == name }?.takeIf { it.budgetMinor != minor }?.let { ledger.saveCategory(it.copy(budgetMinor = minor)) }
+    fun save(monthly: Long?, budgets: Map<Long, Long?>) = work {
+        val categories = ledger.observeCategories().first().filter { it.type == TransactionType.EXPENSE }.associateBy { it.id }
+        require(budgets.keys.all { it in categories }) { "A category no longer exists. Reload budgets and try again." }
+        // Navigation must not cancel halfway through writes to these separate stores.
+        withContext(NonCancellable) {
+            preferences.setMonthlyBudget(monthly)
+            budgets.forEach { (id, minor) ->
+                categories.getValue(id).takeIf { it.budgetMinor != minor }?.let { ledger.saveCategory(it.copy(budgetMinor = minor)) }
+            }
         }
         mutableEvents.emit(UiEvent.Message("Budgets saved"))
     }

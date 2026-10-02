@@ -948,8 +948,8 @@ fun BudgetsScreen(model: BudgetsModel) {
     // Archived categories stay listed while they hold a budget, since it still counts toward the cap.
     val categories = s.categories.filter { !it.archived || it.budgetMinor != null }
     var monthly by remember { mutableStateOf(s.monthly?.let(::amountText).orEmpty()) }
-    val edits = remember { mutableStateMapOf<String, String>() }
-    fun text(category: Category) = edits[category.name] ?: category.budgetMinor?.let(::amountText).orEmpty()
+    val edits = remember { mutableStateMapOf<Long, String>() }
+    fun text(category: Category) = edits[category.id] ?: category.budgetMinor?.let(::amountText).orEmpty()
     fun invalid(text: String) = text.isNotBlank() && parseAmountMinor(text) == null
     var attempted by remember { mutableStateOf(false) }
     val cap = parseAmountMinor(monthly)
@@ -980,7 +980,7 @@ fun BudgetsScreen(model: BudgetsModel) {
             if (categories.isEmpty()) item { Text("Add a spending category to give it a budget.") }
             items(categories, key = { it.id }) { category ->
                 val value = text(category)
-                MoneyField(value, { edits[category.name] = it; attempted = false },
+                MoneyField(value, { edits[category.id] = it; attempted = false },
                     label = { Text(category.name + if (category.archived) " · Archived" else "") }, Modifier.fillMaxWidth(),
                     prefix = { Text("₱") }, isError = attempted && invalid(value),
                     supportingText = if (attempted && invalid(value)) { { Text(AMOUNT_ERROR) } } else null)
@@ -989,7 +989,7 @@ fun BudgetsScreen(model: BudgetsModel) {
         Button(onClick = {
             attempted = true
             if (!invalid(monthly) && !over && categories.none { invalid(text(it)) })
-                model.save(cap, categories.associate { it.name to parseAmountMinor(text(it)) })
+                model.save(cap, categories.associate { it.id to parseAmountMinor(text(it)) })
         }, Modifier.fillMaxWidth().padding(16.dp)) { Text("Save budgets") }
     }
 }

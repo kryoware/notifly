@@ -24,6 +24,7 @@ import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import androidx.savedstate.read
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
 import org.koin.compose.koinInject
 import ph.notifly.data.local.AppPreferences
 import ph.notifly.domain.repository.*
@@ -145,10 +146,13 @@ fun NotiflyApp(
                     AppDestination("Categories", snackbar, onBack = { nav.popBackStack() }) { CategoriesScreen(m) } }
                 composable("category/{id}/{type}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val m = viewModel { LedgerSettingsModel(ledger, apps) }; Events(m, handle)
-                    val monthlyBudget by preferences.monthlyBudget.collectAsState(null)
+                    val monthlyBudget by remember(preferences) {
+                        preferences.monthlyBudget.map { it to true }
+                    }.collectAsState(null to false)
                     AppDestination("Category details", snackbar, onBack = { nav.popBackStack() }) {
                         CategoryEditorScreen(m, it.arguments?.read { getLong("id") } ?: 0L,
-                            ph.notifly.domain.model.TransactionType.valueOf(it.arguments?.read { getString("type") } ?: "EXPENSE"), monthlyBudget) } }
+                            ph.notifly.domain.model.TransactionType.valueOf(it.arguments?.read { getString("type") } ?: "EXPENSE"),
+                            monthlyBudget.first, monthlyBudgetLoaded = monthlyBudget.second) } }
                 composable("account-review") { val m = viewModel { LedgerSettingsModel(ledger, apps) }; Events(m, handle)
                     AppDestination("Assign accounts", snackbar, onBack = { nav.popBackStack() }) { AccountReviewScreen(m) } }
                 composable("draft/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
