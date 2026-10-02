@@ -15,6 +15,7 @@ import android.service.notification.NotificationListenerService
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.WindowCompat
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.lifecycle.lifecycleScope
@@ -84,6 +85,7 @@ class MainActivity : ComponentActivity() {
                 requestNotifications = { if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS) },
                 launchRoute = launchRoute.value,
                 launchRouteKey = launchRouteKey.intValue,
+                onDarkChanged = { dark -> WindowCompat.getInsetsController(window, window.decorView).apply { isAppearanceLightStatusBars = !dark; isAppearanceLightNavigationBars = !dark } },
             )
         }
     }

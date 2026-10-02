@@ -50,6 +50,7 @@ fun NotiflyApp(
     requestNotifications: () -> Unit = {},
     launchRoute: String? = null,
     launchRouteKey: Int = 0,
+    onDarkChanged: (Boolean) -> Unit = {},
 ) {
     val preferences = koinInject<AppPreferences>()
     val database = koinInject<ph.notifly.data.local.AppDatabase>()
@@ -102,7 +103,7 @@ fun NotiflyApp(
         }; Unit }
     } }
     val topLevel = listOf("home", "transactions", "bills", "insights", "settings")
-    NotiflyTheme(palette, themeMode) {
+    NotiflyTheme(palette, themeMode, onDarkChanged) {
         if (onboarded == null || pinSet == null) {
             Surface(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
             return@NotiflyTheme
