@@ -12,6 +12,7 @@ xcuserdata/
 
 .claude/.headroom_wrap_marker.json
 .claude/.headroom_wrap_owners.json
+.claude/settings.local.json
 
 # Sentry Config File
 sentry.properties

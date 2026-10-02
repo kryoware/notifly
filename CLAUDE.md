@@ -68,37 +68,31 @@ shared/   commonMain: domain, data, ui (Compose), di
 Layering is Data → Domain → Presentation. Domain is pure Kotlin with no platform
 imports. Repositories are interfaces in domain, implemented in data.
 
-## First run
+## Commands
 
-**Versions in `gradle/libs.versions.toml` are unverified.** They were written
-offline and never resolved against a repository. Expect some to be wrong.
+Gradle wrapper is committed. On Windows use `.\gradlew.bat`.
 
 ```
-./gradlew :shared:compileKotlinAndroid
-./gradlew :shared:allTests
+./gradlew :shared:testDebugUnitTest      # commonTest + androidUnitTest (Robolectric/Room)
+./gradlew :shared:testDebugUnitTest --tests "ph.notifly.data.parser.*"   # single class/package
+./gradlew :app:lintDebug
 ./gradlew :app:assembleDebug
+./gradlew :app:assembleRelease           # R8; unsigned unless KEYSTORE_* env vars set
+./gradlew :shared:exportLibraryDefinitions --rerun-tasks   # regenerate aboutlibraries.json (CI does this)
 ```
 
-Fix version resolution failures first, then compilation, then tests. Do not
-change parser behaviour to make a test pass — the tests encode intended
-behaviour and were written before the implementation was verified.
+CI (`.github/workflows/ci.yml`, PRs to `master`): license export, `lint`, `test`,
+`assembleDebug`. iOS targets need macOS and are not compiled in CI.
+Do not change parser behaviour to make a test pass — the tests encode intended
+behaviour.
 
-Missing on purpose: Gradle wrapper (run `gradle wrapper`), launcher icons,
-Room entities/DAOs/database, repository implementations, ViewModels, and all
-screens beyond a placeholder.
+## Status
 
-## Build order
-
-Full phase-by-phase plan with checkboxes: `PLAN.md`. Short version:
-
-1. Get Gradle resolving and `:shared:allTests` green.
-2. Room entities, DAOs, `AppDatabase`, platform DB builders.
-3. Repository implementations + Koin wiring.
-4. Theme check — render all four palettes side by side.
-5. Screens against seeded fake data: home, transactions, CRUD, settings, log.
-6. Wire `NotificationCaptureService` to `TransactionRepository`.
-7. Permission flow (`Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS` + return check).
-8. Sync queue (WorkManager on Android).
+Phases 4–10 in `PLAN.md` are largely implemented; remaining gates and what is
+unverified are in `docs/IMPLEMENTATION_STATUS.md`. Notably: sync is local
+outbox only (no backend, no WorkManager worker), no device/emulator checks have
+been run, Phase 9 duplicate/hold/learned rules are deferred pending real samples.
+`docs/prototype.html` referenced elsewhere is not in the repo.
 
 Build the UI against fake data *before* the service. You do not want to debug a
 listener that only fires when a real notification arrives.
