@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,7 +29,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import kotlin.math.abs
@@ -42,13 +40,12 @@ import ph.notifly.ui.theme.tabular
 
 /**
  * Shows insights for the selected day window, followed by budgets for the current month.
- * Renders nothing until the selected window is available. Selection, navigation, and monthly
- * budget saves go through [model]; [appLabels] maps source package names to app display labels.
+ * Renders nothing until the selected window is available. Selection and navigation, including to
+ * budget setup, go through [model]; [appLabels] maps source package names to app display labels.
  */
 @Composable
 fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyMap()) {
     val s by model.state.collectAsState()
-    var editingBudget by remember { mutableStateOf(false) }
     val w = s.selected ?: return
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -83,17 +80,17 @@ fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyM
         }
         s.month?.let { month ->
             item { SectionHeader("This month") }
-            item { BudgetCard(month, s.budget) { editingBudget = true } }
+            item { BudgetCard(month, s.budget) { model.navigate("budgets") } }
             if (s.categoryBudgets.isNotEmpty()) item { CategoryBudgetCard(month, s.categoryBudgets) { model.navigate("budgets") } }
         }
     }
-    if (editingBudget) BudgetDialog(s.budget, dismiss = { editingBudget = false }) { model.budget(it); editingBudget = false }
 }
 
 internal fun shortDate(date: LocalDate) = "${date.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${date.day}"
 
 /** Display-only ratio for progress bars; money itself stays in Long. */
-private fun ratio(part: Long, whole: Long) = if (whole <= 0L) 0f else (part.coerceIn(0L, whole) * 1000 / whole).toInt() / 1000f
+internal fun ratio(part: Long, whole: Long) = if (whole <= 0L) 0f else
+    (part.coerceIn(0L, whole).toULong() * 1000UL / whole.toULong()).toInt() / 1000f
 
 /** The brand's flat 6dp bar: no gap or stop dot, so a full budget reads as one solid line. */
 @Composable
@@ -367,41 +364,4 @@ private fun CategoryBudgetCard(m: MonthInsights, budgets: Map<String, Long>, man
             }
         }
     }
-}
-
-/**
- * Edits a positive budget in minor units; removal passes null to [save].
- * Invalid amounts stay in the dialog with an error. The caller dismisses after saving or removing.
- */
-@Composable
-internal fun BudgetDialog(
-    current: Long?, dismiss: () -> Unit,
-    title: String = "Monthly budget",
-    message: String = "How much do you plan to spend each month? Transfers don't count toward it.",
-    save: (Long?) -> Unit,
-) {
-    var text by remember { mutableStateOf(current?.let(::amountText).orEmpty()) }
-    var invalid by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = dismiss,
-        title = { Text(title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(message)
-                OutlinedTextField(
-                    value = text, onValueChange = { text = it; invalid = false },
-                    label = { Text("Amount") }, prefix = { Text("₱") }, singleLine = true, isError = invalid,
-                    supportingText = if (invalid) { { Text("Enter an amount above zero, with at most two decimal places.") } } else null,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                )
-            }
-        },
-        confirmButton = { TextButton(onClick = { parseAmountMinor(text)?.let(save) ?: run { invalid = true } }) { Text("Save") } },
-        dismissButton = {
-            Row {
-                if (current != null) TextButton(onClick = { save(null) }) { Text("Remove") }
-                TextButton(onClick = dismiss) { Text("Cancel") }
-            }
-        },
-    )
 }

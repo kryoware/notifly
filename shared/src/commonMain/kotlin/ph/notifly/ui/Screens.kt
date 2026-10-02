@@ -306,11 +306,10 @@ private fun BalanceDialog(account: AccountBalance, hidden: Boolean, dismiss: () 
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Enter what the app shows now. Confirmed transactions from here on are added to it.")
-                OutlinedTextField(
+                MoneyField(
                     value = text, onValueChange = { text = it; invalid = false },
-                    label = { Text("Balance") }, prefix = { Text("₱") }, singleLine = true, isError = invalid,
+                    label = { Text("Balance") }, prefix = { Text("₱") }, signed = true, isError = invalid,
                     supportingText = if (invalid) { { Text("Enter an amount with at most two decimal places.") } } else null,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
             }
         },
@@ -634,10 +633,10 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
                 keyboardActions = KeyboardActions(onNext = { amountFocus.requestFocus() }))
         }
         item {
-            OutlinedTextField(s.amount, { model.edit(amount = it) }, label = { Text("Amount (PHP)") },
+            MoneyField(s.amount, { model.edit(amount = it) }, label = { Text("Amount (PHP)") },
                 isError = s.amountError != null, supportingText = s.amountError?.let { { Text(it) } },
                 placeholder = { Text("0.00") },
-                modifier = Modifier.fillMaxWidth().focusRequester(amountFocus), singleLine = true,
+                modifier = Modifier.fillMaxWidth().focusRequester(amountFocus),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { if (s.ready && !s.saving) model.save() }))
         }
@@ -815,7 +814,7 @@ fun SettingsScreen(
                 SettingsRow("Accounts", "Bank, card and wallet balances and app links", onClick = { model.navigate("accounts") })
                 SettingsRow("Categories", "Customize income and expense categories", onClick = { model.navigate("categories") })
                 SettingsRow("Assign accounts", "Review captured transactions without an account", onClick = { model.navigate("account-review") })
-                SettingsRow("Category budgets", "Set a monthly limit for each spending category", onClick = { model.navigate("budgets") })
+                SettingsRow("Budgets", "Set a monthly limit and split it across categories", onClick = { model.navigate("budgets") })
                 SettingsRow("Demo mode", "Explore with random sample transactions. Your own data is left untouched.",
                     checked = demo, onCheckedChange = onDemo)
             }
@@ -937,33 +936,82 @@ fun SettingsScreen(
     }
 }
 
+private const val AMOUNT_ERROR = "Enter an amount above zero, with at most two decimal places."
+
+/**
+ * Edits the monthly cap and every expense category's budget in place, saved together.
+ * Save is refused while any amount is invalid or the category budgets add up to more than the cap.
+ */
 @Composable
 fun BudgetsScreen(model: BudgetsModel) {
-    val budgets by model.state.collectAsState()
-    var editing by remember { mutableStateOf<String?>(null) }
-    // Keeps budgets for categories that were since dropped from the list reachable, so they can be removed.
-    val typed by model.categories.collectAsState()
-    val categories = (typed.filter { it.type == TransactionType.EXPENSE && (!it.archived || it.budgetMinor != null) }.map { it.name } + budgets.keys.sorted()).distinct()
-    LazyColumn(
-        Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp),
-    ) {
-        item {
-            Text("Limits reset on the 1st of each month. Only confirmed expenses count toward them.",
-                Modifier.padding(vertical = 8.dp))
-        }
-        item {
-            SettingsGroup {
-                categories.forEach { category ->
-                    SettingsRow(category, budgets[category]?.let { "${money(it)} per month" } ?: "No budget",
-                        onClick = { editing = category })
-                }
+    val s = model.state.collectAsState().value ?: run { CircularProgressIndicator(); return }
+    // Archived categories stay listed while they hold a budget, since it still counts toward the cap.
+    val categories = s.categories.filter { !it.archived || it.budgetMinor != null }
+    var monthly by remember { mutableStateOf(s.monthly?.let(::amountText).orEmpty()) }
+    val edits = remember { mutableStateMapOf<Long, String>() }
+    fun text(category: Category) = edits[category.id] ?: category.budgetMinor?.let(::amountText).orEmpty()
+    fun invalid(text: String) = text.isNotBlank() && parseAmountMinor(text) == null
+    var attempted by remember { mutableStateOf(false) }
+    val busy by model.busy.collectAsState()
+    val cap = parseAmountMinor(monthly)
+    val amounts = categories.mapNotNull { parseAmountMinor(text(it)) }
+    val allocated = amounts.fold(0L) { sum, minor -> if (sum > Long.MAX_VALUE - minor) Long.MAX_VALUE else sum + minor }
+    val over = cap != null && amounts.fold(cap) { remaining, minor ->
+        if (remaining < 0L || minor > remaining) -1L else remaining - minor
+    } < 0L
+    Column(Modifier.fillMaxSize().imePadding()) {
+        LazyColumn(
+            Modifier.weight(1f).padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            item {
+                Text("Limits reset on the 1st of each month. Only confirmed expenses count toward them.",
+                    Modifier.padding(vertical = 8.dp))
+            }
+            item {
+                MoneyField(monthly, { monthly = it; attempted = false }, label = { Text("Monthly budget") }, Modifier.fillMaxWidth(),
+                    prefix = { Text("₱") }, isError = attempted && (invalid(monthly) || over),
+                    supportingText = when {
+                        attempted && invalid(monthly) -> { { Text(AMOUNT_ERROR) } }
+                        attempted && over -> { { Text("Category budgets add up to more than this. Raise it or lower a category.") } }
+                        else -> null
+                    })
+            }
+            item { Allocation(allocated, cap) }
+            item { SectionHeader("Categories", Modifier.padding(top = 16.dp)) }
+            if (categories.isEmpty()) item { Text("Add a spending category to give it a budget.") }
+            items(categories, key = { it.id }) { category ->
+                val value = text(category)
+                MoneyField(value, { edits[category.id] = it; attempted = false },
+                    label = { Text(category.name + if (category.archived) " · Archived" else "") }, Modifier.fillMaxWidth(),
+                    prefix = { Text("₱") }, isError = attempted && invalid(value),
+                    supportingText = if (attempted && invalid(value)) { { Text(AMOUNT_ERROR) } } else null)
             }
         }
+        Button(onClick = {
+            attempted = true
+            if (!invalid(monthly) && !over && categories.none { invalid(text(it)) })
+                model.save(cap, categories.associate { it.id to parseAmountMinor(text(it)) })
+        }, enabled = !busy, modifier = Modifier.fillMaxWidth().padding(16.dp)) { Text(if (busy) "Saving…" else "Save budgets") }
     }
-    editing?.let { category ->
-        BudgetDialog(budgets[category], dismiss = { editing = null }, title = "$category budget",
-            message = "How much do you plan to spend on $category each month?") { model.budget(category, it); editing = null }
+}
+
+/** Live share of the monthly [cap] taken by category budgets; without a cap only the total shows. */
+@Composable
+private fun Allocation(allocated: Long, cap: Long?) {
+    val over = cap != null && allocated > cap
+    Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (cap != null) Meter(ratio(allocated, cap), if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+        Text(
+            when {
+                cap == null -> "${money(allocated)} allocated. Set a monthly budget to cap it."
+                over -> "${money(allocated)} of ${money(cap)} allocated · ${money(allocated - cap)} over"
+                else -> "${money(allocated)} of ${money(cap)} allocated · ${money(cap - allocated)} left"
+            },
+            style = MaterialTheme.typography.bodyMedium.tabular(),
+            color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

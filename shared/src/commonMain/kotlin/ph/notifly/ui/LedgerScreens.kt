@@ -116,10 +116,10 @@ fun AccountEditorScreen(model: LedgerSettingsModel, id: Long) {
                 supportingText = { Text("Days beyond the end of a month use its last day.") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true) }
         }
-        item { OutlinedTextField(amount, { amount = it; reconcile = true },
+        item { MoneyField(amount, { amount = it; reconcile = true },
             label = { Text(if (type == AccountType.CARD) "Debt owed (PHP)" else "Balance (PHP)") },
             supportingText = { Text(if (type == AccountType.CARD) "Negative debt represents credit." else "Enter the balance at your last reconciliation.") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true) }
+            signed = true, modifier = Modifier.fillMaxWidth()) }
         item { SettingsRow("Reconcile balance now", "Only later confirmed transactions will change this balance",
             checked = reconcile, onCheckedChange = { reconcile = it }) }
         item { SettingsRow("Free transfers", "Account information; no fee is inferred", checked = free, onCheckedChange = { free = it }) }
@@ -179,20 +179,23 @@ fun CategoriesScreen(model: LedgerSettingsModel) {
 }
 
 @Composable
-fun CategoryEditorScreen(model: LedgerSettingsModel, id: Long, type: TransactionType) {
+fun CategoryEditorScreen(model: LedgerSettingsModel, id: Long, type: TransactionType, monthlyBudget: Long?, monthlyBudgetLoaded: Boolean) {
     val s by model.state.collectAsState()
     val busy by model.busy.collectAsState()
-    if (!s.loaded) { CircularProgressIndicator(); return }
+    if (!s.loaded || !monthlyBudgetLoaded) { CircularProgressIndicator(); return }
     val original = s.categories.find { it.id == id }
     if (id != 0L && original == null) { Text("Category no longer exists."); return }
     var name by remember(id) { mutableStateOf(original?.name.orEmpty()) }
     var archived by remember(id) { mutableStateOf(original?.archived ?: false) }
     var budget by remember(id) { mutableStateOf(original?.budgetMinor?.let(::amountText).orEmpty()) }
+    val otherBudgets = s.categories.filter { it.id != id && it.type == TransactionType.EXPENSE }
+        .fold(0L) { sum, category -> category.budgetMinor?.let { if (sum > Long.MAX_VALUE - it) Long.MAX_VALUE else sum + it } ?: sum }
+    val remainingBudget = monthlyBudget?.let { (it - otherBudgets).coerceAtLeast(0L) }
     var error by remember(id) { mutableStateOf<String?>(null) }
     LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { OutlinedTextField(name, { name = it }, enabled = original?.name != "Other", label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-        if (type == TransactionType.EXPENSE) item { OutlinedTextField(budget, { budget = it }, label = { Text("Monthly budget (PHP, optional)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true) }
+        if (type == TransactionType.EXPENSE) item { MoneyField(budget, { budget = it }, label = { Text("Monthly budget (PHP, optional)") },
+            modifier = Modifier.fillMaxWidth()) }
         if (original != null) item { SettingsRow("Archived", "Preserve history and budgets; hide from new entries",
             checked = archived, onCheckedChange = if (original.name != "Other") { { archived = it } } else null) }
         error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
@@ -201,6 +204,8 @@ fun CategoryEditorScreen(model: LedgerSettingsModel, id: Long, type: Transaction
             error = when {
                 name.isBlank() -> "Enter a category name."
                 budget.isNotBlank() && minor == null -> "Enter a budget above zero."
+                remainingBudget != null && minor != null && minor > remainingBudget ->
+                    "Only ${money(remainingBudget)} of your ${money(monthlyBudget ?: 0L)} monthly budget is unallocated."
                 s.categories.any { it.id != id && it.type == type && it.name.equals(name.trim(), true) } -> "This category already exists."
                 else -> null
             }
