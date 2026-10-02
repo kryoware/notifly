@@ -400,8 +400,8 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                     TextField(s.query, model::search, Modifier.fillMaxWidth().focusRequester(searchFocus),
                         placeholder = { Text("Search transactions") }, singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent))
+                        colors = MaterialTheme.colorScheme.surface.let { bar -> TextFieldDefaults.colors(focusedContainerColor = bar,
+                            unfocusedContainerColor = bar, focusedIndicatorColor = bar, unfocusedIndicatorColor = bar) })
                     LaunchedEffect(Unit) { searchFocus.requestFocus() }
                 },
                 navigationIcon = { IconTooltip("Close search") { IconButton(onClick = ::closeSearch) {
@@ -628,7 +628,8 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
             s.titleError != null -> { listState.animateScrollToItem(2); titleFocus.requestFocus() }
             s.amountError != null -> { listState.animateScrollToItem(3); amountFocus.requestFocus() }
             s.feeError != null -> { listState.animateScrollToItem(4); feeFocus.requestFocus() }
-            s.dateError != null || s.timeError != null -> listState.animateScrollToItem(6)
+            s.dateError != null || s.timeError != null -> listState.animateScrollToItem(6 +
+                (if (s.feeApplies) 1 else 0) + (if (s.accounts.none { !it.archived }) 1 else 0))
         }
     }
     Column(Modifier.fillMaxSize().imePadding()) {
@@ -678,7 +679,7 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
                 val origin = s.accounts.find { it.id == s.accountId }?.name ?: "This account"
                 OutlinedTextField(s.fee, { model.edit(fee = it) }, label = { Text("Transfer fee (PHP)") },
                     isError = s.feeError != null, placeholder = { Text("0.00") },
-                    supportingText = { Text(s.feeError ?: "$origin doesn't have free transfers. Leave blank if none was charged.") },
+                    supportingText = { Text(s.feeError ?: "Leave blank if $origin didn't charge one.") },
                     modifier = Modifier.fillMaxWidth().focusRequester(feeFocus), singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done))
             }

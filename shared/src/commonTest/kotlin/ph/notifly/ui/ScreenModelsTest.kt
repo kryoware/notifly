@@ -251,8 +251,19 @@ class ScreenModelsTest {
             assertTrue(editor.state.value.feeApplies)
             editor.save()
             runCurrent()
-            assertEquals(1500L, repository.observeAll().first().first { it.title == "[TEST] fee" }.feeMinor)
+            val saved = repository.observeAll().first().first { it.title == "[TEST] fee" }
+            assertEquals(1500L, saved.feeMinor)
             editor.viewModelScope.cancel()
+            // Once the origin gains free transfers, the recorded fee survives an unrelated edit.
+            ledger.saveAccount(ledger.observeAccounts().first().first { it.id == paid }.copy(freeTransfer = true))
+            val reopened = EditorModel(repository, saved.id, ledger = ledger, apps = DemoAllowList())
+            runCurrent()
+            assertTrue(reopened.state.value.feeApplies)
+            reopened.edit(title = "[TEST] fee renamed")
+            reopened.save()
+            runCurrent()
+            assertEquals(1500L, repository.byId(saved.id)?.feeMinor)
+            reopened.viewModelScope.cancel()
             runCurrent()
         } finally { Dispatchers.resetMain() }
     }

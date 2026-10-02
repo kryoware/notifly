@@ -140,7 +140,7 @@ fun NotiflyApp(
                 composable("pay-bill/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val id = it.arguments?.read { getLong("id") } ?: 0L
                     val m = viewModel { EditorModel(transactions, 0L, captures, ledger = ledger, apps = apps, bills = bills, billId = id) }; Events(m, handle)
-                    AppDestination("Record payment", snackbar, onBack = { if (!nav.popBackStack()) navigate("bills") }) { EditorScreen(m, appLabels) } }
+                    EditorDestination("Record payment", snackbar, m, appLabels) { if (!nav.popBackStack()) navigate("bills") } }
                 composable("transactions") { val m = viewModel { TransactionsModel(transactions, ledger) }; Events(m, handle); TransactionsScreen(m, appLabels, snackbar, demo) }
                 composable("settings") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle)
                     AppDestination(if (demo) "Settings · Demo" else "Settings", snackbar) {

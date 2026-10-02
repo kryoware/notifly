@@ -215,12 +215,16 @@ data class EditorState(
     private val baseline: List<Any?>? = null,
 ) {
     private fun fields() = listOf(title, amount, category, type, date, time, accountId, toAccountId, sourceApp, fee)
-    val dirty get() = baseline != null && baseline != fields()
+    val loaded get() = baseline != null
+    val dirty get() = loaded && baseline != fields()
     internal fun withBaseline() = copy(baseline = fields())
-    /** Bank-to-bank transfers out of an account without free transfers can carry a fee. */
-    val feeApplies get() = type == TransactionType.TRANSFER &&
+    /**
+     * Bank-to-bank transfers out of an account without free transfers can carry a fee. A transfer
+     * that already has one keeps the field, so later account changes never silently drop it.
+     */
+    val feeApplies get() = type == TransactionType.TRANSFER && ((original?.feeMinor ?: 0) > 0 ||
         accounts.find { it.id == accountId }?.let { it.type == AccountType.BANK && !it.freeTransfer } == true &&
-        accounts.find { it.id == toAccountId }?.type == AccountType.BANK
+        accounts.find { it.id == toAccountId }?.type == AccountType.BANK)
 }
 class EditorModel(private val repository: TransactionRepository, id: Long,
                   captures: CaptureRepository? = null, captureId: Long? = null,
@@ -238,7 +242,7 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
         else {
             val local = (t?.occurredAt ?: Clock.System.now()).toLocalDateTime(TimeZone.currentSystemDefault())
             EditorState(t, t?.title.orEmpty(), t?.let { amountText(it.amountMinor) }.orEmpty(),
-                t?.category ?: "Other", t?.type ?: TransactionType.EXPENSE, ready = true,
+                t?.category ?: "Other", t?.type ?: TransactionType.EXPENSE,
                 accountId = t?.accountId, toAccountId = t?.toAccountId, categoryId = t?.categoryId, sourceApp = t?.sourceApp,
                 fee = t?.feeMinor?.takeIf { it > 0 }?.let(::amountText).orEmpty(),
                 date = local.date.toString(),
@@ -271,11 +275,13 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
             mutableState.value = state.value.copy(sourceText = capture?.body, sourceApp = state.value.sourceApp ?: apps.observeAll().first().find { it.packageName == capture?.sourceApp || it.label == capture?.sourceApp }?.packageName, captureId = capture?.id ?: state.value.captureId)
         }
         mutableState.value = state.value.withBaseline()
+        val found = id == 0L || t != null
         viewModelScope.launch {
             combine(ledger.observeAccounts(), ledger.observeCategories(), apps.observeAll()) { accounts, categories, allowed ->
                 Triple(accounts, categories, allowed)
             }.collect { (accounts, categories, allowed) ->
-                mutableState.value = state.value.copy(accounts = accounts, categories = categories, apps = allowed)
+                // Saving waits for accounts, since validation and the transfer fee depend on them.
+                mutableState.value = state.value.copy(accounts = accounts, categories = categories, apps = allowed, ready = found)
             }
         }
     } }
@@ -284,6 +290,8 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
              date: String = state.value.date, time: String = state.value.time,
              accountId: Long? = state.value.accountId, toAccountId: Long? = state.value.toAccountId,
              sourceApp: String? = state.value.sourceApp, fee: String = state.value.fee) {
+        // Loading overwrites fields, and the baseline taken after it would hide earlier edits.
+        if (!state.value.loaded) return
         val chosen = state.value.categories.find { it.name == category && it.type == type }
         val suggestion = if (sourceApp != state.value.sourceApp && accountId == null)
             state.value.accounts.filter { !it.archived && sourceApp in it.linkedApps }.singleOrNull()?.id else accountId
