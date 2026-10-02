@@ -3,6 +3,9 @@ package ph.notifly.data.repository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
+import androidx.room.useWriterConnection
+import androidx.room.Transactor.SQLiteTransactionType
+import ph.notifly.data.local.AppDatabase
 import ph.notifly.domain.repository.LedgerRepository
 import ph.notifly.data.local.TransactionDao
 import ph.notifly.data.local.BillDao
@@ -16,6 +19,7 @@ class TransactionRepositoryImpl(
     private val dao: TransactionDao,
     private val ledger: LedgerRepository? = null,
     private val bills: BillDao? = null,
+    private val database: AppDatabase? = null,
 ) : TransactionRepository {
 
     override fun observeAll(): Flow<List<Transaction>> =
@@ -41,8 +45,16 @@ class TransactionRepositoryImpl(
     }
 
     override suspend fun delete(id: Long) {
-        bills?.transactionDeleted(id)
-        dao.deleteLocally(id)
+        if (database == null || bills == null) {
+            dao.deleteLocally(id)
+            return
+        }
+        database.useWriterConnection { connection ->
+            connection.withTransaction(SQLiteTransactionType.IMMEDIATE) {
+                bills.transactionDeleted(id)
+                dao.deleteLocally(id)
+            }
+        }
     }
 
     override suspend fun importTransactions(transactions: List<Transaction>): Int {

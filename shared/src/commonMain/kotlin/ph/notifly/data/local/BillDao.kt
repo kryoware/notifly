@@ -27,11 +27,22 @@ interface BillDao {
     @Query("UPDATE bills SET remindedForDay = :day WHERE id = :id") suspend fun markReminded(id: Long, day: Long)
 
     @androidx.room.Transaction
+    suspend fun save(bill: BillEntity): Long {
+        val previous = if (bill.id != 0L) byId(bill.id) else null
+        val id = upsert(bill)
+        if (previous != null && (previous.startsOnDay != bill.startsOnDay || previous.repeats != bill.repeats)) {
+            setSettled(bill.id, contiguousSettled(bill.id, bill.toDomain()))
+        }
+        return id
+    }
+
+    @androidx.room.Transaction
     suspend fun confirm(id: Long) {
         val draft = byId(id) ?: return
         val existing = draft.sourceApp?.let { activeFrom(it, draft.name, id) }
         if (existing == null) { markConfirmed(id); return }
-        upsert(existing.copy(amountMinor = draft.amountMinor, remindedForDay = null))
+        val updated = existing.copy(amountMinor = draft.amountMinor, startsOnDay = draft.startsOnDay, remindedForDay = null)
+        save(updated)
         delete(id)
     }
 

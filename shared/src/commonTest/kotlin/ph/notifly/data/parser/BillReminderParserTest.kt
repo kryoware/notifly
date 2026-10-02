@@ -67,4 +67,8 @@ class BillReminderParserTest {
     @Test fun impossibleDateIsRejected() {
         assertNull(parse("Amount due PHP 100.00 due Feb 30, 2027"))
     }
+
+    @Test fun foreignCurrencyAmountIsRejected() {
+        assertNull(parse("Amount due: USD 100. Due date: Oct 15"))
+    }
 }

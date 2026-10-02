@@ -17,7 +17,7 @@ val sharedModule: Module = module {
     single { NotificationParser() }
     single { ph.notifly.data.parser.BillReminderParser(get()) }
     single<ph.notifly.domain.repository.LedgerRepository> { ph.notifly.data.repository.LedgerRepositoryImpl(get<AppDatabase>().ledgerDao(), get()) }
-    single<TransactionRepository> { TransactionRepositoryImpl(get<AppDatabase>().transactionDao(), get(), get<AppDatabase>().billDao()) }
+    single<TransactionRepository> { TransactionRepositoryImpl(get<AppDatabase>().transactionDao(), get(), get<AppDatabase>().billDao(), get()) }
     single<CaptureRepository> {
         val hours = if (getProperty("debug", false)) RawCapture.DEBUG_RETENTION_HOURS else RawCapture.RETENTION_HOURS
         CaptureRepositoryImpl(get<AppDatabase>().rawCaptureDao(), preferences = get(), retention = hours.hours)

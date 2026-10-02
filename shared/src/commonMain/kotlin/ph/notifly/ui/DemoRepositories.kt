@@ -220,7 +220,14 @@ class DemoBills(rows: List<Transaction> = emptyList()) : BillRepository {
     override suspend fun save(bill: Bill): Long {
         bill.validate()
         val id = bill.id.takeIf { it > 0 } ?: nextBillId++
-        bills.value = bills.value.filterNot { it.id == id } + bill.copy(id = id)
+        val previous = byId(id)
+        val changed = previous != null && (previous.startsOn != bill.startsOn || previous.repeat != bill.repeat)
+        val saved = bill.copy(id = id, settled = if (changed) {
+            val days = payments.value.filter { it.billId == id }.map { it.dueOn }.toSet()
+            if (bill.repeat == BillRepeat.ONCE) if (bill.startsOn in days) 1 else 0
+            else generateSequence(0) { it + 1 }.takeWhile { bill.occurrence(it) in days }.count()
+        } else bill.settled)
+        bills.value = bills.value.filterNot { it.id == id } + saved
         return id
     }
     override suspend fun delete(id: Long) {
@@ -232,7 +239,7 @@ class DemoBills(rows: List<Transaction> = emptyList()) : BillRepository {
         val existing = bills.value.find { it.id != id && it.status == TransactionStatus.CONFIRMED && draft.sourceApp != null &&
             it.sourceApp == draft.sourceApp && it.name.equals(draft.name, ignoreCase = true) }
         if (existing == null) save(draft.copy(status = TransactionStatus.CONFIRMED))
-        else { save(existing.copy(amountMinor = draft.amountMinor, remindedFor = null)); delete(id) }
+        else { save(existing.copy(amountMinor = draft.amountMinor, startsOn = draft.startsOn, remindedFor = null)); delete(id) }
     }
     override suspend fun recordDetected(bill: Bill): Boolean {
         if (bills.value.any { it.sourceApp == bill.sourceApp && it.name.equals(bill.name, true) && it.startsOn == bill.startsOn }) return false

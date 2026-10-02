@@ -32,18 +32,7 @@ class NotificationParser {
         val text = body.trim()
         if (text.isEmpty()) return ParseOutcome.Unrecognized("Empty notification body.")
         if (text.length > 8192) return ParseOutcome.Unrecognized("Notification exceeds the parser input limit.")
-        val candidates = AmountContexts.find(text).filter { ctx ->
-            val v = ctx.match.value
-            // Reject amounts whose matched text starts with a foreign currency prefix.
-            if (Regex("(?i)^(?:USD|EUR|GBP|\\$|€|£)").containsMatchIn(v)) return@filter false
-            // Also reject when a foreign currency code/symbol sits immediately
-            // before or after the matched amount in the surrounding text (e.g. "50k USD").
-            val before = text.substring(0, ctx.match.range.first)
-            val after = text.substring(ctx.match.range.last + 1)
-            val foreignAdjacentAfter = Regex("^\\s*(?:USD|EUR|GBP)\\b").containsMatchIn(after)
-            val foreignAdjacentBefore = Regex("(?:USD|EUR|GBP)\\s*$", RegexOption.IGNORE_CASE).containsMatchIn(before)
-            !foreignAdjacentAfter && !foreignAdjacentBefore
-        }
+        val candidates = AmountContexts.find(text).filter { supportedCurrency(text, it.match) }
         if (candidates.isEmpty()) return ParseOutcome.Unrecognized("No supported amount found.")
         val usable = candidates.filter { !it.blocked && it.cue != null }
         val context = usable.minWithOrNull(compareBy<AmountContexts.Context> { it.cue!!.distance }.thenBy { it.cue!!.lines })
@@ -135,9 +124,17 @@ class NotificationParser {
 
     /** First PHP amount in [text] at or after [from], in centavos, or null. Shared with [BillReminderParser]. */
     internal fun firstAmountMinor(text: String, from: Int = 0): Long? =
-        AmountContexts.find(text).firstOrNull { it.match.range.first >= from }?.match?.let { match ->
+        AmountContexts.find(text).firstOrNull { it.match.range.first >= from && supportedCurrency(text, it.match) }?.match?.let { match ->
             runCatching { toMinorUnits(match.groupValues[1] + match.groupValues.getOrNull(2).orEmpty()) }.getOrNull()
         }
+
+    private fun supportedCurrency(text: String, match: MatchResult): Boolean {
+        if (Regex("(?i)^(?:USD|EUR|GBP|\\$|€|£)").containsMatchIn(match.value)) return false
+        val before = text.substring(0, match.range.first)
+        val after = text.substring(match.range.last + 1)
+        return !Regex("^\\s*(?:USD|EUR|GBP)\\b", RegexOption.IGNORE_CASE).containsMatchIn(after) &&
+            !Regex("(?:USD|EUR|GBP)\\s*$", RegexOption.IGNORE_CASE).containsMatchIn(before)
+    }
 
     /** "48,000.00" -> 4800000. String maths only; never Double for money. */
     internal fun toMinorUnits(raw: String): Long {

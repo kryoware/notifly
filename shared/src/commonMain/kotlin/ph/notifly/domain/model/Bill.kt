@@ -61,15 +61,17 @@ fun billOccurrences(bills: List<Bill>, payments: List<BillPayment>, from: LocalD
     val byBill = payments.groupBy { it.billId }
     return bills.filter { it.status == TransactionStatus.CONFIRMED }.flatMap { bill ->
         val made = byBill[bill.id].orEmpty().associateBy { it.dueOn }
-        val limit = if (bill.repeat == BillRepeat.ONCE) 1 else Int.MAX_VALUE
         var low = 0
         var high = 1
-        while (bill.occurrence(high).let { it < from } && high < Int.MAX_VALUE / 2) high *= 2
-        while (low < high) {
-            val middle = low + (high - low) / 2
-            if (bill.occurrence(middle) < from) low = middle + 1 else high = middle
+        if (bill.repeat == BillRepeat.ONCE) low = if (bill.startsOn < from) 1 else 0
+        else {
+            while (bill.occurrence(high) < from && high < Int.MAX_VALUE / 2) high *= 2
+            while (low < high) {
+                val middle = low + (high - low) / 2
+                if (bill.occurrence(middle) < from) low = middle + 1 else high = middle
+            }
         }
-        val scheduled = generateSequence(low) { it + 1 }.take(limit - low).map { n -> n to bill.occurrence(n) }
+        val scheduled = generateSequence(low) { it + 1 }.take(if (bill.repeat == BillRepeat.ONCE) 1 - low else Int.MAX_VALUE - low).map { n -> n to bill.occurrence(n) }
             .takeWhile { it.second <= to }
             .mapNotNull { (n, due) ->
                 val payment = made[due]

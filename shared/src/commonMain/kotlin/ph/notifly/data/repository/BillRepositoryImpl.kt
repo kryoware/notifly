@@ -15,7 +15,7 @@ class BillRepositoryImpl(private val dao: BillDao) : BillRepository {
     override suspend fun byId(id: Long) = dao.byId(id)?.toDomain()
     override suspend fun save(bill: Bill): Long {
         bill.validate()
-        val rowId = dao.upsert(bill.toEntity())
+        val rowId = dao.save(bill.toEntity())
         return if (bill.id == 0L) rowId else bill.id
     }
     override suspend fun delete(id: Long) = dao.delete(id)

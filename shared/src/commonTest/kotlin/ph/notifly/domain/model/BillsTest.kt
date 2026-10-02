@@ -77,6 +77,11 @@ class BillsTest {
         assertEquals(listOf("2026-10-15"), rows.map { it.dueOn.toString() })
     }
 
+    @Test fun settledOneTimeBillOutsideLaterMonthHasNoOccurrence() {
+        val bill = bill("2026-01-15", BillRepeat.ONCE)
+        assertEquals(emptyList(), billOccurrences(listOf(bill), emptyList(), day("2026-02-01"), day("2026-02-28")))
+    }
+
     @Test fun bucketsByNextDue() {
         val today = day("2026-10-10")
         val bills = listOf(

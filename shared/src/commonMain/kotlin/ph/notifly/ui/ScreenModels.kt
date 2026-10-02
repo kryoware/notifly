@@ -476,7 +476,7 @@ class BillEditorModel(private val bills: BillRepository, ledger: LedgerRepositor
         // Moving the due date or the schedule re-anchors the series at the chosen date.
         val moved = s.due != (original.nextDue ?: original.startsOn) || s.repeat != original.repeat
         return original.copy(name = s.name.trim(), amountMinor = amount, category = s.category, accountId = s.accountId, repeat = s.repeat,
-            startsOn = if (moved) s.due else original.startsOn, settled = if (moved) 0 else original.settled,
+            startsOn = if (moved) s.due else original.startsOn,
             remindedFor = if (moved) null else original.remindedFor)
     }
     private fun finish(action: suspend (Bill) -> String) {
