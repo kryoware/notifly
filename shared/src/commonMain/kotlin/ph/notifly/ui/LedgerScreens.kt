@@ -1,10 +1,21 @@
 package ph.notifly.ui
 
+import org.jetbrains.compose.resources.painterResource
+import notifly.shared.generated.resources.Res
+import notifly.shared.generated.resources.symbol_clear
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -41,22 +52,64 @@ class LedgerSettingsModel(private val ledger: LedgerRepository, apps: AllowListR
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun <T> ChoiceField(title: String, value: String, options: List<T>,
-    error: String? = null, label: (T) -> String, choose: (T) -> Unit) {
+    error: String? = null, searchable: Boolean = false, emptyLabel: String = "options",
+    label: (T) -> String, choose: (T) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded, { expanded = !expanded }) {
-        OutlinedTextField(value, {}, readOnly = true, label = { Text(title) }, isError = error != null,
+    var query by remember { mutableStateOf(TextFieldValue(value)) }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(expanded, searchable) {
+        if (expanded && searchable) {
+            withFrameNanos { }
+            query = query.copy(selection = TextRange(0, query.text.length))
+        }
+    }
+    val untouchedSelection = query.text.isNotEmpty() && query.selection.min == 0 && query.selection.max == query.text.length
+    val search = query.text.trim().takeUnless { untouchedSelection }
+    val filtered = if (searchable && !search.isNullOrEmpty()) options.filter {
+        label(it).contains(search, ignoreCase = true)
+    } else options
+    fun close() { expanded = false; query = TextFieldValue(value); keyboard?.hide() }
+    ExposedDropdownMenuBox(expanded, { shouldExpand ->
+        if (shouldExpand) {
+            query = TextFieldValue(value, selection = TextRange(0, value.length))
+            expanded = true
+        } else close()
+    }) {
+        OutlinedTextField(
+            value = if (searchable && expanded) query else TextFieldValue(value),
+            onValueChange = { if (searchable) query = it },
+            readOnly = !searchable,
+            singleLine = true,
+            label = { Text(title) }, isError = error != null,
             supportingText = error?.let { { Text(it) } },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth())
-        ExposedDropdownMenu(expanded, { expanded = false }) {
-            options.forEach { item -> DropdownMenuItem(text = { Text(label(item)) }, onClick = { choose(item); expanded = false }) }
+            trailingIcon = {
+                if (searchable && expanded && query.text.isNotEmpty()) IconButton(
+                    onClick = { query = TextFieldValue(""); expanded = true },
+                    modifier = Modifier.semantics { contentDescription = "Clear search" }) {
+                    Icon(painterResource(Res.drawable.symbol_clear), contentDescription = null)
+                } else ExposedDropdownMenuDefaults.TrailingIcon(expanded)
+            },
+            keyboardOptions = KeyboardOptions(imeAction = if (searchable) ImeAction.Done else ImeAction.Default),
+            keyboardActions = KeyboardActions(onDone = { close() }),
+            modifier = Modifier.onFocusChanged { if (searchable && expanded && !it.isFocused) close() }
+                .menuAnchor(if (searchable) ExposedDropdownMenuAnchorType.PrimaryEditable
+                else ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+        ExposedDropdownMenu(expanded, { close() }) {
+            if (filtered.isEmpty()) DropdownMenuItem(
+                text = { Text(if (options.isEmpty()) "No $emptyLabel available" else "No matching $emptyLabel") },
+                enabled = false, onClick = {})
+            filtered.forEach { item -> DropdownMenuItem(
+                text = { Text(label(item)) }, modifier = Modifier.heightIn(min = 48.dp),
+                onClick = { choose(item); close() }) }
         }
     }
 }
 
 @Composable
-internal fun AccountPicker(title: String, selected: Long?, accounts: List<Account>, error: String? = null, choose: (Long) -> Unit) {
+internal fun AccountPicker(title: String, selected: Long?, accounts: List<Account>, error: String? = null,
+    searchable: Boolean = false, choose: (Long) -> Unit) {
     ChoiceField(title, accounts.find { it.id == selected }?.name ?: "Choose an account", accounts, error,
+        searchable = searchable, emptyLabel = "accounts",
         label = { it.name + if (it.type == AccountType.CARD) " · Card" else "" }) { choose(it.id) }
 }
 

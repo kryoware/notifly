@@ -477,22 +477,8 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
 
 @Composable
 private fun CategoryField(value: String, categories: List<String>, onValueChange: (String) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
     val options = if (value in categories) categories else categories + value
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {}, readOnly = true,
-            label = { Text("Category") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-        )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { option ->
-                DropdownMenuItem(text = { Text(option) }, onClick = { expanded = false; onValueChange(option) })
-            }
-        }
-    }
+    ChoiceField("Category", value, options, searchable = true, emptyLabel = "categories", label = { it }) { onValueChange(it) }
 }
 
 /**
@@ -643,14 +629,16 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
         }
         item {
             AccountPicker(if (s.type == TransactionType.TRANSFER) "From account" else "Account",
-                s.accountId, s.accounts.filter { !it.archived || it.id == s.original?.accountId }, s.accountError) { model.edit(accountId = it) }
+                s.accountId, s.accounts.filter { !it.archived || it.id == s.original?.accountId }, s.accountError,
+                searchable = true) { model.edit(accountId = it) }
         }
         if (s.accounts.none { !it.archived }) item {
             TextButton(onClick = { model.navigate("accounts") }) { Text("Create an account") }
         }
         if (s.type == TransactionType.TRANSFER) item {
             AccountPicker("To account", s.toAccountId,
-                s.accounts.filter { (!it.archived || it.id == s.original?.toAccountId) && it.id != s.accountId }, s.toAccountError) { model.edit(toAccountId = it) }
+                s.accounts.filter { (!it.archived || it.id == s.original?.toAccountId) && it.id != s.accountId }, s.toAccountError,
+                searchable = true) { model.edit(toAccountId = it) }
         } else item {
             CategoryField(s.category, s.categories.filter { it.type == s.type && (!it.archived || it.id == s.original?.categoryId) }.map { it.name }) { model.edit(category = it) }
         }
@@ -665,6 +653,7 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
             } else {
                 ChoiceField("Source app", sourceLabel,
                     listOf<String?>(null) + s.apps.filter { it.listening }.map { it.packageName },
+                    searchable = true, emptyLabel = "sources",
                     label = { pkg -> pkg?.let { appLabels[it] ?: it } ?: "Manual" }) { model.edit(sourceApp = it) }
             }
         }
