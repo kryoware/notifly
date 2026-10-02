@@ -89,7 +89,8 @@ fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyM
 internal fun shortDate(date: LocalDate) = "${date.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${date.day}"
 
 /** Display-only ratio for progress bars; money itself stays in Long. */
-internal fun ratio(part: Long, whole: Long) = if (whole <= 0L) 0f else (part.coerceIn(0L, whole) * 1000 / whole).toInt() / 1000f
+internal fun ratio(part: Long, whole: Long) = if (whole <= 0L) 0f else
+    (part.coerceIn(0L, whole).toULong() * 1000UL / whole.toULong()).toInt() / 1000f
 
 /** The brand's flat 6dp bar: no gap or stop dot, so a full budget reads as one solid line. */
 @Composable

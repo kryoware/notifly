@@ -188,7 +188,9 @@ fun CategoryEditorScreen(model: LedgerSettingsModel, id: Long, type: Transaction
     var name by remember(id) { mutableStateOf(original?.name.orEmpty()) }
     var archived by remember(id) { mutableStateOf(original?.archived ?: false) }
     var budget by remember(id) { mutableStateOf(original?.budgetMinor?.let(::amountText).orEmpty()) }
-    val otherBudgets = s.categories.filter { it.id != id && it.type == TransactionType.EXPENSE }.sumOf { it.budgetMinor ?: 0L }
+    val otherBudgets = s.categories.filter { it.id != id && it.type == TransactionType.EXPENSE }
+        .fold(0L) { sum, category -> category.budgetMinor?.let { if (sum > Long.MAX_VALUE - it) Long.MAX_VALUE else sum + it } ?: sum }
+    val remainingBudget = monthlyBudget?.let { (it - otherBudgets).coerceAtLeast(0L) }
     var error by remember(id) { mutableStateOf<String?>(null) }
     LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { OutlinedTextField(name, { name = it }, enabled = original?.name != "Other", label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
@@ -202,8 +204,8 @@ fun CategoryEditorScreen(model: LedgerSettingsModel, id: Long, type: Transaction
             error = when {
                 name.isBlank() -> "Enter a category name."
                 budget.isNotBlank() && minor == null -> "Enter a budget above zero."
-                monthlyBudget != null && minor != null && minor > monthlyBudget - otherBudgets ->
-                    "Only ${money((monthlyBudget - otherBudgets).coerceAtLeast(0L))} of your ${money(monthlyBudget)} monthly budget is unallocated."
+                remainingBudget != null && minor != null && minor > remainingBudget ->
+                    "Only ${money(remainingBudget)} of your ${money(monthlyBudget ?: 0L)} monthly budget is unallocated."
                 s.categories.any { it.id != id && it.type == type && it.name.equals(name.trim(), true) } -> "This category already exists."
                 else -> null
             }

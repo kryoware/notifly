@@ -111,11 +111,17 @@ class InsightsModel(repository: TransactionRepository, private val preferences: 
 /** The monthly cap and expense categories; null until both have loaded. */
 data class BudgetsState(val monthly: Long?, val categories: List<Category>)
 class BudgetsModel(private val preferences: AppPreferences, private val ledger: LedgerRepository) : ScreenModel() {
+    private val mutableBusy = MutableStateFlow(false)
+    val busy = mutableBusy.asStateFlow()
     val state = combine(preferences.monthlyBudget, ledger.observeCategories()) { monthly, categories ->
         BudgetsState(monthly, categories.filter { it.type == TransactionType.EXPENSE })
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     /** Writes the cap and every category whose budget changed; the caller has already checked the cap. */
-    fun save(monthly: Long?, budgets: Map<Long, Long?>) = work {
+    fun save(monthly: Long?, budgets: Map<Long, Long?>) {
+        if (mutableBusy.value) return
+        mutableBusy.value = true
+        work {
+        try {
         val categories = ledger.observeCategories().first().filter { it.type == TransactionType.EXPENSE }.associateBy { it.id }
         require(budgets.keys.all { it in categories }) { "A category no longer exists. Reload budgets and try again." }
         // Navigation must not cancel halfway through writes to these separate stores.
@@ -126,6 +132,8 @@ class BudgetsModel(private val preferences: AppPreferences, private val ledger: 
             }
         }
         mutableEvents.emit(UiEvent.Message("Budgets saved"))
+        } finally { mutableBusy.value = false }
+        }
     }
 }
 enum class TransactionFilter { ALL, NEEDS_REVIEW, INCOME, EXPENSE, TRANSFER }

@@ -952,10 +952,13 @@ fun BudgetsScreen(model: BudgetsModel) {
     fun text(category: Category) = edits[category.id] ?: category.budgetMinor?.let(::amountText).orEmpty()
     fun invalid(text: String) = text.isNotBlank() && parseAmountMinor(text) == null
     var attempted by remember { mutableStateOf(false) }
+    val busy by model.busy.collectAsState()
     val cap = parseAmountMinor(monthly)
-    val allocated = categories.mapNotNull { parseAmountMinor(text(it)) }
-        .fold(0L) { sum, minor -> if (sum > Long.MAX_VALUE - minor) Long.MAX_VALUE else sum + minor }
-    val over = cap != null && allocated > cap
+    val amounts = categories.mapNotNull { parseAmountMinor(text(it)) }
+    val allocated = amounts.fold(0L) { sum, minor -> if (sum > Long.MAX_VALUE - minor) Long.MAX_VALUE else sum + minor }
+    val over = cap != null && amounts.fold(cap) { remaining, minor ->
+        if (remaining < 0L || minor > remaining) -1L else remaining - minor
+    } < 0L
     Column(Modifier.fillMaxSize().imePadding()) {
         LazyColumn(
             Modifier.weight(1f).padding(horizontal = 16.dp),
@@ -990,7 +993,7 @@ fun BudgetsScreen(model: BudgetsModel) {
             attempted = true
             if (!invalid(monthly) && !over && categories.none { invalid(text(it)) })
                 model.save(cap, categories.associate { it.id to parseAmountMinor(text(it)) })
-        }, Modifier.fillMaxWidth().padding(16.dp)) { Text("Save budgets") }
+        }, enabled = !busy, modifier = Modifier.fillMaxWidth().padding(16.dp)) { Text(if (busy) "Saving…" else "Save budgets") }
     }
 }
 
