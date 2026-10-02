@@ -32,6 +32,11 @@ class AccountsTest {
         assertEquals(4200L, balances.sumOf { it.netValue })
         assertEquals(5000L, accountBalances(listOf(bank, card), emptyList()).sumOf { it.netValue })
     }
+    @Test fun transferFeeLeavesOnlyTheOriginAccount() {
+        val other = Account(3, "Other bank", AccountType.BANK, balanceMinor = 0, balanceAsOf = at)
+        val balances = accountBalances(listOf(bank, other), listOf(row(1, 2000, TransactionType.TRANSFER, to = 3).copy(feeMinor = 1500)))
+        assertEquals(listOf(6500L, 2000L), balances.map { it.estimate })
+    }
     @Test fun reconciliationExcludesEarlierAndEqualTimesAndAllowsNegativeCredit() {
         val rows = listOf(row(1, 9999, TransactionType.EXPENSE, time = 999), row(1, 9999, TransactionType.EXPENSE, time = 1000),
             row(1, 300, TransactionType.INCOME), row(2, 6000, TransactionType.INCOME))

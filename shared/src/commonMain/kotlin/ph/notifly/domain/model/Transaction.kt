@@ -30,4 +30,6 @@ data class Transaction(
     // Notification provenance only. accountId and toAccountId determine money movements.
     val fromApp: String? = null,
     val toApp: String? = null,
+    // Charged to accountId on top of amountMinor; only transfers carry one.
+    val feeMinor: Long = 0,
 )

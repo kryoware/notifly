@@ -47,7 +47,7 @@ fun percentChange(current: Long, previous: Long): Long? =
 
 private fun cashFlow(rows: List<Transaction>) = CashFlow(
     rows.filter { it.type == TransactionType.INCOME }.sumOf { it.amountMinor },
-    rows.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountMinor },
+    rows.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountMinor } + rows.sumOf { it.feeMinor },
 )
 
 /** NEEDS_REVIEW rows never count: insights describe the same money as the headline balance. */

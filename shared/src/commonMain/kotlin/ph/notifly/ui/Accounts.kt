@@ -9,6 +9,10 @@ data class AccountBalance(val account: Account, val estimate: Long) {
     val netValue get() = if (account.type == AccountType.CARD) -estimate else estimate
 }
 
+/** An account looks like its first linked app; accounts without one have no entry. */
+fun accountIcons(accounts: List<Account>): Map<Long, String> =
+    accounts.mapNotNull { a -> a.linkedApps.minOrNull()?.let { a.id to it } }.toMap()
+
 /** Keeps known IDs in their saved positions, then appends new accounts in repository order. */
 internal fun homeAccountOrder(accounts: List<AccountBalance>, ids: List<Long>): List<AccountBalance> {
     val byId = accounts.associateBy { it.account.id }
@@ -24,7 +28,7 @@ fun accountBalances(accounts: List<Account>, rows: List<Transaction>): List<Acco
             row.type == TransactionType.TRANSFER && row.toAccountId == account.id -> row.amountMinor
             row.accountId != account.id -> 0L
             row.type == TransactionType.INCOME -> row.amountMinor
-            else -> -row.amountMinor
+            else -> -row.amountMinor - row.feeMinor
         }
     }
     AccountBalance(account, account.balanceMinor + if (account.type == AccountType.CARD) -movement else movement)

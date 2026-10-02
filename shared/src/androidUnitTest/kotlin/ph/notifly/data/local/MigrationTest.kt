@@ -93,6 +93,7 @@ class MigrationTest {
             assertEquals(wallet.id, transfer.toAccountId)
             assertEquals("CONFIRMED", transfer.status)
             assertEquals(400L, transfer.createdAtMillis)
+            assertEquals(0L, transfer.feeMinor)
             assertEquals("Legacy", accounts.single { it.id == rows.single { it.id == 11L }.accountId }.name)
             assertEquals("Legacy transfer destination", accounts.single { it.id == rows.single { it.id == 12L }.toAccountId }.name)
             assertEquals("Coffee", db.ledgerDao().categoryById(rows.single { it.id == 11L }.categoryId!!)!!.name)

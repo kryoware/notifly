@@ -14,6 +14,9 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -91,7 +94,7 @@ fun NotiflyApp(
         is UiEvent.Navigate -> navigate(event.route)
         is UiEvent.Message -> { if (event.undo != null) navigate("transactions"); scope.launch {
             val undoable = event.undo != null || event.onUndo != null
-            if (snackbar.showSnackbar(event.text, actionLabel = if (undoable) "Undo" else null, duration = if (undoable) SnackbarDuration.Long else SnackbarDuration.Short) == SnackbarResult.ActionPerformed) {
+            if (snackbar.showSnackbar(event.text, actionLabel = if (undoable) "Undo" else null, duration = SnackbarDuration.Short) == SnackbarResult.ActionPerformed) {
                 try { event.undo?.let { transactions.upsert(it) }; event.onUndo?.invoke() }
                 catch (e: kotlinx.coroutines.CancellationException) { throw e }
                 catch (_: Exception) { snackbar.showSnackbar("Couldn't restore the transaction. Please try again.") }
@@ -137,7 +140,7 @@ fun NotiflyApp(
                 composable("pay-bill/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val id = it.arguments?.read { getLong("id") } ?: 0L
                     val m = viewModel { EditorModel(transactions, 0L, captures, ledger = ledger, apps = apps, bills = bills, billId = id) }; Events(m, handle)
-                    AppDestination("Record payment", snackbar, onBack = { if (!nav.popBackStack()) navigate("bills") }) { EditorScreen(m, appLabels) } }
+                    EditorDestination("Record payment", snackbar, m, appLabels) { if (!nav.popBackStack()) navigate("bills") } }
                 composable("transactions") { val m = viewModel { TransactionsModel(transactions, ledger) }; Events(m, handle); TransactionsScreen(m, appLabels, snackbar, demo) }
                 composable("settings") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle)
                     AppDestination(if (demo) "Settings · Demo" else "Settings", snackbar) {
@@ -156,8 +159,7 @@ fun NotiflyApp(
                 composable("edit/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val id = it.arguments?.read { getLong("id") } ?: 0L
                     val m = viewModel { EditorModel(transactions, id, captures, ledger = ledger, apps = apps) }; Events(m, handle)
-                    AppDestination(if (id == 0L) "Add transaction" else "Edit transaction", snackbar,
-                        onBack = { if (!nav.popBackStack()) navigate("home") }) { EditorScreen(m, appLabels) }
+                    EditorDestination(if (id == 0L) "Add transaction" else "Edit transaction", snackbar, m, appLabels) { if (!nav.popBackStack()) navigate("home") }
                 }
                 composable("accounts") { val m = viewModel { LedgerSettingsModel(ledger, apps) }; Events(m, handle)
                     AppDestination("Accounts", snackbar, onBack = { nav.popBackStack() }) { AccountsScreen(m) } }
@@ -179,7 +181,7 @@ fun NotiflyApp(
                     AppDestination("Assign accounts", snackbar, onBack = { nav.popBackStack() }) { AccountReviewScreen(m) } }
                 composable("draft/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val m = viewModel { EditorModel(transactions, 0L, captures, ledger = ledger, apps = apps, draftId = it.arguments?.read { getLong("id") }) }; Events(m, handle)
-                    AppDestination("Review transaction", snackbar, onBack = { nav.popBackStack() }) { EditorScreen(m, appLabels) } }
+                    EditorDestination("Review transaction", snackbar, m, appLabels) { nav.popBackStack() } }
                 composable("themes") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle)
                     AppDestination("Theme palettes", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { ThemeGallery(m) } }
                 composable("log") { val m = viewModel { LogModel(captures, preferences) }; Events(m, handle)
@@ -187,7 +189,7 @@ fun NotiflyApp(
                 composable("licenses") { AppDestination("Open source licenses", snackbar, onBack = { nav.popBackStack() }) { LicensesScreen() } }
                 composable("from-log/{captureId}", arguments = listOf(navArgument("captureId") { type = NavType.LongType })) {
                     val m = viewModel { EditorModel(transactions, 0L, captures, it.arguments?.read { getLong("captureId") }, ledger, apps) }; Events(m, handle)
-                    AppDestination("Add transaction", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { EditorScreen(m, appLabels) }
+                    EditorDestination("Add transaction", snackbar, m, appLabels) { if (!nav.popBackStack()) navigate("home") }
                 }
             }
         }
@@ -245,6 +247,20 @@ private fun AppDestination(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) { content() }
     }
+}
+
+/** Both the top-bar arrow and system Back ask before throwing away edits. */
+@Composable
+private fun EditorDestination(title: String, snackbar: SnackbarHostState, model: EditorModel,
+                              appLabels: Map<String, String>, exit: () -> Unit) {
+    val s by model.state.collectAsState()
+    var discard by remember { mutableStateOf(false) }
+    NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = s.dirty, onBackCompleted = { discard = true })
+    AppDestination(title, snackbar, onBack = { if (s.dirty) discard = true else exit() }) { EditorScreen(model, appLabels) }
+    if (discard) AlertDialog(onDismissRequest = { discard = false }, title = { Text("Discard changes?") },
+        text = { Text("Your edits to this transaction will be lost.") },
+        confirmButton = { TextButton(onClick = { discard = false; exit() }) { Text("Discard") } },
+        dismissButton = { TextButton(onClick = { discard = false }) { Text("Keep editing") } })
 }
 
 @Composable

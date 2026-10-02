@@ -124,7 +124,7 @@ interface TransactionDao {
         """
         SELECT COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amountMinor
                                   WHEN type = 'EXPENSE' THEN -amountMinor
-                                  ELSE 0 END), 0)
+                                  ELSE -feeMinor END), 0)
         FROM transactions
         WHERE status = 'CONFIRMED' AND currency = 'PHP'
         """

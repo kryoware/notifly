@@ -92,7 +92,7 @@ class DemoTransactions(initial: List<Transaction> = listOf(
     override suspend fun delete(id: Long) { rows.value = rows.value.filterNot { it.id == id } }
     override fun observeConfirmedNetMinor() = rows.map { list ->
         list.filter { it.status == TransactionStatus.CONFIRMED }.sumOf {
-            when (it.type) { TransactionType.INCOME -> it.amountMinor; TransactionType.EXPENSE -> -it.amountMinor; TransactionType.TRANSFER -> 0L }
+            when (it.type) { TransactionType.INCOME -> it.amountMinor; TransactionType.EXPENSE -> -it.amountMinor; TransactionType.TRANSFER -> -it.feeMinor }
         }
     }
 }
