@@ -44,6 +44,11 @@ class TransactionRepositoryImpl(
         return dao.saveLocally(transaction.toEntity())
     }
 
+    /**
+     * Reverses linked bill settlements when a bill DAO is available, then deletes the transaction locally.
+     * Confirmed transactions queue a sync deletion. Storage failures propagate; bill updates may already
+     * be committed if transaction deletion fails.
+     */
     override suspend fun delete(id: Long) {
         if (database == null || bills == null) {
             dao.deleteLocally(id)

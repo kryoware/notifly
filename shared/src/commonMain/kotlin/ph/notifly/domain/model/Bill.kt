@@ -42,6 +42,11 @@ data class Bill(
     /** The next unpaid occurrence, or null once a one-time bill is settled. */
     val nextDue: LocalDate? get() = if (repeat == BillRepeat.ONCE && settled >= 1) null else occurrence(settled)
 
+    /**
+     * Checks the user-entered name and amount without modifying the bill.
+     *
+     * @throws IllegalArgumentException if the name is blank or the amount in centavos is not positive.
+     */
     fun validate() {
         require(name.isNotBlank()) { "Enter a bill name." }
         require(amountMinor > 0) { "Enter an amount above zero." }
@@ -110,6 +115,11 @@ fun upcoming(bills: List<Bill>, today: LocalDate): UpcomingBills {
 /** The next 30 days of unpaid bills, plus what is already late. Overdue is kept out of the 30-day total. */
 data class BillSummary(val dueSoonMinor: Long, val dueSoonCount: Int, val next: BillDue?, val overdueMinor: Long, val overdueCount: Int)
 
+/**
+ * Totals supplied this-week and later entries due by [today] plus 30 days, inclusive, in centavos.
+ * Overdue entries are totaled separately; the first qualifying entry is the next bill, or null.
+ * Counts each supplied entry once rather than projecting further recurrences.
+ */
 fun UpcomingBills.summary(today: LocalDate): BillSummary {
     val soon = (thisWeek + later).filter { it.dueOn <= today.plus(30, DateTimeUnit.DAY) }
     return BillSummary(soon.sumOf { it.bill.amountMinor }, soon.size, soon.firstOrNull(),
@@ -117,8 +127,11 @@ fun UpcomingBills.summary(today: LocalDate): BillSummary {
 }
 
 /**
- * Unpaid expenses dated 10 days before to 3 days after [due] that look like this bill: same amount,
- * or a title containing the bill name. Exact amount ranks first, then title match, then nearness.
+ * Expenses not already linked in [payments], dated 10 days before to 3 days after [due], inclusive
+ * in [zone], with the same amount or a title containing the bill name ignoring case. All statuses qualify.
+ * Returns at most [limit] matches: exact amount ranks first, then title match, then nearness to [due].
+ *
+ * @throws IllegalArgumentException if [limit] is negative.
  */
 fun paymentCandidates(bill: Bill, due: LocalDate, transactions: List<Transaction>,
     payments: List<BillPayment>, zone: TimeZone = TimeZone.currentSystemDefault(), limit: Int = 3): List<Transaction> {

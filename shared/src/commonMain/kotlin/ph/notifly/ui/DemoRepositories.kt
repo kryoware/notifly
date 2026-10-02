@@ -192,6 +192,7 @@ class DemoLedger(private val transactions: TransactionRepository) : LedgerReposi
 class DemoBills(rows: List<Transaction> = emptyList()) : BillRepository {
     private val now = Clock.System.now()
     private val today = now.toLocalDateTime(TimeZone.currentSystemDefault()).date
+    /** Builds a demo bill from whole pesos and a signed day offset relative to the demo's initial local date. */
     private fun bill(id: Long, name: String, pesos: Long, inDays: Int, repeat: BillRepeat, accountId: Long = 1,
                      status: TransactionStatus = TransactionStatus.CONFIRMED, detected: Boolean = false, settled: Int = 0) =
         Bill(id, name, pesos * 100, accountId = accountId, startsOn = today.plus(inDays, DateTimeUnit.DAY), repeat = repeat,
@@ -241,10 +242,12 @@ class DemoBills(rows: List<Transaction> = emptyList()) : BillRepository {
         if (existing == null) save(draft.copy(status = TransactionStatus.CONFIRMED))
         else { save(existing.copy(amountMinor = draft.amountMinor, startsOn = draft.startsOn, remindedFor = null)); delete(id) }
     }
+    /** Returns false for a matching app (including null), case-insensitive name, and start date; otherwise saves with a new ID. */
     override suspend fun recordDetected(bill: Bill): Boolean {
         if (bills.value.any { it.sourceApp == bill.sourceApp && it.name.equals(bill.name, true) && it.startsOn == bill.startsOn }) return false
         save(bill.copy(id = 0)); return true
     }
+    /** Records only the current next due date and increments the demo settled count; returns -1 for missing or stale bills. */
     override suspend fun settle(billId: Long, dueOn: LocalDate, transactionId: Long?): Long {
         val bill = byId(billId) ?: return -1
         if (bill.nextDue != dueOn) return -1
@@ -253,6 +256,7 @@ class DemoBills(rows: List<Transaction> = emptyList()) : BillRepository {
         payments.value = payments.value + BillPayment(id, billId, dueOn, transactionId, Clock.System.now())
         return id
     }
+    /** Removes the demo payment or skip and decrements the settled count, clamped at zero; missing payments do nothing. */
     override suspend fun unsettle(paymentId: Long) {
         val payment = payments.value.find { it.id == paymentId } ?: return
         payments.value = payments.value.filterNot { it.id == paymentId }

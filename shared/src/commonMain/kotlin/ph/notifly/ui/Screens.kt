@@ -215,6 +215,7 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
     }
 }
 
+/** Shows an add button whose [label] is also its accessible name when collapsed. */
 @Composable
 internal fun AddTransactionFab(label: String = "Add transaction", expanded: Boolean, onClick: () -> Unit) {
     ExtendedFloatingActionButton(
@@ -475,6 +476,7 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
     )
 }
 
+/** Offers the supplied categories plus the current value if absent; selecting one calls [onValueChange]. */
 @Composable
 internal fun CategoryField(value: String, categories: List<String>, onValueChange: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
@@ -943,8 +945,8 @@ fun SettingsScreen(
 private const val AMOUNT_ERROR = "Enter an amount above zero, with at most two decimal places."
 
 /**
- * Edits the monthly cap and every expense category's budget in place, saved together.
- * Save is refused while any amount is invalid or the category budgets add up to more than the cap.
+ * Offers reminders off, on the due day, or one or three days before.
+ * Enabling reminders requests notification permission when needed, then calls [choose] without waiting for permission.
  */
 @Composable
 private fun BillReminderRow(days: Int?, notificationsAllowed: Boolean, requestNotifications: () -> Unit, choose: (Int?) -> Unit) {
