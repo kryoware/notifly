@@ -29,7 +29,13 @@ class BillReminderParser(private val amounts: NotificationParser = NotificationP
     private val slashed = Regex("""\b(\d{1,2})/(\d{1,2})/(\d{4})\b""")
     private val iso = Regex("""\b(\d{4})-(\d{2})-(\d{2})\b""")
 
-    /** [today] anchors year inference: a date without a year is the next occurrence on or after today − 7 days. */
+    /**
+     * Returns a bill draft with an amount in centavos, using [appLabel] when no bill name is found.
+     * Requires a bill cue, a positive amount, and a valid date; payment-completion wording returns null.
+     * Prefers an amount following an amount-due cue, falling back to the first amount in [body].
+     * Dates without a year are tried in [today]'s year and the next, accepting the first valid date
+     * on or after today minus seven days. Missing or invalid amounts and dates yield null.
+     */
     fun parse(appLabel: String, body: String, today: LocalDate): BillDraft? {
         if (!cue.containsMatchIn(body) || settled.containsMatchIn(body)) return null
         val amountMinor = amountCue.find(body)?.let { amounts.firstAmountMinor(body, it.range.first) }
@@ -40,6 +46,10 @@ class BillReminderParser(private val amounts: NotificationParser = NotificationP
         return BillDraft(name = named?.takeIf { it.isNotBlank() } ?: appLabel, amountMinor = amountMinor, dueOn = dueOn)
     }
 
+    /**
+     * Returns the earliest valid date in the text preceded by a due cue, falling back to the first valid date.
+     * Accepts English month names, ISO dates, and slash dates (month first unless the first number exceeds 12).
+     */
     private fun dueDate(body: String, today: LocalDate): LocalDate? {
         val found = buildList {
             monthFirst.findAll(body).forEach { m ->
@@ -61,7 +71,11 @@ class BillReminderParser(private val amounts: NotificationParser = NotificationP
         return (found.firstOrNull { dueCue.containsMatchIn(body.substring(0, it.first).takeLast(40)) } ?: found.firstOrNull())?.second
     }
 
-    /** [month] is a name or number; null for impossible dates such as Feb 30. */
+    /**
+     * [month] is a name or number; invalid explicit dates such as Feb 30 return null.
+     * An empty [year] tries this year and next, accepting dates on or after [today] minus seven days.
+     * Invalid date construction is caught; failures computing that seven-day cutoff propagate.
+     */
     private fun date(month: String, day: String, year: String, today: LocalDate): LocalDate? {
         val m = month.toIntOrNull() ?: (months.indexOf(month.lowercase().take(3)) + 1).takeIf { it > 0 } ?: return null
         val d = day.toIntOrNull() ?: return null

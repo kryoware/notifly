@@ -14,8 +14,10 @@ interface BillDao {
     @Query("SELECT * FROM bills WHERE id = :id") suspend fun byId(id: Long): BillEntity?
     @Query("SELECT * FROM bill_payments WHERE id = :id") suspend fun paymentById(id: Long): BillPaymentEntity?
     @Query("SELECT * FROM bill_payments WHERE billId = :id") suspend fun paymentsFor(id: Long): List<BillPaymentEntity>
+    /** Returns one other confirmed bill with an exact app match and a case-insensitive name match, or null. */
     @Query("SELECT * FROM bills WHERE status = 'CONFIRMED' AND id != :excluding AND sourceApp = :sourceApp AND name = :name COLLATE NOCASE LIMIT 1")
     suspend fun activeFrom(sourceApp: String, name: String, excluding: Long): BillEntity?
+    /** Counts bills of any status matching the app, case-insensitive name, and start date in epoch days. */
     @Query("SELECT COUNT(*) FROM bills WHERE sourceApp = :sourceApp AND name = :name COLLATE NOCASE AND startsOnDay = :day")
     suspend fun duplicates(sourceApp: String, name: String, day: Long): Int
     @Upsert suspend fun upsert(bill: BillEntity): Long
@@ -26,6 +28,10 @@ interface BillDao {
     @Query("UPDATE bills SET status = 'CONFIRMED' WHERE id = :id") suspend fun markConfirmed(id: Long)
     @Query("UPDATE bills SET remindedForDay = :day WHERE id = :id") suspend fun markReminded(id: Long, day: Long)
 
+    /**
+     * Confirms the bill or merges its amount into a matching confirmed bill, clearing the reminder marker.
+     * A merge preserves the existing schedule and deletes the draft; a missing ID does nothing. Storage failures propagate.
+     */
     @androidx.room.Transaction
     suspend fun save(bill: BillEntity): Long {
         val previous = if (bill.id != 0L) byId(bill.id) else null
@@ -46,6 +52,10 @@ interface BillDao {
         delete(id)
     }
 
+    /**
+     * Upserts the supplied row unless its nonnull app, case-insensitive name, and start date already exist.
+     * Returns false for a duplicate; null app names bypass deduplication. Status is preserved; storage failures propagate.
+     */
     @androidx.room.Transaction
     suspend fun recordDetected(bill: BillEntity): Boolean {
         val source = bill.sourceApp
@@ -54,7 +64,12 @@ interface BillDao {
         return true
     }
 
-    /** Returns -1 when [dueOn] is no longer the bill's next due date, so a double tap cannot settle twice. */
+    /**
+     * Records the first unrecorded occurrence at or after the settled count, then recomputes that count.
+     * A null [transactionId] records a skip; [settledAtMillis] is milliseconds since the Unix epoch.
+     * Returns the payment ID, or -1 when the bill is missing or [dueOn] differs from that occurrence,
+     * so a double tap cannot settle twice. Storage, row-conversion, and date arithmetic failures propagate.
+     */
     @androidx.room.Transaction
     suspend fun settle(billId: Long, dueOn: LocalDate, transactionId: Long?, settledAtMillis: Long): Long {
         val bill = byId(billId)?.toDomain() ?: return -1
@@ -70,6 +85,10 @@ interface BillDao {
         return id
     }
 
+    /**
+     * Removes a payment or skip and recomputes the bill's contiguous settled count.
+     * Missing payments do nothing; linked transactions are untouched. Storage and date arithmetic failures propagate.
+     */
     @androidx.room.Transaction
     suspend fun unsettle(paymentId: Long) {
         val payment = paymentById(paymentId) ?: return
@@ -79,6 +98,10 @@ interface BillDao {
         }
     }
 
+    /**
+     * Removes every payment linked to the transaction and recomputes affected bills' settled counts.
+     * Does not delete the transaction itself. Storage and date arithmetic failures propagate.
+     */
     @androidx.room.Transaction
     suspend fun transactionDeleted(transactionId: Long) {
         val affected = paymentsForTransaction(transactionId)
@@ -90,6 +113,10 @@ interface BillDao {
 
     @Query("SELECT * FROM bill_payments WHERE transactionId = :id") suspend fun paymentsForTransaction(id: Long): List<BillPaymentEntity>
 
+    /**
+     * Counts consecutive occurrences with a payment or skip, starting at the supplied bill's anchor.
+     * Stops at the first gap; a one-time bill yields zero or one. Storage and date arithmetic failures propagate.
+     */
     suspend fun contiguousSettled(id: Long, bill: ph.notifly.domain.model.Bill): Int {
         val dates = paymentsFor(id).map { it.dueOnDay }.toSet()
         if (bill.repeat == ph.notifly.domain.model.BillRepeat.ONCE) return if (bill.startsOn.toEpochDays() in dates) 1 else 0

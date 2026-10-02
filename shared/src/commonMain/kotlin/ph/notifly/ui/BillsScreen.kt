@@ -63,6 +63,7 @@ private fun BillRepeat.label() = when (this) {
 }
 private fun daysBetween(from: LocalDate, to: LocalDate) = (to.toEpochDays() - from.toEpochDays()).toInt()
 
+/** Describes the due date relative to [today] in calendar days, including overdue dates. */
 internal fun dueWords(due: LocalDate, today: LocalDate): String = when (val d = daysBetween(today, due)) {
     0 -> "Due today"
     1 -> "Due tomorrow"
@@ -71,6 +72,10 @@ internal fun dueWords(due: LocalDate, today: LocalDate): String = when (val d = 
     else -> "Overdue by ${-d} days"
 }
 
+/**
+ * Shows upcoming and calendar bills, review actions, and payment choices. Adding from the calendar
+ * prefills the selected date; enabling reminders requests notification permission when needed.
+ */
 @Composable
 fun BillsScreen(model: BillsModel, appLabels: Map<String, String> = emptyMap(), snackbar: SnackbarHostState? = null,
                 demo: Boolean = false, notificationsAllowed: Boolean = true, requestNotifications: () -> Unit = {}) {
@@ -254,6 +259,7 @@ private fun DetectedRow(bill: Bill, appLabels: Map<String, String>, hidden: Bool
     }
 }
 
+/** Shows months from 12 before through 24 after the current month, with totals and the selected day's occurrences. */
 @Composable
 private fun CalendarTab(model: BillsModel, s: BillsState, appLabels: Map<String, String>, selected: LocalDate,
                         select: (LocalDate) -> Unit, pay: (BillDue) -> Unit) {
@@ -303,6 +309,7 @@ private fun CalendarTab(model: BillsModel, s: BillsState, appLabels: Map<String,
     }
 }
 
+/** Shows six Sunday-first weeks starting with the week containing [month], which must be the first day of a month. */
 @Composable
 private fun MonthGrid(month: LocalDate, s: BillsState, selected: LocalDate, select: (LocalDate) -> Unit) {
     val offset = month.dayOfWeek.isoDayNumber % 7
@@ -347,6 +354,10 @@ private fun DayCell(date: LocalDate, inMonth: Boolean, today: Boolean, selected:
     }
 }
 
+/**
+ * Offers matching transactions to link, a new payment to record, and skipping for recurring bills.
+ * Linking an expense awaiting review also confirms it; selecting an action dismisses the sheet.
+ */
 @Composable
 private fun PaySheet(model: BillsModel, s: BillsState, due: BillDue, onDismiss: () -> Unit) {
     val bill = due.bill
@@ -378,6 +389,10 @@ private fun PaySheet(model: BillsModel, s: BillsState, due: BillDue, onDismiss: 
     }
 }
 
+/**
+ * Edits bill details and offers confirmation for detected bills; other existing bills can be deleted.
+ * The date picker reads and writes UTC calendar dates. [appLabels] maps source packages to display names.
+ */
 @Composable
 fun BillEditorScreen(model: BillEditorModel, appLabels: Map<String, String> = emptyMap()) {
     val s by model.state.collectAsState()

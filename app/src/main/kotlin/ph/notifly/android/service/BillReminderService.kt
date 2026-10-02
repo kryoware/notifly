@@ -35,6 +35,10 @@ class BillReminderService : JobService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var job: Job? = null
 
+    /**
+     * Starts reminder work asynchronously and returns true while it runs.
+     * Caught non-cancellation failures request a retry; cancellation is rethrown.
+     */
     override fun onStartJob(params: JobParameters): Boolean {
         job = scope.launch {
             val retry = try { withContext(Dispatchers.IO) { remind() }; false }
@@ -45,6 +49,12 @@ class BillReminderService : JobService() {
         return true
     }
 
+    /**
+     * Posts reminders for confirmed bills due from today through the configured lead time, inclusive,
+     * using the local date. Disabled reminders or denied notification permission do nothing.
+     * Suppresses occurrences already marked reminded and records each due date after posting.
+     * Amounts are omitted when hidden or a PIN is set; preference, notification, and storage failures propagate.
+     */
     private suspend fun remind() {
         val lead = preferences.billReminderDays.first() ?: return
         val manager = getSystemService(NotificationManager::class.java)
@@ -72,7 +82,9 @@ class BillReminderService : JobService() {
         }
     }
 
+    /** Cancels current reminder work and requests rescheduling by returning true. */
     override fun onStopJob(params: JobParameters): Boolean { job?.cancel(); return true }
+    /** Cancels all service coroutine work before destruction. */
     override fun onDestroy() { scope.cancel(); super.onDestroy() }
 
     private companion object { const val CHANNEL = "bill_reminders" }

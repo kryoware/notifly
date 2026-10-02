@@ -273,8 +273,11 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
     }
     /**
      * Validates the editor fields and asynchronously saves a confirmed transaction, then navigates
-     * to the list. Calls before loading or during a save are ignored. Invalid fields and save failures
-     * are exposed in [state]; coroutine cancellation is rethrown.
+     * to Transactions, or to Bills after linking a bill payment. Bill payments offer Undo that removes
+     * the settlement and saved transaction. A rejected settlement removes a newly created transaction
+     * and shows an error. Other save failures attempt to remove a newly inserted manual transaction.
+     * Calls before loading or during a save are ignored. Invalid fields and save failures are exposed
+     * in [state]; coroutine cancellation is rethrown.
      */
     fun save() {
         val s = state.value
@@ -349,6 +352,7 @@ class SettingsModel(private val preferences: AppPreferences, pending: Flow<Int>)
         .combine(preferences.biometricUnlock) { s, bio -> s.copy(biometric = bio) }
         .combine(preferences.billReminderDays) { s, days -> s.copy(billReminderDays = days) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsState())
+    /** Asynchronously stores the reminder lead time in days, or disables reminders for null; non-cancellation failures become UI messages. */
     fun billReminders(days: Int?) = work { preferences.setBillReminderDays(days) }
     fun palette(value: NotiflyPalette) = work { preferences.setPalette(value) }
     fun themeMode(value: ThemeMode) = work { preferences.setThemeMode(value) }
@@ -403,10 +407,12 @@ class BillsModel(private val bills: BillRepository, private val transactions: Tr
         .combine(localToday()) { s, day -> s.copy(today = day) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BillsState())
 
+    /** Asynchronously confirms or merges the bill and emits a success message; non-cancellation failures become UI messages. */
     fun confirm(bill: Bill) = work {
         bills.confirm(bill.id)
         mutableEvents.emit(UiEvent.Message("${bill.name} bill confirmed"))
     }
+    /** Deletes the bill and emits Undo to restore the supplied bill, without its payment history; non-cancellation failures become UI messages. */
     fun dismiss(bill: Bill) = work {
         bills.delete(bill.id)
         mutableEvents.emit(UiEvent.Message("${bill.name} bill dismissed", onUndo = { bills.save(bill) }))
@@ -417,7 +423,12 @@ class BillsModel(private val bills: BillRepository, private val transactions: Tr
         if (review) transactions.upsert(transaction.copy(status = TransactionStatus.CONFIRMED))
         settle(bill, due, transaction.id, "${bill.name} marked paid") { if (review) transactions.upsert(transaction) }
     }
+    /** Asynchronously records the occurrence as skipped and offers Undo; non-cancellation failures become UI messages. */
     fun skip(bill: Bill, due: LocalDate) = work { settle(bill, due, null, "${bill.name} skipped") {} }
+    /**
+     * Records a payment or skip and emits [text] with Undo that reverses it before calling [undoExtra].
+     * A rejected occurrence emits nothing. Repository failures propagate to the caller.
+     */
     private suspend fun settle(bill: Bill, due: LocalDate, transactionId: Long?, text: String, undoExtra: suspend () -> Unit) {
         val paymentId = bills.settle(bill.id, due, transactionId)
         if (paymentId < 0) return
@@ -425,6 +436,7 @@ class BillsModel(private val bills: BillRepository, private val transactions: Tr
     }
     /** One day before is the default; the lead time can be changed in Settings. */
     fun turnOnReminders() = work { preferences.setBillReminderDays(1) }
+    /** Persists dismissal of the reminder prompt asynchronously; non-cancellation failures become UI messages. */
     fun dismissPrompt() = work { preferences.setBillPromptDismissed(true) }
 }
 
@@ -457,12 +469,17 @@ class BillEditorModel(private val bills: BillRepository, ledger: LedgerRepositor
             }
         }
     } }
+    /** Updates bill editor fields and clears inline errors without saving. */
     fun edit(name: String = state.value.name, amount: String = state.value.amount, due: LocalDate = state.value.due,
              repeat: BillRepeat = state.value.repeat, category: String = state.value.category, accountId: Long? = state.value.accountId) {
         mutableState.value = state.value.copy(name = name, amount = amount, due = due, repeat = repeat, category = category,
             accountId = accountId, nameError = null, amountError = null, error = null)
     }
-    /** Sets the inline errors and returns null when the name is blank or the amount is not above zero. */
+    /**
+     * Builds a bill from the editor, setting inline errors and returning null for a blank name or an
+     * invalid amount (including nonpositive, overflowing, or more than two decimal places).
+     * Changing the due date or repeat schedule resets the anchor, settled count, and reminder marker.
+     */
     private fun build(): Bill? {
         val s = state.value
         val amount = parseAmountMinor(s.amount)
@@ -479,6 +496,11 @@ class BillEditorModel(private val bills: BillRepository, ledger: LedgerRepositor
             startsOn = if (moved) s.due else original.startsOn,
             remindedFor = if (moved) null else original.remindedFor)
     }
+    /**
+     * Validates fields, then runs [action] asynchronously if loaded and idle. On success, navigates to
+     * Bills and shows the returned message. Non-cancellation failures become UI messages; the saving
+     * flag is cleared when the action finishes or throws.
+     */
     private fun finish(action: suspend (Bill) -> String) {
         val bill = build() ?: return
         if (!state.value.ready || state.value.saving) return
@@ -491,6 +513,7 @@ class BillEditorModel(private val bills: BillRepository, ledger: LedgerRepositor
             } finally { mutableState.value = state.value.copy(saving = false) }
         }
     }
+    /** Validates and saves the bill asynchronously, then returns to Bills; non-cancellation failures become UI messages. */
     fun save() = finish { bills.save(it); "${it.name} saved" }
     /** Saves the edits, then confirms; confirming may update an existing bill from the same app instead. */
     fun confirm() = finish { bills.confirm(bills.save(it)); "${it.name} bill confirmed" }

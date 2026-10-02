@@ -20,6 +20,7 @@ class BillRepositoryImpl(private val dao: BillDao) : BillRepository {
     }
     override suspend fun delete(id: Long) = dao.delete(id)
     override suspend fun confirm(id: Long) = dao.confirm(id)
+    /** Validates and inserts with a new ID, preserving status; a null source app bypasses duplicate detection. */
     override suspend fun recordDetected(bill: Bill): Boolean {
         bill.validate()
         return dao.recordDetected(bill.copy(id = 0).toEntity())
