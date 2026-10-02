@@ -79,7 +79,7 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDe
     var expanded by remember { mutableStateOf<Long?>(null) }
     var clear by remember { mutableStateOf(false) }
     val parser = remember { NotificationParser() }
-    val saveCsv = rememberCsvSaver { s.captures.toCsv(raw = isDebugBuild) }
+    val saveCsv = rememberCsvSaver { s.captures.toCsv() }
     Column(Modifier.fillMaxSize()) {
         val filters = listOf(null) + CaptureResult.entries.filter { it != CaptureResult.IGNORED }
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -95,7 +95,7 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDe
         }
         Column(Modifier.padding(horizontal = 16.dp)) {
             SettingsGroup { SettingsRow("Keep raw text on device", checked = s.keepRaw, onCheckedChange = model::retain) }
-            Text(if (isDebugBuild) "Debug build: raw text is included in CSV exports and removed after 7 days."
+            Text(if (isDebugBuild) "Debug build: raw text stays on this device for 7 days; CSV exports contain metadata only."
                 else "Raw text is never uploaded and is removed after 24 hours.", style = MaterialTheme.typography.bodySmall)
         }
         Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
