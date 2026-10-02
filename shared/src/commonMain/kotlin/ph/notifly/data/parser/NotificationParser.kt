@@ -13,23 +13,11 @@ import ph.notifly.domain.model.TransactionType
  */
 class NotificationParser {
 
-    private val amountRegex = Regex(
-        """(?i)(?:\bPHP|₱|\bP(?=\s*\d))\s*(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)(?!\d|[.,]\d)""",
-    )
-    private val gcashAmountRegex = Regex(
-        """(?i)\byou (?:have )?(?:paid|received|sent)\s+(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)\s+(?:of\s+)?GCash\b""",
-    )
-    private val incomplete = Regex("""(?i)\b(?:failed|declined|unsuccessful|pending|cancelled|canceled)\b""")
-
-    private val inbound = listOf("received", "credited", "refund", "deposited", "cash in", "received from")
-    private val outbound = listOf("paid", "payment", "debited", "sent", "purchase", "withdrawn", "cash out", "charged", "transferred")
-    private val holdWords = listOf("hold", "pre-auth", "preauth", "authorization hold", "may differ")
-    private val balanceWords = listOf("balance is", "available balance", "current balance", "as of")
     private val selfTransferHints = listOf("your own", "to your account", "own account", "savings ending", "between your")
     private val genericNameWords = setOf("bank", "app", "mobile", "online", "digital", "pay", "wallet", "savings")
 
     /**
-     * Parses the first matching PHP amount into minor units. Empty text, a missing amount, or
+     * Parses a PHP amount with nearby whole-word evidence into minor units. Empty text, a missing amount, or
      * no recognized direction/hold wording or model hint returns [ParseOutcome.Unrecognized].
      * [financeApps] are labels of the user's other finance apps; one named as the counterparty marks a likely transfer.
      *
@@ -66,16 +54,17 @@ class NotificationParser {
             return ParseOutcome.Unrecognized(why)
         }
 
-        val merchant = extractMerchant(text, directionHint ?: if (inWord != null && outWord == null) TransactionType.INCOME else null)
+        val merchant = extractMerchant(local, hint ?: if (inWord != null && outWord == null) TransactionType.INCOME else null)
         val mentionedApp = merchant?.let { mentionedApp(it, financeApps) }
-        val isSelfTransfer = mentionedApp != null || selfTransferHints.any { lower.contains(it) }
+        val isSelfTransfer = mentionedApp != null || context.nearest(selfTransferHints) != null
 
         // Both directions present is genuinely ambiguous — do not silently pick one.
         val ambiguousDirection = inWord != null && outWord != null
 
         val type = when {
             isSelfTransfer -> TransactionType.TRANSFER
-            directionHint != null -> directionHint
+            documentExpense -> TransactionType.EXPENSE
+            hint != null -> hint
             inWord != null && outWord == null -> TransactionType.INCOME
             else -> TransactionType.EXPENSE
         }
@@ -89,7 +78,11 @@ class NotificationParser {
                 "Pre-authorisation hold. The real amount posts later, so this may need editing after it settles."
             ambiguousDirection ->
                 "Both inbound and outbound wording appear. Direction needs a human."
-            directionHint != null ->
+            document != null ->
+                "Receipt or invoice needs review; check whether payment has actually settled."
+            distant ->
+                "Transaction wording is farther from the amount; direction needs review."
+            hint != null ->
                 "Direction suggested by the on-device model. Check the amount and account ownership."
             merchant == null ->
                 "Amount and direction matched, but no merchant could be read from the text."
@@ -97,12 +90,12 @@ class NotificationParser {
                 "Amount and direction matched cleanly."
         }
 
-        val amountMinor = runCatching { toMinorUnits(match.groupValues[1]) }.getOrNull()
+        val amountMinor = runCatching { toMinorUnits(match.groupValues[1] + match.groupValues[2].trim()) }.getOrNull()
             ?.takeIf { it > 0 }
             ?: return ParseOutcome.Unrecognized("Amount is outside the supported range.")
-        val modelDisagrees = directionHint != null && (
-            (directionHint == TransactionType.INCOME && outWord != null) ||
-                (directionHint == TransactionType.EXPENSE && inWord != null)
+        val modelDisagrees = hint != null && (
+            (hint == TransactionType.INCOME && outWord != null) ||
+                (hint == TransactionType.EXPENSE && inWord != null)
             )
         val draft = TransactionDraft(
             amountMinor = amountMinor,
@@ -110,29 +103,50 @@ class NotificationParser {
             type = type,
             merchant = merchant,
             matchedAmount = match.value,
-            matchedDirection = directionHint?.let { "On-device model: ${it.name.lowercase()}" }
-                ?: inWord ?: outWord ?: holdWords.first { lower.contains(it) },
-            amountConfidence = if (isHold) Confidence.LOW else Confidence.HIGH,
-            directionConfidence = if (ambiguousDirection || modelDisagrees || (directionHint == null && inWord == null && outWord == null)) {
+            matchedDirection = hint?.let { "On-device model: ${it.name.lowercase()}" }
+                ?: evidence.word,
+            amountConfidence = if (isHold || usable.map { it.match.groupValues[1] + it.match.groupValues[2] }.distinct().size > 1) Confidence.LOW else Confidence.HIGH,
+            directionConfidence = if (ambiguousDirection || modelDisagrees || distant || document != null || (hint == null && inWord == null && outWord == null)) {
                 Confidence.LOW
             } else {
                 Confidence.HIGH
             },
             merchantConfidence = if (merchant == null) Confidence.LOW else Confidence.HIGH,
             inbound = if (ambiguousDirection || modelDisagrees) null
-                else directionHint?.let { it == TransactionType.INCOME } ?: inWord?.let { true } ?: outWord?.let { false },
+                else hint?.let { it == TransactionType.INCOME } ?: inWord?.let { true } ?: outWord?.let { false },
         )
         return ParseOutcome.Parsed(draft, reason)
     }
 
+    /**
+     * Converts the first recognized amount starting at or after character offset [from] to minor units.
+     * Returns null if no amount matches or conversion fails, including overflow; does not try later matches.
+     * Does not filter currency or transaction context. Shared with [BillReminderParser].
+     */
+    internal fun firstAmountMinor(text: String, from: Int = 0): Long? =
+        AmountContexts.find(text).firstOrNull { it.match.range.first >= from && supportedCurrency(text, it.match) }?.match?.let { match ->
+            runCatching { toMinorUnits(match.groupValues[1] + match.groupValues.getOrNull(2).orEmpty()) }.getOrNull()
+        }
+
+    private fun supportedCurrency(text: String, match: MatchResult): Boolean {
+        if (Regex("(?i)^(?:USD|EUR|GBP|\\$|€|£)").containsMatchIn(match.value)) return false
+        val before = text.substring(0, match.range.first)
+        val after = text.substring(match.range.last + 1)
+        return !Regex("^\\s*(?:USD|EUR|GBP)\\b", RegexOption.IGNORE_CASE).containsMatchIn(after) &&
+            !Regex("(?:USD|EUR|GBP)\\s*$", RegexOption.IGNORE_CASE).containsMatchIn(before)
+    }
+
     /** "48,000.00" -> 4800000. String maths only; never Double for money. */
     internal fun toMinorUnits(raw: String): Long {
-        val cleaned = raw.replace(",", "")
+        val thousands = raw.trim().endsWith("k", ignoreCase = true)
+        val cleaned = raw.trim().removeSuffix("k").removeSuffix("K").replace(",", "")
         val parts = cleaned.split(".")
         val whole = parts[0].toLong()
         val frac = if (parts.size > 1) parts[1].padEnd(2, '0').take(2).toLong() else 0L
         require(whole >= 0 && whole <= (Long.MAX_VALUE - frac) / 100) { "Amount exceeds supported range" }
-        return whole * 100 + frac
+        val minor = whole * 100 + frac
+        require(!thousands || minor <= Long.MAX_VALUE / 1000) { "Amount exceeds supported range" }
+        return if (thousands) minor * 1000 else minor
     }
 
     /**
@@ -150,11 +164,11 @@ class NotificationParser {
         val namePattern = """\s+([A-Z0-9][A-Za-z0-9&'.\- ]{2,40})"""
         val prefix = when (direction) {
             TransactionType.INCOME -> "from"
-            TransactionType.EXPENSE -> "to"
+            TransactionType.EXPENSE -> "(?:to|at)"
             else -> null
         }
         val m = prefix?.let { Regex("""\b$it$namePattern""").find(text) }
-            ?: Regex("""\b(?:to|from|by)$namePattern""").find(text)
+            ?: Regex("""\b(?:to|from|by|at)$namePattern""").find(text)
         return m?.groupValues?.get(1)
             ?.substringBefore(". ")
             ?.trim()

@@ -3,6 +3,11 @@ package ph.notifly.ui
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.plus
+import kotlinx.datetime.toLocalDateTime
 import ph.notifly.domain.model.*
 import ph.notifly.domain.repository.*
 import kotlin.random.Random
@@ -178,4 +183,84 @@ class DemoLedger(private val transactions: TransactionRepository) : LedgerReposi
         require(drafts.value.any { it.id == id })
         val saved = transactions.upsert(transaction); deleteDraft(id); return saved
     }
+}
+
+/**
+ * Isolated demo bills, relative to today so every bucket has something in it: upcoming, overdue, paid,
+ * and one detected bill awaiting review. [rows] supplies the transaction the paid bill is linked to.
+ */
+class DemoBills(rows: List<Transaction> = emptyList()) : BillRepository {
+    private val now = Clock.System.now()
+    private val today = now.toLocalDateTime(TimeZone.currentSystemDefault()).date
+    /** Builds a demo bill from whole pesos and a signed day offset relative to the demo's initial local date. */
+    private fun bill(id: Long, name: String, pesos: Long, inDays: Int, repeat: BillRepeat, accountId: Long = 1,
+                     status: TransactionStatus = TransactionStatus.CONFIRMED, detected: Boolean = false, settled: Int = 0) =
+        Bill(id, name, pesos * 100, accountId = accountId, startsOn = today.plus(inDays, DateTimeUnit.DAY), repeat = repeat,
+            settled = settled, status = status, detected = detected, sourceApp = if (detected) GCASH else null, createdAt = now)
+    private val paidTransaction = rows.firstOrNull { it.type == TransactionType.EXPENSE && it.status == TransactionStatus.CONFIRMED }
+    private val bills = MutableStateFlow(listOfNotNull(
+        bill(1, "Meralco", 2410, 3, BillRepeat.MONTHLY),
+        bill(2, "Maynilad", 680, 9, BillRepeat.MONTHLY, accountId = 2),
+        bill(3, "Netflix", 549, 18, BillRepeat.MONTHLY),
+        bill(4, "PhilHealth", 1200, 60, BillRepeat.YEARLY),
+        bill(5, "Globe Postpaid", 1499, 12, BillRepeat.ONCE, status = TransactionStatus.NEEDS_REVIEW, detected = true),
+        bill(6, "Converge Fiber", 1699, -2, BillRepeat.MONTHLY),
+        paidTransaction?.let {
+            bill(7, "Smart Postpaid", 0, 0, BillRepeat.MONTHLY, settled = 1).copy(amountMinor = it.amountMinor,
+                startsOn = it.occurredAt.toLocalDateTime(TimeZone.currentSystemDefault()).date)
+        },
+    ))
+    private val payments = MutableStateFlow(listOfNotNull(paidTransaction?.let {
+        BillPayment(1, 7, it.occurredAt.toLocalDateTime(TimeZone.currentSystemDefault()).date, it.id, it.occurredAt)
+    }))
+    private var nextBillId = 8L
+    private var nextPaymentId = 2L
+    override fun observeBills() = bills
+    override fun observePayments() = payments
+    override suspend fun byId(id: Long) = bills.value.find { it.id == id }
+    override suspend fun save(bill: Bill): Long {
+        bill.validate()
+        val id = bill.id.takeIf { it > 0 } ?: nextBillId++
+        val previous = byId(id)
+        val changed = previous != null && (previous.startsOn != bill.startsOn || previous.repeat != bill.repeat)
+        val saved = bill.copy(id = id, settled = if (changed) {
+            val days = payments.value.filter { it.billId == id }.map { it.dueOn }.toSet()
+            if (bill.repeat == BillRepeat.ONCE) if (bill.startsOn in days) 1 else 0
+            else generateSequence(0) { it + 1 }.takeWhile { bill.occurrence(it) in days }.count()
+        } else bill.settled)
+        bills.value = bills.value.filterNot { it.id == id } + saved
+        return id
+    }
+    override suspend fun delete(id: Long) {
+        bills.value = bills.value.filterNot { it.id == id }
+        payments.value = payments.value.filterNot { it.billId == id }
+    }
+    override suspend fun confirm(id: Long) {
+        val draft = byId(id) ?: return
+        val existing = bills.value.find { it.id != id && it.status == TransactionStatus.CONFIRMED && draft.sourceApp != null &&
+            it.sourceApp == draft.sourceApp && it.name.equals(draft.name, ignoreCase = true) }
+        if (existing == null) save(draft.copy(status = TransactionStatus.CONFIRMED))
+        else { save(existing.copy(amountMinor = draft.amountMinor, startsOn = draft.startsOn, remindedFor = null)); delete(id) }
+    }
+    /** Returns false for a matching app (including null), case-insensitive name, and start date; otherwise saves with a new ID. */
+    override suspend fun recordDetected(bill: Bill): Boolean {
+        if (bills.value.any { it.sourceApp == bill.sourceApp && it.name.equals(bill.name, true) && it.startsOn == bill.startsOn }) return false
+        save(bill.copy(id = 0)); return true
+    }
+    /** Records only the current next due date and increments the demo settled count; returns -1 for missing or stale bills. */
+    override suspend fun settle(billId: Long, dueOn: LocalDate, transactionId: Long?): Long {
+        val bill = byId(billId) ?: return -1
+        if (bill.nextDue != dueOn) return -1
+        save(bill.copy(settled = bill.settled + 1))
+        val id = nextPaymentId++
+        payments.value = payments.value + BillPayment(id, billId, dueOn, transactionId, Clock.System.now())
+        return id
+    }
+    /** Removes the demo payment or skip and decrements the settled count, clamped at zero; missing payments do nothing. */
+    override suspend fun unsettle(paymentId: Long) {
+        val payment = payments.value.find { it.id == paymentId } ?: return
+        payments.value = payments.value.filterNot { it.id == paymentId }
+        byId(payment.billId)?.let { save(it.copy(settled = maxOf(0, it.settled - 1))) }
+    }
+    override suspend fun markReminded(id: Long, due: LocalDate) { byId(id)?.let { save(it.copy(remindedFor = due)) } }
 }

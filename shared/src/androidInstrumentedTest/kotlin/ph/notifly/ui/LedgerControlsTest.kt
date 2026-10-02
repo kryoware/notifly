@@ -23,6 +23,28 @@ import java.io.File
 @RunWith(AndroidJUnit4::class)
 class LedgerControlsTest {
     @get:Rule val compose = createComposeRule()
+    @Test fun categoryEditorWaitsForCapAndThenChecksIt() {
+        val ledger = DemoLedger(DemoTransactions())
+        val model = LedgerSettingsModel(ledger, DemoAllowList())
+        var loaded by mutableStateOf(false)
+        var cap by mutableStateOf<Long?>(null)
+        compose.setContent {
+            NotiflyTheme {
+                CategoryEditorScreen(model, 0, TransactionType.EXPENSE, cap, monthlyBudgetLoaded = loaded)
+            }
+        }
+        compose.waitUntil { model.state.value.loaded }
+        compose.onNodeWithText("Save category").assertDoesNotExist()
+        compose.runOnIdle { cap = 1_000; loaded = true }
+        compose.onNodeWithText("Name").performTextInput("Coffee")
+        compose.onNodeWithText("Monthly budget (PHP, optional)").performTextInput("20")
+        compose.onNodeWithText("Save category").performScrollTo().performClick()
+        compose.onNodeWithText("Only ₱10.00 of your ₱10.00 monthly budget is unallocated.").assertExists()
+        Assert.assertFalse(runBlocking { ledger.observeCategories().first().any { it.name == "Coffee" } })
+        compose.runOnIdle { cap = null }
+        compose.onNodeWithText("Save category").performClick()
+        compose.waitUntil { runBlocking { ledger.observeCategories().first().any { it.name == "Coffee" } } }
+    }
     private fun screenshot(name: String) {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         compose.onRoot().captureToImage().asAndroidBitmap().let { bitmap ->

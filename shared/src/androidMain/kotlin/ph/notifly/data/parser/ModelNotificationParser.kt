@@ -18,7 +18,8 @@ class ModelNotificationParser(context: Context, private val rules: NotificationP
         // Ownership stays unknown: a direction prediction cannot establish a self-transfer.
         val prediction = classifier.classify(source, body)
         val confident = prediction.confidence >= classifier.minConfidence
-        if (confident && prediction.direction == "other") {
+        val document = AmountContexts.select(body)?.let { !it.blocked && it.nearest(AmountContexts.documents) != null } == true
+        if (confident && prediction.direction == "other" && !document) {
             return ParseOutcome.Unrecognized("On-device model identified a non-transaction notification.")
         }
         val hint = if (confident) when (prediction.direction) {
@@ -27,7 +28,7 @@ class ModelNotificationParser(context: Context, private val rules: NotificationP
             else -> null
         } else null
         val parsed = rules.parse(body, financeApps, hint)
-        return if (!confident && parsed is ParseOutcome.Parsed) {
+        return if ((!confident || prediction.direction == "other") && parsed is ParseOutcome.Parsed) {
             parsed.copy(
                 draft = parsed.draft.copy(directionConfidence = Confidence.LOW),
                 reason = "Model confidence is low; rule-based suggestion needs review. ${parsed.reason}",

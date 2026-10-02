@@ -6,6 +6,8 @@ import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import notifly.shared.generated.resources.Res
 import notifly.shared.generated.resources.*
+import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
+import com.mikepenz.aboutlibraries.ui.compose.produceLibraries
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -219,6 +221,9 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
                     Text("Assign accounts · ${s.drafts} to review")
                 }
             }
+            item(key = "next-bill", span = { GridItemSpan(maxLineSpan) }) {
+                NextBillLine(s.nextBill, s.detectedBills, s.hideAmounts) { model.navigate("bills") }
+            }
             if (accounts.isNotEmpty()) {
                 item(key = "accounts-heading", span = { GridItemSpan(maxLineSpan) }) {
                     AccountsHeader(accounts.sumOf { it.netValue }, s.hideAmounts, accounts.size >= 2, reordering) {
@@ -284,17 +289,18 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
     }
 }
 
+/** Shows an add button whose [label] is also its accessible name when collapsed. */
 @Composable
-private fun AddTransactionFab(expanded: Boolean, onClick: () -> Unit) {
+internal fun AddTransactionFab(label: String = "Add transaction", expanded: Boolean, onClick: () -> Unit) {
     ExtendedFloatingActionButton(
         onClick = onClick,
         expanded = expanded,
         // M3 1.5 clears the text slot's semantics, so the name must sit on the button itself.
-        modifier = Modifier.semantics { contentDescription = "Add transaction" },
+        modifier = Modifier.semantics { contentDescription = label },
         containerColor = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
         icon = { Icon(painterResource(Res.drawable.symbol_add), contentDescription = null) },
-        text = { Text("Add transaction") },
+        text = { Text(label) },
     )
 }
 
@@ -391,11 +397,10 @@ private fun BalanceDialog(account: AccountBalance, hidden: Boolean, dismiss: () 
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Enter what the app shows now. Confirmed transactions from here on are added to it.")
-                OutlinedTextField(
+                MoneyField(
                     value = text, onValueChange = { text = it; invalid = false },
-                    label = { Text("Balance") }, prefix = { Text("₱") }, singleLine = true, isError = invalid,
+                    label = { Text("Balance") }, prefix = { Text("₱") }, signed = true, isError = invalid,
                     supportingText = if (invalid) { { Text("Enter an amount with at most two decimal places.") } } else null,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
             }
         },
@@ -560,8 +565,9 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
     )
 }
 
+/** Offers the supplied categories plus the current value if absent; selecting one calls [onValueChange]. */
 @Composable
-private fun CategoryField(value: String, categories: List<String>, onValueChange: (String) -> Unit) {
+internal fun CategoryField(value: String, categories: List<String>, onValueChange: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val options = if (value in categories) categories else categories + value
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
@@ -719,10 +725,10 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
                 keyboardActions = KeyboardActions(onNext = { amountFocus.requestFocus() }))
         }
         item {
-            OutlinedTextField(s.amount, { model.edit(amount = it) }, label = { Text("Amount (PHP)") },
+            MoneyField(s.amount, { model.edit(amount = it) }, label = { Text("Amount (PHP)") },
                 isError = s.amountError != null, supportingText = s.amountError?.let { { Text(it) } },
                 placeholder = { Text("0.00") },
-                modifier = Modifier.fillMaxWidth().focusRequester(amountFocus), singleLine = true,
+                modifier = Modifier.fillMaxWidth().focusRequester(amountFocus),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { if (s.ready && !s.saving) model.save() }))
         }
@@ -870,6 +876,8 @@ fun SettingsScreen(
     onDataMessage: suspend (String) -> Unit = {},
     allowDataTransfer: Boolean = true,
     ledger: ph.notifly.domain.repository.LedgerRepository? = null,
+    notificationsAllowed: Boolean = true,
+    requestNotifications: () -> Unit = {},
 ) {
     val s by model.state.collectAsState()
     val source = org.koin.compose.koinInject<ph.notifly.domain.source.TransactionSource>()
@@ -900,7 +908,8 @@ fun SettingsScreen(
                 SettingsRow("Accounts", "Bank, card and wallet balances and app links", onClick = { model.navigate("accounts") })
                 SettingsRow("Categories", "Customize income and expense categories", onClick = { model.navigate("categories") })
                 SettingsRow("Assign accounts", "Review captured transactions without an account", onClick = { model.navigate("account-review") })
-                SettingsRow("Category budgets", "Set a monthly limit for each spending category", onClick = { model.navigate("budgets") })
+                SettingsRow("Budgets", "Set a monthly limit and split it across categories", onClick = { model.navigate("budgets") })
+                BillReminderRow(s.billReminderDays, notificationsAllowed, requestNotifications, model::billReminders)
                 SettingsRow("Demo mode", "Explore with random sample transactions. Your own data is left untouched.",
                     checked = demo, onCheckedChange = onDemo)
             }
@@ -1004,6 +1013,7 @@ fun SettingsScreen(
             SettingsGroup {
                 SettingsRow("Version", versionName)
                 SettingsRow("Release notes", "What changed in each version", onClick = { uriHandler.openUri(RELEASE_NOTES_URL) }, external = true)
+                SettingsRow("Open source licenses", "Libraries Notifly is built with", onClick = { model.navigate("licenses") })
             }
         }
 
@@ -1022,34 +1032,99 @@ fun SettingsScreen(
     }
 }
 
+private const val AMOUNT_ERROR = "Enter an amount above zero, with at most two decimal places."
+
+/**
+ * Offers reminders off, on the due day, or one or three days before.
+ * Enabling reminders requests notification permission when needed, then calls [choose] without waiting for permission.
+ */
+@Composable
+private fun BillReminderRow(days: Int?, notificationsAllowed: Boolean, requestNotifications: () -> Unit, choose: (Int?) -> Unit) {
+    val options = listOf<Int?>(null, 0, 1, 3)
+    fun label(d: Int?) = when (d) { null -> "Off"; 0 -> "On the day"; 1 -> "1 day before"; else -> "$d days before" }
+    ChoiceField("Bill reminders", label(days), options, label = ::label) {
+        if (it != null && !notificationsAllowed) requestNotifications()
+        choose(it)
+    }
+}
+
 @Composable
 fun BudgetsScreen(model: BudgetsModel) {
-    val budgets by model.state.collectAsState()
-    var editing by remember { mutableStateOf<String?>(null) }
-    // Keeps budgets for categories that were since dropped from the list reachable, so they can be removed.
-    val typed by model.categories.collectAsState()
-    val categories = (typed.filter { it.type == TransactionType.EXPENSE && (!it.archived || it.budgetMinor != null) }.map { it.name } + budgets.keys.sorted()).distinct()
-    LazyColumn(
-        Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp),
-    ) {
-        item {
-            Text("Limits reset on the 1st of each month. Only confirmed expenses count toward them.",
-                Modifier.padding(vertical = 8.dp))
-        }
-        item {
-            SettingsGroup {
-                categories.forEach { category ->
-                    SettingsRow(category, budgets[category]?.let { "${money(it)} per month" } ?: "No budget",
-                        onClick = { editing = category })
-                }
+    val s = model.state.collectAsState().value ?: run { CircularProgressIndicator(); return }
+    // Archived categories stay listed while they hold a budget, since it still counts toward the cap.
+    val categories = s.categories.filter { !it.archived || it.budgetMinor != null }
+    var monthly by remember { mutableStateOf(s.monthly?.let(::amountText).orEmpty()) }
+    val edits = remember { mutableStateMapOf<Long, String>() }
+    fun text(category: Category) = edits[category.id] ?: category.budgetMinor?.let(::amountText).orEmpty()
+    fun invalid(text: String) = text.isNotBlank() && parseAmountMinor(text) == null
+    var attempted by remember { mutableStateOf(false) }
+    val busy by model.busy.collectAsState()
+    val cap = parseAmountMinor(monthly)
+    val amounts = categories.mapNotNull { parseAmountMinor(text(it)) }
+    val allocated = amounts.fold(0L) { sum, minor -> if (sum > Long.MAX_VALUE - minor) Long.MAX_VALUE else sum + minor }
+    val over = cap != null && amounts.fold(cap) { remaining, minor ->
+        if (remaining < 0L || minor > remaining) -1L else remaining - minor
+    } < 0L
+    Column(Modifier.fillMaxSize().imePadding()) {
+        LazyColumn(
+            Modifier.weight(1f).padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            item {
+                Text("Limits reset on the 1st of each month. Only confirmed expenses count toward them.",
+                    Modifier.padding(vertical = 8.dp))
+            }
+            item {
+                MoneyField(monthly, { monthly = it; attempted = false }, label = { Text("Monthly budget") }, Modifier.fillMaxWidth(),
+                    prefix = { Text("₱") }, isError = attempted && (invalid(monthly) || over),
+                    supportingText = when {
+                        attempted && invalid(monthly) -> { { Text(AMOUNT_ERROR) } }
+                        attempted && over -> { { Text("Category budgets add up to more than this. Raise it or lower a category.") } }
+                        else -> null
+                    })
+            }
+            item { Allocation(allocated, cap) }
+            item { SectionHeader("Categories", Modifier.padding(top = 16.dp)) }
+            if (categories.isEmpty()) item { Text("Add a spending category to give it a budget.") }
+            items(categories, key = { it.id }) { category ->
+                val value = text(category)
+                MoneyField(value, { edits[category.id] = it; attempted = false },
+                    label = { Text(category.name + if (category.archived) " · Archived" else "") }, Modifier.fillMaxWidth(),
+                    prefix = { Text("₱") }, isError = attempted && invalid(value),
+                    supportingText = if (attempted && invalid(value)) { { Text(AMOUNT_ERROR) } } else null)
             }
         }
+        Button(onClick = {
+            attempted = true
+            if (!invalid(monthly) && !over && categories.none { invalid(text(it)) })
+                model.save(cap, categories.associate { it.id to parseAmountMinor(text(it)) })
+        }, enabled = !busy, modifier = Modifier.fillMaxWidth().padding(16.dp)) { Text(if (busy) "Saving…" else "Save budgets") }
     }
-    editing?.let { category ->
-        BudgetDialog(budgets[category], dismiss = { editing = null }, title = "$category budget",
-            message = "How much do you plan to spend on $category each month?") { model.budget(category, it); editing = null }
+}
+
+/** Live share of the monthly [cap] taken by category budgets; without a cap only the total shows. */
+@Composable
+private fun Allocation(allocated: Long, cap: Long?) {
+    val over = cap != null && allocated > cap
+    Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (cap != null) Meter(ratio(allocated, cap), if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+        Text(
+            when {
+                cap == null -> "${money(allocated)} allocated. Set a monthly budget to cap it."
+                over -> "${money(allocated)} of ${money(cap)} allocated · ${money(allocated - cap)} over"
+                else -> "${money(allocated)} of ${money(cap)} allocated · ${money(cap - allocated)} left"
+            },
+            style = MaterialTheme.typography.bodyMedium.tabular(),
+            color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
+}
+
+@Composable
+fun LicensesScreen() {
+    val libraries by produceLibraries { Res.readBytes("files/aboutlibraries.json").decodeToString() }
+    LibrariesContainer(libraries, Modifier.fillMaxSize())
 }
 
 @Composable
