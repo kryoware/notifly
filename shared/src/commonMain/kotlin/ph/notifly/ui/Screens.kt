@@ -9,7 +9,15 @@ import notifly.shared.generated.resources.*
 import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
 import com.mikepenz.aboutlibraries.ui.compose.produceLibraries
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
@@ -89,25 +97,26 @@ fun TransactionRow(
     onLongClick: () -> Unit = {},
     accountNames: Map<Long, String> = emptyMap(),
     hideAmount: Boolean = false,
+    accountIcons: Map<Long, String> = emptyMap(),
 ) {
     val color = when (transaction.type) {
         TransactionType.INCOME -> MaterialTheme.accents.income
         TransactionType.EXPENSE -> MaterialTheme.accents.expense
         TransactionType.TRANSFER -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val accountLabel = accountNames[transaction.accountId].orEmpty() +
-        (transaction.toAccountId?.let { " → " + accountNames[it].orEmpty() } ?: "")
+    val accountName = accountNames[transaction.accountId].orEmpty()
     val needsReview = transaction.status == TransactionStatus.NEEDS_REVIEW
     val sourceApp = transaction.sourceApp?.let { appLabels[it] ?: it }
-    val sender = sourceApp ?: "Manual"
     val occurredOn = transaction.occurredAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
-    val supportingText = listOfNotNull(accountLabel.takeIf { it.isNotBlank() }, transaction.category.takeIf { it.isNotBlank() }, shortDate(occurredOn),
-        "Needs review".takeIf { needsReview }).joinToString(" · ")
+    // The avatar is the account, so only a transfer's destination needs naming in text.
+    val supportingText = listOfNotNull(
+        transaction.toAccountId?.let { "$accountName → ${accountNames[it].orEmpty()}" } ?: transaction.category.takeIf { it.isNotBlank() },
+        sourceApp?.let { "via $it" }, "Needs review".takeIf { needsReview }).joinToString(" · ")
     val leading: @Composable () -> Unit = {
         Crossfade(selected, label = "avatar") { checked ->
             if (checked) Icon(painterResource(Res.drawable.symbol_check_circle), contentDescription = null,
                 Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary)
-            else AppIcon(transaction.sourceApp, sender)
+            else AppIcon(accountIcons[transaction.accountId] ?: transaction.sourceApp, accountName.ifBlank { sourceApp ?: transaction.title })
         }
     }
     val container by animateColorAsState(
@@ -123,19 +132,22 @@ fun TransactionRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text((if (transaction.type == TransactionType.INCOME) "+" else if (transaction.type == TransactionType.EXPENSE) "−" else "") + money(transaction.amountMinor),
                     style = MaterialTheme.typography.titleMedium.tabular(), color = color, modifier = hiddenMoneyModifier(hideAmount))
-                if (!selectionMode && needsReview && confirm != null) {
-                    IconTooltip("Confirm ${transaction.title}") {
-                        IconButton(onClick = confirm, modifier = Modifier.size(48.dp).semantics { contentDescription = "Confirm ${transaction.title}" }) {
-                            StatusMark(confirmed = false)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(shortDate(occurredOn), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (!selectionMode && needsReview && confirm != null) {
+                        IconTooltip("Confirm ${transaction.title}") {
+                            IconButton(onClick = confirm, modifier = Modifier.size(48.dp).semantics { contentDescription = "Confirm ${transaction.title}" }) {
+                                StatusMark(confirmed = false)
+                            }
                         }
-                    }
-                } else Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { StatusMark(confirmed = !needsReview) }
+                    } else Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { StatusMark(confirmed = !needsReview) }
+                }
             }
     }
     val rowModifier = modifier.fillMaxWidth()
         .semantics {
             contentDescription = listOfNotNull(transaction.title, money(transaction.amountMinor).takeIf { !hideAmount },
-                "needs review".takeIf { needsReview }).joinToString(", ")
+                accountName.takeIf { it.isNotBlank() }, shortDate(occurredOn), "needs review".takeIf { needsReview }).joinToString(", ")
         }
     if (selectionMode) {
         ListItem(checked = selected, onCheckedChange = { onToggleSelection() }, modifier = rowModifier, colors = colors,
@@ -154,7 +166,7 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
                listeningApps: List<String> = emptyList(), accessOn: Boolean = true, requestAccess: () -> Unit = {}) {
     val s by model.state.collectAsState()
     val pendingRows = s.rows.filter { it.status == TransactionStatus.NEEDS_REVIEW }
-    val pendingTotal = pendingRows.sumOf { when (it.type) { TransactionType.INCOME -> it.amountMinor; TransactionType.EXPENSE -> -it.amountMinor; TransactionType.TRANSFER -> 0L } }
+    val pendingTotal = pendingRows.sumOf { when (it.type) { TransactionType.INCOME -> it.amountMinor; TransactionType.EXPENSE -> -it.amountMinor; TransactionType.TRANSFER -> -it.feeMinor } }
     val listState = rememberLazyListState()
     var editingAccount by remember { mutableStateOf<AccountBalance?>(null) }
     editingAccount?.let { account ->
@@ -196,7 +208,7 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
         }
         items(s.rows.take(5), key = { it.id }) { t ->
             TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") },
-                accountNames = s.accounts.associate { it.account.id to it.account.name }, hideAmount = s.hideAmounts, confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null)
+                accountNames = s.accounts.associate { it.account.id to it.account.name }, accountIcons = accountIcons(s.accounts.map { it.account }), hideAmount = s.hideAmounts, confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null)
         }
         // First value is the first captured draft, so the empty ledger says what it is waiting on.
         if (s.rows.isEmpty()) item {
@@ -358,9 +370,17 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
     val selectionMode = selectedIds.isNotEmpty()
     val selectedRows = s.rows.filter { it.id in selectedIds }
     LaunchedEffect(s.rows) { selectedIds = selectedIds.intersect(s.rows.map { it.id }.toSet()) }
+    LaunchedEffect(appLabels) { model.appLabels(appLabels) }
+    var searching by remember { mutableStateOf(s.query.isNotEmpty()) }
+    val searchFocus = remember { FocusRequester() }
+    fun closeSearch() { searching = false; model.search("") }
+    NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = searching && !selectionMode, onBackCompleted = ::closeSearch)
+    // Selected rows separate into individual slips so the tint reads per row, not as one block.
+    val rowGap by animateDpAsState(if (selectionMode) 2.dp else 0.dp, label = "selectionGap")
+    val rowCorner by animateDpAsState(if (selectionMode) 16.dp else 0.dp, label = "selectionCorner")
     Scaffold(
-        topBar = {
-            if (selectionMode) TopAppBar(
+        topBar = { AnimatedContent(selectionMode, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "topBar") { selecting ->
+            if (selecting) TopAppBar(
                 title = { Text("${selectedIds.size} selected") },
                 navigationIcon = { IconTooltip("Cancel selection") { IconButton(onClick = { selectedIds = emptySet() }) {
                     Icon(painterResource(Res.drawable.symbol_clear), contentDescription = "Cancel selection")
@@ -375,8 +395,27 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                     } }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            ) else TopAppBar(title = { Text(if (demo) "Transactions · Demo" else "Transactions") })
-        },
+            ) else if (searching) TopAppBar(
+                title = {
+                    TextField(s.query, model::search, Modifier.fillMaxWidth().focusRequester(searchFocus),
+                        placeholder = { Text("Search transactions") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent))
+                    LaunchedEffect(Unit) { searchFocus.requestFocus() }
+                },
+                navigationIcon = { IconTooltip("Close search") { IconButton(onClick = ::closeSearch) {
+                    Icon(painterResource(Res.drawable.symbol_arrow_back), "Close search", modifier = mirroredIconModifier())
+                } } },
+                actions = { if (s.query.isNotEmpty()) IconTooltip("Clear search") { IconButton(onClick = { model.search("") }) {
+                    Icon(painterResource(Res.drawable.symbol_clear), "Clear search")
+                } } },
+            ) else TopAppBar(title = { Text(if (demo) "Transactions · Demo" else "Transactions") }, actions = {
+                IconTooltip("Search transactions") { IconButton(onClick = { searching = true }) {
+                    Icon(painterResource(Res.drawable.symbol_search), "Search transactions")
+                } }
+            })
+        } },
         snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) },
         floatingActionButton = { AddTransactionFab(expanded = !listState.canScrollBackward) { model.navigate("edit/0") } }
     ) { padding ->
@@ -392,7 +431,11 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                 )
             }
         }
-        if (s.rows.isEmpty()) {
+        if (s.rows.isEmpty() && s.query.isNotBlank()) {
+            EmptyState("No matches for “${s.query.trim()}”", "Try a description, category, account or app name.", Modifier.fillMaxSize()) {
+                FilledTonalButton(onClick = { model.search("") }) { Text("Clear search") }
+            }
+        } else if (s.rows.isEmpty()) {
             EmptyState("Nothing here yet", "Transactions parsed from your allowed apps will show up here.", Modifier.fillMaxSize()) {
                 FilledTonalButton(onClick = { model.navigate("edit/0") }) { Text("Add one manually") }
             }
@@ -405,8 +448,8 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                         TransactionRow(
                             t, appLabels, { model.navigate("edit/${t.id}") },
                             confirm = if (t.status == TransactionStatus.NEEDS_REVIEW) { { model.confirm(t) } } else null,
-                            modifier = Modifier.animateItem(),
-                            accountNames = s.accountNames, selectionMode = selectionMode,
+                            modifier = Modifier.animateItem().padding(vertical = rowGap).clip(RoundedCornerShape(rowCorner)),
+                            accountNames = s.accountNames, accountIcons = s.accountIcons, selectionMode = selectionMode,
                             selected = t.id in selectedIds,
                             onToggleSelection = toggle,
                             onLongClick = { selectedIds = selectedIds + t.id },
@@ -576,36 +619,35 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
     var delete by remember { mutableStateOf(false) }
     val titleFocus = remember { FocusRequester() }
     val amountFocus = remember { FocusRequester() }
+    val feeFocus = remember { FocusRequester() }
     val listState = rememberLazyListState()
+    val reviewing = s.original?.status == TransactionStatus.NEEDS_REVIEW || s.fromDraft
     LaunchedEffect(Unit) { if (s.original == null) titleFocus.requestFocus() }
-    LaunchedEffect(s.titleError, s.amountError, s.dateError, s.timeError) {
+    LaunchedEffect(s.titleError, s.amountError, s.feeError, s.dateError, s.timeError) {
         when {
             s.titleError != null -> { listState.animateScrollToItem(2); titleFocus.requestFocus() }
             s.amountError != null -> { listState.animateScrollToItem(3); amountFocus.requestFocus() }
-            s.dateError != null || s.timeError != null -> listState.animateScrollToItem(5)
+            s.feeError != null -> { listState.animateScrollToItem(4); feeFocus.requestFocus() }
+            s.dateError != null || s.timeError != null -> listState.animateScrollToItem(6)
         }
     }
-    LazyColumn(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp), state = listState,
-        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().imePadding()) {
+    LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), state = listState,
+        contentPadding = PaddingValues(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            AnimatedVisibility((s.original?.status == TransactionStatus.NEEDS_REVIEW || s.fromDraft) || s.sourceText != null || s.original?.captureId != null) {
+            AnimatedVisibility(reviewing) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if ((s.original?.status == TransactionStatus.NEEDS_REVIEW || s.fromDraft)) Row(verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            StatusMark(confirmed = false, size = 16.dp)
-                            Text("Parsed on your device. Check the details before confirming.",
-                                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onTertiaryContainer)
-                        }
-                        if (s.sourceText != null || s.original?.captureId != null)
-                            Text("Source notification (device only): ${s.sourceText ?: "Raw text not retained. Turn on \"Keep raw text on device\" in the notification log to keep it for future notifications."}",
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StatusMark(confirmed = false, size = 16.dp)
+                        Text("Parsed on your device. Check the details before confirming.",
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onTertiaryContainer)
                     }
                 }
             }
         }
         item {
-            SingleChoiceSegmentedButtonRow(Modifier.horizontalScroll(rememberScrollState())) {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 TransactionType.entries.forEachIndexed { index, type ->
                     SegmentedButton(
                         selected = s.type == type,
@@ -631,6 +673,16 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { if (s.ready && !s.saving) model.save() }))
         }
+        if (s.feeApplies) item(key = "fee") {
+            Box(Modifier.animateItem()) {
+                val origin = s.accounts.find { it.id == s.accountId }?.name ?: "This account"
+                OutlinedTextField(s.fee, { model.edit(fee = it) }, label = { Text("Transfer fee (PHP)") },
+                    isError = s.feeError != null, placeholder = { Text("0.00") },
+                    supportingText = { Text(s.feeError ?: "$origin doesn't have free transfers. Leave blank if none was charged.") },
+                    modifier = Modifier.fillMaxWidth().focusRequester(feeFocus), singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done))
+            }
+        }
         item {
             AccountPicker(if (s.type == TransactionType.TRANSFER) "From account" else "Account",
                 s.accountId, s.accounts.filter { !it.archived || it.id == s.original?.accountId }, s.accountError,
@@ -648,33 +700,30 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
         }
         item { DateTimeFields(s.date, s.time, onDate = { model.edit(date = it) }, onTime = { model.edit(time = it) },
             dateError = s.dateError, timeError = s.timeError,
-            focusDateError = s.titleError == null && s.amountError == null && s.dateError != null,
-            focusTimeError = s.titleError == null && s.amountError == null && s.dateError == null && s.timeError != null) }
+            focusDateError = s.titleError == null && s.amountError == null && s.feeError == null && s.dateError != null,
+            focusTimeError = s.titleError == null && s.amountError == null && s.feeError == null && s.dateError == null && s.timeError != null) }
         item {
-            val sourceLabel = s.sourceApp?.let { appLabels[it] ?: it } ?: "Manual"
-            if (s.original?.captureId != null || s.captureId != null) {
-                Text("Source: $sourceLabel", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            } else {
-                ChoiceField("Source app", sourceLabel,
-                    listOf<String?>(null) + s.apps.filter { it.listening }.map { it.packageName },
-                    searchable = true, emptyLabel = "sources",
-                    label = { pkg -> pkg?.let { appLabels[it] ?: it } ?: "Manual" }) { model.edit(sourceApp = it) }
+            val label = { pkg: String? -> pkg?.let { appLabels[it] ?: it } ?: "Manual" }
+            // The captured app stays listed even after it leaves the allow-list.
+            ChoiceField("Source app", label(s.sourceApp),
+                (listOf<String?>(null) + s.apps.filter { it.listening }.map { it.packageName } + s.sourceApp).distinct(),
+                searchable = true, emptyLabel = "sources",
+                label = label) { model.edit(sourceApp = it) }
+        }
+        if (s.sourceText != null || s.original?.captureId != null || s.captureId != null) item {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Source notification · device only", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(s.sourceText ?: "Raw text not retained. Turn on \"Keep raw text on device\" in the notification log to keep it for future notifications.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                }
             }
         }
         item {
-            AnimatedVisibility(s.error != null && listOf(s.titleError, s.amountError, s.dateError, s.timeError).all { it == null }) {
+            AnimatedVisibility(s.error != null && listOf(s.titleError, s.amountError, s.feeError, s.dateError, s.timeError).all { it == null }) {
                 s.error?.let { error -> Text(error, color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
-            }
-        }
-        item {
-            val confirming = (s.original?.status == TransactionStatus.NEEDS_REVIEW || s.fromDraft)
-            // Confirming is the one moment money starts to count, so it takes the confirmed tick's colour.
-            Button(onClick = model::save, enabled = s.ready && !s.saving, modifier = WideButton,
-                colors = if (confirming) ButtonDefaults.buttonColors(containerColor = MaterialTheme.accents.confirmed,
-                    contentColor = MaterialTheme.accents.onConfirmed) else ButtonDefaults.buttonColors()) {
-                if (confirming) Icon(painterResource(Res.drawable.symbol_check), null, Modifier.padding(end = 8.dp).size(18.dp))
-                Text(if (confirming || s.captureId != null) "Confirm transaction" else "Save transaction")
             }
         }
         if (s.original != null) item {
@@ -682,6 +731,19 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
                 Text("Delete transaction", color = MaterialTheme.colorScheme.error)
             }
         }
+    }
+    // Pinned so saving never needs a scroll past the form.
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+        Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
+            // Confirming is the one moment money starts to count, so it takes the confirmed tick's colour.
+            Button(onClick = model::save, enabled = s.ready && !s.saving, modifier = WideButton,
+                colors = if (reviewing) ButtonDefaults.buttonColors(containerColor = MaterialTheme.accents.confirmed,
+                    contentColor = MaterialTheme.accents.onConfirmed) else ButtonDefaults.buttonColors()) {
+                if (reviewing) Icon(painterResource(Res.drawable.symbol_check), null, Modifier.padding(end = 8.dp).size(18.dp))
+                Text(if (reviewing || s.captureId != null) "Confirm transaction" else "Save transaction")
+            }
+        }
+    }
     }
     if (delete) AlertDialog(onDismissRequest = { delete = false }, title = { Text("Delete transaction?") },
         text = { Text("You can undo this immediately after deleting.") },

@@ -148,18 +148,28 @@ class BudgetsModel(private val preferences: AppPreferences, private val ledger: 
     }
 }
 enum class TransactionFilter { ALL, NEEDS_REVIEW, INCOME, EXPENSE, TRANSFER }
-data class TransactionsState(val rows: List<Transaction> = emptyList(), val filter: TransactionFilter = TransactionFilter.ALL, val accountNames: Map<Long, String> = emptyMap())
+data class TransactionsState(val rows: List<Transaction> = emptyList(), val filter: TransactionFilter = TransactionFilter.ALL,
+    val accountNames: Map<Long, String> = emptyMap(), val query: String = "", val accountIcons: Map<Long, String> = emptyMap())
 class TransactionsModel(private val repository: TransactionRepository, ledger: LedgerRepository) : ScreenModel() {
     private val filter = MutableStateFlow(TransactionFilter.ALL)
-    val state = combine(repository.observeAll(), filter, ledger.observeAccounts()) { rows, f, accounts ->
+    private val query = MutableStateFlow("")
+    private val appLabels = MutableStateFlow(emptyMap<String, String>())
+    val state = combine(repository.observeAll(), filter, ledger.observeAccounts(), query, appLabels) { rows, f, accounts, q, labels ->
+        val names = accounts.associate { it.id to it.name }
+        val needle = q.trim()
         TransactionsState(rows.filter { when (f) {
             TransactionFilter.ALL -> true
             TransactionFilter.NEEDS_REVIEW -> it.status == TransactionStatus.NEEDS_REVIEW
             TransactionFilter.INCOME -> it.type == TransactionType.INCOME
             TransactionFilter.EXPENSE -> it.type == TransactionType.EXPENSE
             TransactionFilter.TRANSFER -> it.type == TransactionType.TRANSFER
-        } }, f, accounts.associate { it.id to it.name })
+        } && (needle.isEmpty() || listOfNotNull(it.title, it.category, names[it.accountId], it.toAccountId?.let(names::get),
+            it.sourceApp, it.sourceApp?.let(labels::get)).any { field -> field.contains(needle, ignoreCase = true) }) },
+            f, names, q, accountIcons(accounts))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TransactionsState())
+    fun search(value: String) { query.value = value }
+    /** Lets search match a source app by the name the user sees. */
+    fun appLabels(value: Map<String, String>) { appLabels.value = value }
     fun filter(value: TransactionFilter) { filter.value = value }
     fun confirm(t: Transaction) = work {
         repository.upsert(t.copy(status = TransactionStatus.CONFIRMED))
@@ -200,8 +210,18 @@ data class EditorState(
     val accountId: Long? = null, val toAccountId: Long? = null, val categoryId: Long? = null,
     val accounts: List<Account> = emptyList(), val categories: List<Category> = emptyList(), val apps: List<AllowedApp> = emptyList(),
     val fromDraft: Boolean = false, val accountError: String? = null, val toAccountError: String? = null,
-
-)
+    val fee: String = "", val feeError: String? = null,
+    /** Field values as loaded; null until loading finishes. */
+    private val baseline: List<Any?>? = null,
+) {
+    private fun fields() = listOf(title, amount, category, type, date, time, accountId, toAccountId, sourceApp, fee)
+    val dirty get() = baseline != null && baseline != fields()
+    internal fun withBaseline() = copy(baseline = fields())
+    /** Bank-to-bank transfers out of an account without free transfers can carry a fee. */
+    val feeApplies get() = type == TransactionType.TRANSFER &&
+        accounts.find { it.id == accountId }?.let { it.type == AccountType.BANK && !it.freeTransfer } == true &&
+        accounts.find { it.id == toAccountId }?.type == AccountType.BANK
+}
 class EditorModel(private val repository: TransactionRepository, id: Long,
                   captures: CaptureRepository? = null, captureId: Long? = null,
                   private val ledger: LedgerRepository, apps: AllowListRepository, private val draftId: Long? = null,
@@ -220,6 +240,7 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
             EditorState(t, t?.title.orEmpty(), t?.let { amountText(it.amountMinor) }.orEmpty(),
                 t?.category ?: "Other", t?.type ?: TransactionType.EXPENSE, ready = true,
                 accountId = t?.accountId, toAccountId = t?.toAccountId, categoryId = t?.categoryId, sourceApp = t?.sourceApp,
+                fee = t?.feeMinor?.takeIf { it > 0 }?.let(::amountText).orEmpty(),
                 date = local.date.toString(),
                 time = if (t == null) "00:00" else local.hour.toString().padStart(2, '0') + ":" + local.minute.toString().padStart(2, '0'))
         }
@@ -249,6 +270,7 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
             val capture = captures?.observeLog()?.first()?.find { it.id == linkedCaptureId }
             mutableState.value = state.value.copy(sourceText = capture?.body, sourceApp = state.value.sourceApp ?: apps.observeAll().first().find { it.packageName == capture?.sourceApp || it.label == capture?.sourceApp }?.packageName, captureId = capture?.id ?: state.value.captureId)
         }
+        mutableState.value = state.value.withBaseline()
         viewModelScope.launch {
             combine(ledger.observeAccounts(), ledger.observeCategories(), apps.observeAll()) { accounts, categories, allowed ->
                 Triple(accounts, categories, allowed)
@@ -261,7 +283,7 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
              category: String = state.value.category, type: TransactionType = state.value.type,
              date: String = state.value.date, time: String = state.value.time,
              accountId: Long? = state.value.accountId, toAccountId: Long? = state.value.toAccountId,
-             sourceApp: String? = state.value.sourceApp) {
+             sourceApp: String? = state.value.sourceApp, fee: String = state.value.fee) {
         val chosen = state.value.categories.find { it.name == category && it.type == type }
         val suggestion = if (sourceApp != state.value.sourceApp && accountId == null)
             state.value.accounts.filter { !it.archived && sourceApp in it.linkedApps }.singleOrNull()?.id else accountId
@@ -269,7 +291,7 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
             category = if (type == TransactionType.TRANSFER) "Transfer" else if (type != state.value.type && chosen == null) "Other" else category,
             categoryId = if (type == TransactionType.TRANSFER) null else chosen?.id, type = type, date = date, time = time,
             accountId = suggestion, toAccountId = toAccountId.takeIf { type == TransactionType.TRANSFER }, sourceApp = sourceApp,
-            accountError = null, toAccountError = null, error = null, titleError = null, amountError = null, dateError = null, timeError = null)
+            fee = fee, feeError = null, accountError = null, toAccountError = null, error = null, titleError = null, amountError = null, dateError = null, timeError = null)
     }
     /**
      * Validates the editor fields and asynchronously saves a confirmed transaction, then navigates
@@ -285,13 +307,15 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
         val amount = parseAmountMinor(s.amount)
         val date = runCatching { LocalDate.parse(s.date) }.getOrNull()
         val time = runCatching { LocalTime.parse(s.time) }.getOrNull()
-        if (date == null || time == null || s.title.isBlank() || amount == null) {
+        val fee = if (!s.feeApplies || s.fee.isBlank()) 0L else parseAmountMinor(s.fee)
+        if (date == null || time == null || s.title.isBlank() || amount == null || fee == null) {
             mutableState.value = s.copy(
                 error = "Correct the highlighted fields.",
                 titleError = if (s.title.isBlank()) "Add a description." else null,
                 amountError = if (amount == null) "Enter an amount above zero, with at most two decimal places." else null,
                 dateError = if (date == null) "Enter a valid date as YYYY-MM-DD." else null,
                 timeError = if (time == null) "Enter a valid time as HH:MM." else null,
+                feeError = if (fee == null) "Enter a fee above zero with at most two decimal places, or leave it blank." else null,
             )
             return
         }
@@ -310,11 +334,11 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
                 val transaction = s.original?.copy(title = s.title.trim(), amountMinor = amount,
                     category = s.category, categoryId = s.categoryId, type = s.type, status = TransactionStatus.CONFIRMED,
                     occurredAt = occurredAt, accountId = account.id, toAccountId = s.toAccountId,
-                    sourceApp = s.sourceApp)
+                    sourceApp = s.sourceApp, feeMinor = fee)
                     ?: Transaction(title = s.title.trim(), amountMinor = amount, type = s.type,
                         status = TransactionStatus.CONFIRMED, category = s.category, categoryId = s.categoryId,
                         occurredAt = occurredAt, createdAt = Clock.System.now(), sourceApp = s.sourceApp,
-                        captureId = s.captureId, accountId = account.id, toAccountId = s.toAccountId)
+                        captureId = s.captureId, accountId = account.id, toAccountId = s.toAccountId, feeMinor = fee)
                 val savedId = if (draftId != null) ledger.confirmDraft(draftId, transaction) else repository.upsert(transaction)
                 if (s.original == null && draftId == null) createdId = savedId
                 val due = billDue

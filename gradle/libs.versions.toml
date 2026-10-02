@@ -3,6 +3,7 @@ agp = "9.3.3"
 kotlin = "2.4.0"
 ksp = "2.3.12"
 composeMultiplatform = "1.13.0-alpha01"
+navigationevent = "1.1.0"
 coroutines = "1.10.2"
 androidxLifecycle = "2.9.4"
 androidxNavigation = "2.9.0"
@@ -24,6 +25,7 @@ aboutLibraries = "15.2.0"
 [libraries]
 compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "composeMultiplatform" }
 compose-material3-navigation-suite = { module = "org.jetbrains.compose.material3:material3-adaptive-navigation-suite", version.ref = "composeMultiplatform" }
+compose-navigationevent = { module = "org.jetbrains.androidx.navigationevent:navigationevent-compose", version.ref = "navigationevent" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
