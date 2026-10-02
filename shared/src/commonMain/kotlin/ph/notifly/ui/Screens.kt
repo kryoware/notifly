@@ -711,7 +711,7 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
                 label = label) { model.edit(sourceApp = it) }
         }
         if (s.sourceText != null || s.original?.captureId != null || s.captureId != null) item {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Source notification · device only", style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
