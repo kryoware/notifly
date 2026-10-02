@@ -1,6 +1,7 @@
 package ph.notifly.android.service
 
 import android.content.ComponentName
+import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import kotlinx.coroutines.CancellationException
@@ -89,8 +90,10 @@ class NotificationCaptureService : NotificationListenerService() {
                         is android.os.Bundle -> {
                             val text = item.getCharSequence("text")?.toString() ?: return@mapNotNull null
                             // MessagingStyle: preserve sender for parser training.
-                            val sender = (item.getParcelable("sender_person") as? android.app.Person)?.name
-                                ?: item.getCharSequence("sender")
+                            val personName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                (item.getParcelable("sender_person") as? android.app.Person)?.name
+                            } else null
+                            val sender = personName ?: item.getCharSequence("sender")
                             if (sender != null) "$sender: $text" else text
                         }
                         else -> null
