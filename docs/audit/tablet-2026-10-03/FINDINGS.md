@@ -4,11 +4,11 @@ Screenshots live next to this file, named `NN-screen-orientation[-theme][-fs130]
 Score: **11/20 (Acceptable)**. Accessibility 3, Performance 3, Theming 2, Platform conformance 2, Adaptivity 1.
 
 ## P1
-1. **Launch route replays on every recreation.** `app/.../MainActivity.kt:70` re-reads `EXTRA_ROUTE`; `NotiflyApp.kt:196` navigates again. Seen in `41-*`. Fix: only read it when `savedInstanceState == null`.
-2. **Transient UI state lost on rotation** (`remember` instead of `rememberSaveable`): selection `Screens.kt:456`, bulk delete `Screens.kt:457`, discard dialog `NotiflyApp.kt:257`, pay-bill sheet `BillsScreen.kt:85`, balance dialog `Screens.kt:186`, delete dialogs `Screens.kt:707`, `BillsScreen.kt:400`. Seen in `13-*`, `21-*`, `24`/`25`, `42-*`.
-3. **Status-bar icons invisible with in-app Dark theme.** `MainActivity.kt:68` `enableEdgeToEdge()` follows the system theme. Seen in `50-*-dark`.
-4. **Content stretches to full width everywhere.** Seen in `11`, `17`, `20`, `22`, `23`, `01`-`04`, `39`. Fix: cap and centre content (~600dp forms, ~840dp lists), starting with `AppDestination` (`NotiflyApp.kt:234`).
-5. **No list-detail on wide screens.** Transactions -> editor, Bills -> bill, Log -> capture, Settings -> sub-screens. Needs `material3-adaptive` layout/navigation deps (only `navigation-suite` today).
+1. **Launch route replays on every recreation.** `app/.../MainActivity.kt:70` re-reads `EXTRA_ROUTE`; `NotiflyApp.kt:196` navigates again. Seen in `41-*`. Fix: only read it when `savedInstanceState == null`. **Fixed: 127f9f7**
+2. **Transient UI state lost on rotation** (`remember` instead of `rememberSaveable`): selection `Screens.kt:456`, bulk delete `Screens.kt:457`, discard dialog `NotiflyApp.kt:257`, pay-bill sheet `BillsScreen.kt:85`, balance dialog `Screens.kt:186`, delete dialogs `Screens.kt:707`, `BillsScreen.kt:400`. Seen in `13-*`, `21-*`, `24`/`25`, `42-*`. **Fixed: 7a5f666**
+3. **Status-bar icons invisible with in-app Dark theme.** `MainActivity.kt:68` `enableEdgeToEdge()` follows the system theme. Seen in `50-*-dark`. **Fixed: 48c78e1**
+4. **Content stretches to full width everywhere.** Seen in `11`, `17`, `20`, `22`, `23`, `01`-`04`, `39`. Fix: cap and centre content (~600dp forms, ~840dp lists), starting with `AppDestination` (`NotiflyApp.kt:234`). **Partly fixed: 7735838 caps forms at 600dp and secondary lists at 840dp. Home/Transactions/Bills not capped**
+5. **No list-detail on wide screens.** Transactions -> editor, Bills -> bill, Log -> capture, Settings -> sub-screens. Needs `material3-adaptive` layout/navigation deps (only `navigation-suite` today). **Partly fixed: Transactions -> editor pane at >=840dp (see 61-transactions-listdetail-landscape). Bills, Log and Settings panes still open**
 
 ## P2
 6. Landscape + IME leaves one field above the pinned Save bar (`20-editor-add-landscape`, `12-*`).

@@ -21,6 +21,7 @@ import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -80,6 +81,9 @@ fun NotiflyApp(
     val nav = key(demo) { rememberNavController() }
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
+    val wide = LocalWindowInfo.current.containerSize.width >= with(LocalDensity.current) { WideWidth.toPx() }
+    // Transaction shown beside the list on wide windows; 0 is a new one.
+    var paneId by rememberSaveable { mutableStateOf<Long?>(null) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     fun navigate(target: String) {
@@ -94,8 +98,12 @@ fun NotiflyApp(
         }
     }
     val handle: (UiEvent) -> Unit = { event -> when (event) {
-        is UiEvent.Navigate -> navigate(event.route)
-        is UiEvent.Message -> { if (event.undo != null) navigate("transactions"); scope.launch {
+        is UiEvent.Navigate -> when {
+            wide && route == "transactions" && event.route.startsWith("edit/") -> paneId = event.route.removePrefix("edit/").toLongOrNull()
+            route == "transactions" && event.route == "transactions" -> paneId = null
+            else -> navigate(event.route)
+        }
+        is UiEvent.Message -> { if (event.undo != null) { paneId = null; navigate("transactions") }; scope.launch {
             val undoable = event.undo != null || event.onUndo != null
             if (snackbar.showSnackbar(event.text, actionLabel = if (undoable) "Undo" else null, duration = SnackbarDuration.Short) == SnackbarResult.ActionPerformed) {
                 try { event.undo?.let { transactions.upsert(it) }; event.onUndo?.invoke() }
@@ -147,7 +155,22 @@ fun NotiflyApp(
                     val id = it.arguments?.read { getLong("id") } ?: 0L
                     val m = viewModel { EditorModel(transactions, 0L, captures, ledger = ledger, apps = apps, bills = bills, billId = id) }; Events(m, handle)
                     EditorDestination("Record payment", snackbar, m, appLabels) { if (!nav.popBackStack()) navigate("bills") } }
-                composable("transactions") { val m = viewModel { TransactionsModel(transactions, ledger) }; Events(m, handle); TransactionsScreen(m, appLabels, snackbar, demo) }
+                composable("transactions") { val m = viewModel { TransactionsModel(transactions, ledger) }; Events(m, handle)
+                    if (!wide) TransactionsScreen(m, appLabels, snackbar, demo)
+                    else Row(Modifier.fillMaxSize()) {
+                        Box(Modifier.weight(0.45f)) { TransactionsScreen(m, appLabels, snackbar, demo) }
+                        VerticalDivider()
+                        Box(Modifier.weight(0.55f)) {
+                            val id = paneId
+                            if (id == null) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("Select a transaction", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else key(id) {
+                                val em = viewModel(key = "pane-$id") { EditorModel(transactions, id, captures, ledger = ledger, apps = apps) }; Events(em, handle)
+                                EditorDestination(if (id == 0L) "Add transaction" else "Edit transaction", remember { SnackbarHostState() }, em, appLabels) { paneId = null }
+                            }
+                        }
+                    }
+                }
                 composable("settings") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle)
                     AppDestination(if (demo) "Settings · Demo" else "Settings", snackbar, maxWidth = FormWidth) {
                         SettingsScreen(m, permissionAvailable, requestPermission, versionName, isDebugBuild, biometricAvailable, authenticateBiometric,
