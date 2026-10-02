@@ -14,6 +14,7 @@ import ph.notifly.domain.model.Transaction
 import ph.notifly.domain.model.TransactionStatus
 import ph.notifly.domain.model.TransactionType
 import kotlin.time.Clock
+import kotlinx.datetime.toLocalDateTime
 import java.security.MessageDigest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -24,6 +25,8 @@ class NotificationTransactionSource(
     private val allowList: ph.notifly.domain.repository.AllowListRepository,
     private val parser: ModelNotificationParser,
     private val ledger: ph.notifly.domain.repository.LedgerRepository,
+    private val bills: ph.notifly.domain.repository.BillRepository,
+    private val billParser: ph.notifly.data.parser.BillReminderParser,
 ) : TransactionSource {
     override val id = "android.notification-listener"
     private val mutableConnection = MutableStateFlow("Disconnected")
@@ -57,6 +60,20 @@ class NotificationTransactionSource(
         if (body.isBlank()) return
         val now = Clock.System.now()
         val fingerprint = digest("${event.key}\u0000$body")
+        // Before the model parser: it would class a due notice as "other" and drop it.
+        val today = kotlinx.datetime.TimeZone.currentSystemDefault().let { now.toLocalDateTime(it).date }
+        billParser.parse(sourceAppLabel, body, today)?.let { found ->
+            val due = found.dueOn.month.name.lowercase().replaceFirstChar { it.uppercase() } + " " + found.dueOn.day
+            val captured = captures.record(RawCapture(sourceApp = sourceAppLabel, capturedAt = now, body = body, extras = content.extras,
+                result = CaptureResult.BILL, reason = "Bill reminder: due $due. Review it in Bills.", fingerprint = fingerprint))
+            if (captured != -1L) {
+                bills.recordDetected(ph.notifly.domain.model.Bill(name = found.name, amountMinor = found.amountMinor, startsOn = found.dueOn,
+                    repeat = ph.notifly.domain.model.BillRepeat.ONCE, status = TransactionStatus.NEEDS_REVIEW, detected = true,
+                    sourceApp = event.sourceApp, createdAt = now))
+                allowList.incrementCapturedCount(event.sourceApp)
+            }
+            return
+        }
         val otherFinanceApps = allowList.observeAll().first().filter { it.finance && it.packageName != event.sourceApp }.map { it.label }
         val id = when (val result = parser.parse(sourceAppLabel, body, otherFinanceApps)) {
             is ParseOutcome.Unrecognized -> captures.record(RawCapture(sourceApp = sourceAppLabel, capturedAt = now, body = body, extras = content.extras,

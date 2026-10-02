@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -42,6 +43,10 @@ fun NotiflyApp(
     isDebugBuild: Boolean = false,
     biometricAvailable: Boolean = false,
     authenticateBiometric: (onSuccess: () -> Unit) -> Unit = {},
+    notificationsAllowed: Boolean = true,
+    requestNotifications: () -> Unit = {},
+    launchRoute: String? = null,
+    launchRouteKey: Int = 0,
 ) {
     val preferences = koinInject<AppPreferences>()
     val database = koinInject<ph.notifly.data.local.AppDatabase>()
@@ -49,10 +54,12 @@ fun NotiflyApp(
     val realApps = koinInject<AllowListRepository>()
     val realLedger = koinInject<LedgerRepository>()
     val realCaptures = koinInject<CaptureRepository>()
+    val realBills = koinInject<BillRepository>()
     var demo by rememberSaveable { mutableStateOf(demo) }
     val captures = remember(demo) { if (demo) DemoCaptures() else realCaptures }
     val transactions = remember(demo) { if (demo) DemoTransactions(demoRows()) else realTransactions }
     val ledger = remember(demo) { if (demo) DemoLedger(transactions) else realLedger }
+    val bills = remember(demo) { if (demo) DemoBills(demoRows()) else realBills }
     val apps = remember(demo) { if (demo) DemoAllowList() else realApps }
     val allowed by apps.observeAll().collectAsState(emptyList())
     val appLabels = remember(allowed) { allowed.associate { it.packageName to it.label } }
@@ -77,20 +84,21 @@ fun NotiflyApp(
         }
         nav.navigate(target) {
             launchSingleTop = true
-            if (target in listOf("home", "transactions", "insights", "settings")) popUpTo(nav.graph.id) { inclusive = false }
+            if (target in listOf("home", "transactions", "bills", "insights", "settings")) popUpTo(nav.graph.id) { inclusive = false }
         }
     }
     val handle: (UiEvent) -> Unit = { event -> when (event) {
         is UiEvent.Navigate -> navigate(event.route)
         is UiEvent.Message -> { if (event.undo != null) navigate("transactions"); scope.launch {
-            if (snackbar.showSnackbar(event.text, actionLabel = event.undo?.let { "Undo" }, duration = if (event.undo != null) SnackbarDuration.Long else SnackbarDuration.Short) == SnackbarResult.ActionPerformed) {
-                try { event.undo?.let { transactions.upsert(it) } }
+            val undoable = event.undo != null || event.onUndo != null
+            if (snackbar.showSnackbar(event.text, actionLabel = if (undoable) "Undo" else null, duration = if (undoable) SnackbarDuration.Long else SnackbarDuration.Short) == SnackbarResult.ActionPerformed) {
+                try { event.undo?.let { transactions.upsert(it) }; event.onUndo?.invoke() }
                 catch (e: kotlinx.coroutines.CancellationException) { throw e }
                 catch (_: Exception) { snackbar.showSnackbar("Couldn't restore the transaction. Please try again.") }
             }
         }; Unit }
     } }
-    val topLevel = listOf("home", "transactions", "insights", "settings")
+    val topLevel = listOf("home", "transactions", "bills", "insights", "settings")
     NotiflyTheme(palette, themeMode) {
         if (onboarded == null || pinSet == null) {
             Surface(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
@@ -112,15 +120,29 @@ fun NotiflyApp(
                     OnboardingScreen(m, it.arguments?.read { getInt("page") } ?: 0, requestPermission, permissionAvailable, batteryExempt, requestBatteryExemption)
                 }
                 composable("auth") { val m = viewModel { AuthModel(preferences, demo) }; Events(m, handle); AuthScreen(m, demo) }
-                composable("home") { val m = viewModel { HomeModel(transactions, apps, preferences, ledger) }; Events(m, handle); HomeScreen(m, appLabels, snackbar, demo,
+                composable("home") { val m = viewModel { HomeModel(transactions, apps, preferences, ledger, bills) }; Events(m, handle); HomeScreen(m, appLabels, snackbar, demo,
                     allowed.filter { it.listening }.map { it.label }, permissionAvailable, requestPermission) }
                 composable("insights") { val m = viewModel { InsightsModel(transactions, preferences, ledger) }; Events(m, handle)
                     AppDestination(if (demo) "Insights · Demo" else "Insights", snackbar) { InsightsScreen(m, appLabels) } }
+                composable("bills") { val m = viewModel { BillsModel(bills, transactions, ledger, preferences) }; Events(m, handle)
+                    BillsScreen(m, appLabels, snackbar, demo, notificationsAllowed, requestNotifications) }
+                composable("bill/{id}?due={due}", arguments = listOf(navArgument("id") { type = NavType.LongType },
+                    navArgument("due") { type = NavType.StringType; nullable = true; defaultValue = null })) {
+                    val id = it.arguments?.read { getLong("id") } ?: 0L
+                    val due = it.arguments?.read { if (contains("due")) getStringOrNull("due") else null }?.let { d -> runCatching { kotlinx.datetime.LocalDate.parse(d) }.getOrNull() }
+                    val m = viewModel { BillEditorModel(bills, ledger, id, due) }; Events(m, handle)
+                    val detected = m.state.collectAsState().value.reviewing
+                    AppDestination(if (detected) "Review bill" else if (id == 0L) "Add bill" else "Edit bill", snackbar,
+                        onBack = { if (!nav.popBackStack()) navigate("bills") }) { BillEditorScreen(m, appLabels) } }
+                composable("pay-bill/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
+                    val id = it.arguments?.read { getLong("id") } ?: 0L
+                    val m = viewModel { EditorModel(transactions, 0L, captures, ledger = ledger, apps = apps, bills = bills, billId = id) }; Events(m, handle)
+                    AppDestination("Record payment", snackbar, onBack = { if (!nav.popBackStack()) navigate("bills") }) { EditorScreen(m, appLabels) } }
                 composable("transactions") { val m = viewModel { TransactionsModel(transactions, ledger) }; Events(m, handle); TransactionsScreen(m, appLabels, snackbar, demo) }
                 composable("settings") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle)
                     AppDestination(if (demo) "Settings · Demo" else "Settings", snackbar) {
                         SettingsScreen(m, permissionAvailable, requestPermission, versionName, isDebugBuild, biometricAvailable, authenticateBiometric,
-                            ledger = ledger, demo = demo, onDemo = { demo = it }, transactions = transactions, allowDataTransfer = !demo,
+                            ledger = ledger, demo = demo, onDemo = { demo = it }, transactions = transactions, allowDataTransfer = !demo, notificationsAllowed = notificationsAllowed, requestNotifications = requestNotifications,
                             onDataMessage = { snackbar.showSnackbar(it) }) } }
                 composable("budgets") { val m = viewModel { BudgetsModel(preferences, ledger) }; Events(m, handle)
                     AppDestination("Budgets", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { BudgetsScreen(m) } }
@@ -168,6 +190,7 @@ fun NotiflyApp(
                 }
             }
         }
+        LaunchedEffect(launchRoute, launchRouteKey) { if (launchRoute != null && onboarded == true) navigate(launchRoute) }
         val locked = pinSet == true && !unlocked
         Box(Modifier.fillMaxSize()) {
             NavigationSuiteScaffold(
@@ -176,6 +199,7 @@ fun NotiflyApp(
                     listOf(
                         Triple("home", "Home", Res.drawable.symbol_home),
                         Triple("transactions", "Transactions", Res.drawable.symbol_receipt_long),
+                        Triple("bills", "Bills", Res.drawable.symbol_event_upcoming),
                         Triple("insights", "Insights", Res.drawable.symbol_pie_chart),
                         Triple("settings", "Settings", Res.drawable.symbol_settings),
                     ).forEach { (target, label, icon) ->
@@ -183,7 +207,11 @@ fun NotiflyApp(
                             selected = route == target,
                             onClick = { navigate(target) },
                             icon = { Icon(painterResource(icon), null) },
-                            label = { Text(label) },
+                            // Hidden when it can't fit on one line, so a narrow bar or large font never wraps a word mid-label.
+                            label = {
+                                var fits by remember(label, LocalDensity.current.fontScale) { mutableStateOf(true) }
+                                if (fits) Text(label, maxLines = 1, softWrap = false, onTextLayout = { if (it.didOverflowWidth) fits = false })
+                            },
                         )
                     }
                 },

@@ -2,7 +2,7 @@ package ph.notifly.domain.model
 
 import kotlin.time.Instant
 
-enum class CaptureResult { PARSED, NEEDS_REVIEW, UNRECOGNIZED, IGNORED }
+enum class CaptureResult { PARSED, NEEDS_REVIEW, UNRECOGNIZED, IGNORED, BILL }
 
 /**
  * One notification as it arrived, plus what the parser made of it.

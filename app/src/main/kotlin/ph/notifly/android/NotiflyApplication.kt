@@ -31,6 +31,12 @@ class NotiflyApplication : Application(), KoinComponent {
             .setPeriodic(java.util.concurrent.TimeUnit.HOURS.toMillis(6))
             .setPersisted(true)
             .build())
+        // ponytail: JobScheduler can't fire at a fixed hour. Switch to AlarmManager inexact at 9am if users want a fixed time.
+        scheduler.schedule(android.app.job.JobInfo.Builder(2,
+            android.content.ComponentName(this, ph.notifly.android.service.BillReminderService::class.java))
+            .setPeriodic(java.util.concurrent.TimeUnit.HOURS.toMillis(12))
+            .setPersisted(true)
+            .build())
 
         scope.launch {
             preferences.crashReporting.collect { enabled ->

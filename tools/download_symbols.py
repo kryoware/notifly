@@ -13,6 +13,7 @@ NAMES = (
     "expand_more", "file_download", "help", "home", "keyboard_arrow_right", "list", "lock",
     "north_east", "notifications", "open_in_new", "battery_android_full", "pending_actions", "pie_chart", "receipt_long",
     "schedule", "search", "settings", "south_west", "swap_horiz", "visibility", "visibility_off",
+    "event_upcoming", "chevron_left", "chevron_right",
 )
 target = Path("shared/src/commonMain/composeResources/drawable")
 target.mkdir(parents=True, exist_ok=True)
@@ -23,5 +24,5 @@ for name in NAMES:
     (target / f"symbol_{name}.xml").write_text(
         '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp"\n'
         '    android:viewportWidth="960" android:viewportHeight="960">\n'
-        f'    <group android:translateY="960"><path android:fillColor="#FF000000" android:pathData="{path}"/></group>\n'
+        f'    <group android:translateY="960"><path android:fillColor="@android:color/black" android:pathData="{path}"/></group>\n'
         '</vector>\n', newline="\n")
