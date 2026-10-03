@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.*
 import ph.notifly.domain.model.*
 import ph.notifly.domain.repository.*
 import kotlin.time.Clock
+import ph.notifly.ui.theme.Space
 
 class LedgerSettingsModel(private val ledger: LedgerRepository, apps: AllowListRepository) : ScreenModel() {
     data class State(val accounts: List<Account> = emptyList(), val categories: List<Category> = emptyList(),
@@ -120,7 +121,7 @@ internal fun AccountPicker(title: String, selected: Long?, accounts: List<Accoun
 @Composable
 fun AccountsScreen(model: LedgerSettingsModel) {
     val s by model.state.collectAsState()
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         item { Button(onClick = { model.navigate("account/0") }, Modifier.fillMaxWidth()) { Text("Add account") } }
         if (s.loaded && s.accounts.isEmpty()) item { Text("Add a bank, card or wallet account before creating transactions.") }
         items(s.accounts, key = { it.id }) { account ->
@@ -158,7 +159,7 @@ fun AccountEditorScreen(model: LedgerSettingsModel, id: Long) {
     var reconcile by remember(id) { mutableStateOf(original == null) }
     var error by remember(id) { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf(false) }
-    LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.md)) {
         item { OutlinedTextField(name, { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
         item { ChoiceField("Type", type.name.lowercase().replaceFirstChar { it.uppercase() }, AccountType.entries,
             label = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }) { type = it } }
@@ -221,8 +222,8 @@ fun AccountEditorScreen(model: LedgerSettingsModel, id: Long) {
 fun CategoriesScreen(model: LedgerSettingsModel) {
     val s by model.state.collectAsState()
     var type by remember { mutableStateOf(TransactionType.EXPENSE) }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.md)) {
+        item { Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             listOf(TransactionType.INCOME, TransactionType.EXPENSE).forEach { item ->
                 FilterChip(type == item, { type = item }, label = { Text(item.name.lowercase().replaceFirstChar { it.uppercase() }) })
             }
@@ -249,7 +250,7 @@ fun CategoryEditorScreen(model: LedgerSettingsModel, id: Long, type: Transaction
         .fold(0L) { sum, category -> category.budgetMinor?.let { if (sum > Long.MAX_VALUE - it) Long.MAX_VALUE else sum + it } ?: sum }
     val remainingBudget = monthlyBudget?.let { (it - otherBudgets).coerceAtLeast(0L) }
     var error by remember(id) { mutableStateOf<String?>(null) }
-    LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.md)) {
         item { OutlinedTextField(name, { name = it }, enabled = original?.name != "Other", label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
         if (type == TransactionType.EXPENSE) item { MoneyField(budget, { budget = it }, label = { Text("Monthly budget (PHP, optional)") },
             modifier = Modifier.fillMaxWidth()) }
@@ -275,7 +276,7 @@ fun CategoryEditorScreen(model: LedgerSettingsModel, id: Long, type: Transaction
 fun AccountReviewScreen(model: LedgerSettingsModel) {
     val s by model.state.collectAsState()
     var discard by remember { mutableStateOf<CapturedDraft?>(null) }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         item { Text("Select an account and check the details before confirming. These drafts are not counted in your balance.") }
         if (s.loaded && s.drafts.isEmpty()) item { Text("No drafts need account assignment.") }
         items(s.drafts, key = { it.id }) { draft ->

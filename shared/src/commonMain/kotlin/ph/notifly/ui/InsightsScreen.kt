@@ -30,15 +30,15 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import kotlin.math.abs
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.plus
 import ph.notifly.ui.theme.accents
 import ph.notifly.ui.theme.tabular
+import ph.notifly.ui.theme.Space
+import ph.notifly.ui.theme.balance
 
 /**
  * Shows insights for the selected day window, followed by budgets for the current month.
@@ -50,8 +50,8 @@ fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyM
     val s by model.state.collectAsState()
     val w = s.selected ?: return
     val full = StaggeredGridItemSpan.FullLine
-    LazyVerticalStaggeredGrid(StaggeredGridCells.Adaptive(360.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp),
-        verticalItemSpacing = 12.dp, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyVerticalStaggeredGrid(StaggeredGridCells.Adaptive(360.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.lg),
+        verticalItemSpacing = Space.md, horizontalArrangement = Arrangement.spacedBy(Space.md)) {
         item(span = full) {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 INSIGHT_WINDOWS.forEachIndexed { index, days ->
@@ -128,7 +128,7 @@ private fun Change(current: Long, previous: Long, compared: String?, lowerIsBett
 private fun CashFlowCard(w: WindowInsights) {
     val net = w.current.net
     Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.padding(Space.xl), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
             Text("Net cash flow · last ${w.days} days", style = MaterialTheme.typography.titleMedium)
             val color = when {
                 net > 0 -> MaterialTheme.accents.income
@@ -136,11 +136,11 @@ private fun CashFlowCard(w: WindowInsights) {
                 else -> MaterialTheme.colorScheme.onSurface
             }
             Text(AnnotatedString(if (net > 0) "+" else "") + splitMoney(net, color.copy(alpha = 0.55f)), color = color,
-                style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.035).em).tabular())
+                style = MaterialTheme.typography.balance)
             Text("Previous ${w.days} days: ${signedMoney(w.previous.net)}", style = MaterialTheme.typography.bodySmall.tabular(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            HorizontalDivider(Modifier.padding(vertical = 12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            HorizontalDivider(Modifier.padding(vertical = Space.md))
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.lg)) {
                 Column(Modifier.weight(1f)) {
                     Text("Money in", style = MaterialTheme.typography.labelMedium)
                     Text(money(w.current.income), style = MaterialTheme.typography.titleMedium.tabular())
@@ -154,7 +154,7 @@ private fun CashFlowCard(w: WindowInsights) {
             }
             Text("Compared with the previous ${w.days} days. Transfers between your accounts aren't counted.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp))
+                modifier = Modifier.padding(top = Space.sm))
         }
     }
 }
@@ -170,7 +170,7 @@ private fun DailySpendingCard(w: WindowInsights) {
     val empty = MaterialTheme.colorScheme.surfaceContainerHighest
     val guide = MaterialTheme.colorScheme.outline
     Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(Space.xl), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             Text("Daily spending", style = MaterialTheme.typography.titleMedium)
             Text(detail, style = MaterialTheme.typography.bodySmall.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
             Canvas(Modifier.fillMaxWidth().height(128.dp)
@@ -228,8 +228,8 @@ private fun PaceCard(windows: List<WindowInsights>, selected: Int, select: (Int)
     // Without history before the longest window its average is diluted by days that predate any data.
     val change = if (baseline.previous == CashFlow()) null else percentChange(recent.dailyAverage, baseline.dailyAverage)
     Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
-        Column(Modifier.padding(top = 20.dp, bottom = 10.dp)) {
-            Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.padding(top = Space.xl, bottom = 10.dp)) {
+            Column(Modifier.padding(start = Space.xl, end = Space.xl, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                 Text("Spending pace", style = MaterialTheme.typography.titleMedium)
                 Text(when {
                     change == null -> "Average spending per day. A pace comparison appears once you have over ${baseline.days} days of history."
@@ -243,7 +243,7 @@ private fun PaceCard(windows: List<WindowInsights>, selected: Int, select: (Int)
                     Modifier.fillMaxWidth()
                         .selectable(selected = w.days == selected, onClick = { select(w.days) }, role = Role.Tab)
                         .background(if (w.days == selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0f))
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                        .padding(horizontal = Space.xl, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
@@ -271,7 +271,7 @@ private fun PaceCard(windows: List<WindowInsights>, selected: Int, select: (Int)
 private fun BudgetCard(m: MonthInsights, budget: Long?, edit: () -> Unit) {
     val spent = m.flow.spent
     Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(Space.xl), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Monthly budget", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 TextButton(onClick = edit) { Text(if (budget == null) "Set budget" else "Edit") }
@@ -311,15 +311,15 @@ private fun BudgetCard(m: MonthInsights, budget: Long?, edit: () -> Unit) {
 @Composable
 private fun CategoryCard(w: WindowInsights) {
     Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.padding(Space.xl), verticalArrangement = Arrangement.spacedBy(Space.md)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                 Text("Spending by category", style = MaterialTheme.typography.titleMedium)
                 Text("Last ${w.days} days · change vs the ${w.days} days before", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (w.categories.isEmpty()) Text("No spending in the last ${w.days} days.")
             w.categories.forEach { c ->
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(c.category, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                         Text(money(c.spent), style = MaterialTheme.typography.titleSmall.tabular())
@@ -348,14 +348,14 @@ private fun CategoryBudgetCard(m: MonthInsights, budgets: Map<String, Long>, man
     val rows = budgets.entries.map { (category, budget) -> Triple(category, m.categories[category] ?: 0L, budget) }
         .sortedByDescending { (_, spent, budget) -> spent * 1000 / budget }
     Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(Space.xl), verticalArrangement = Arrangement.spacedBy(Space.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Category budgets · this month", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 TextButton(onClick = manage) { Text("Manage") }
             }
             rows.forEach { (category, spent, budget) ->
                 val over = spent > budget
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(category, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                         Text("${money(spent)} of ${money(budget)}", style = MaterialTheme.typography.titleSmall.tabular())

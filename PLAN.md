@@ -3,9 +3,9 @@
 Working plan for Claude Code. Rules and constraints live in `CLAUDE.md` — read
 that first; this file is only the order of work.
 
-Behavioural spec for every screen: `docs/prototype.html`. Open it in a browser
-and use it, don't just read it. When this plan says "match the prototype", it
-means the interaction, not a pixel copy.
+Visual spec: `DESIGN.md`. Behavioural spec: the app's demo mode, plus the original
+`docs/prototype.html` (removed in `3cbed37`; `git show 3cbed37~1:docs/prototype.html`), which covers flows demo mode does not yet.
+When this plan says "match the prototype", it means that interaction, not a pixel copy.
 
 ## Phase 4 — Theme check
 
@@ -99,7 +99,7 @@ are acknowledged or shown as synced without a successful server response.
 - [x] Pending-change queue with a count
 - [ ] WorkManager sync worker on Android, constrained to connectivity
 - [ ] Progress ring on the account avatar, driven by the queue draining
-- [ ] Green ring + check on completion (match the prototype)
+- [ ] Ring closes into the confirmed tick on completion (`accents.confirmed`, not green; see `DESIGN.md`)
 - [x] Confirmed transactions only in the sync payload — assert this in a test
 
 **Done when:** airplane mode → edits → reconnect drains the queue visibly.

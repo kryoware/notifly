@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ph.notifly.domain.repository.TransactionRepository
+import ph.notifly.ui.theme.Space
 
 data class TransactionFiles(val available: Boolean, val busy: Boolean = false,
     val import: () -> Unit = {}, val export: () -> Unit = {})
@@ -80,7 +81,7 @@ internal fun TransactionDataControls(repository: TransactionRepository, demo: Bo
         AlertDialog(
             onDismissRequest = { if (!saving) preview = null },
             title = { Text("Import ${entries.size} transactions?") },
-            text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.md)) {
                 Text("Assign accounts before importing. Rows await review; exact duplicates are skipped. Categories missing from your list will be added.")
                 if (accounts.none { !it.archived }) Text("Create an account in Settings → Accounts first.")
                 endpoints.forEach { (entry, destination) ->

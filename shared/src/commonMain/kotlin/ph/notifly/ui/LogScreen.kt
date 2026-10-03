@@ -38,6 +38,7 @@ import ph.notifly.data.parser.ParseOutcome
 import ph.notifly.domain.model.*
 import ph.notifly.domain.repository.CaptureRepository
 import ph.notifly.ui.theme.accents
+import ph.notifly.ui.theme.Space
 
 data class LogState(val captures: List<RawCapture> = emptyList(), val filter: CaptureResult? = null, val keepRaw: Boolean = false)
 class LogModel(private val captures: CaptureRepository, private val preferences: AppPreferences) : ScreenModel() {
@@ -82,8 +83,8 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDe
     val saveCsv = rememberCsvSaver { s.captures.toCsv() }
     Column(Modifier.fillMaxSize()) {
         val filters = listOf(null) + CaptureResult.entries.filter { it != CaptureResult.IGNORED }
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = Space.lg, vertical = Space.sm),
+            horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             filters.forEach { result ->
                 FilterChip(
                     selected = s.filter == result,
@@ -93,12 +94,12 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDe
                 )
             }
         }
-        Column(Modifier.padding(horizontal = 16.dp)) {
+        Column(Modifier.padding(horizontal = Space.lg)) {
             SettingsGroup { SettingsRow("Keep raw text on device", checked = s.keepRaw, onCheckedChange = model::retain) }
             Text(if (isDebugBuild) "Debug build: raw text stays on this device for 7 days; CSV exports contain metadata only."
                 else "Raw text is never uploaded and is removed after 24 hours.", style = MaterialTheme.typography.bodySmall)
         }
-        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.padding(horizontal = Space.lg), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             IconTooltip("Export CSV") { IconButton(onClick = {
                 val tab = s.filter?.exportName() ?: "all"
                 saveCsv("${tab}_${Clock.System.now().epochSeconds}.csv")
@@ -109,11 +110,11 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDe
                 Icon(painterResource(Res.drawable.symbol_delete), contentDescription = "Clear log")
             } }
         }
-        HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+        HorizontalDivider(Modifier.padding(horizontal = Space.lg, vertical = Space.xs))
         TextButton(onClick = { model.navigate("account-review") }) { Text("Assign accounts") }
         if (s.captures.isEmpty()) {
             EmptyState("Nothing here yet", "Notifications from your allowed apps will show up here.", Modifier.fillMaxSize())
-        } else LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        } else LazyColumn(Modifier.weight(1f).padding(horizontal = Space.lg), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             items(s.captures, key = { it.id }) { capture ->
                 val color = when (capture.result) {
                     CaptureResult.PARSED -> MaterialTheme.accents.income
@@ -132,7 +133,7 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDe
                             true
                         })
                     }) {
-                    Column(Modifier.padding(vertical = 4.dp)) {
+                    Column(Modifier.padding(vertical = Space.xs)) {
                         val label = appLabels[capture.sourceApp] ?: capture.sourceApp
                         val headline = "$label · ${capture.result.label()}"
                         // ListItem merges its own subtree; clearing it lets the headline join the card's announcement.
@@ -153,10 +154,10 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDe
                                 val start = body.indexOf(match, ignoreCase = true)
                                 if (start >= 0) addStyle(SpanStyle(background = highlight, color = onHighlight, fontWeight = FontWeight.Bold), start, start + match.length)
                             }
-                        }, modifier = Modifier.padding(horizontal = 16.dp).animateContentSize(), maxLines = if (isExpanded) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
+                        }, modifier = Modifier.padding(horizontal = Space.lg).animateContentSize(), maxLines = if (isExpanded) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
                         AnimatedVisibility(isExpanded) {
                             val draft = remember(capture.body) { capture.body?.let { (parser.parse(it) as? ParseOutcome.Parsed)?.draft } }
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Column(Modifier.padding(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                                 Text("Amount: ${capture.matchedAmount ?: "Not identified"}")
                                 Text("Direction: ${capture.matchedDirection ?: "Not identified"}")
                                 Text("Merchant: ${draft?.merchant ?: "Not available"}")

@@ -46,8 +46,9 @@ captures are recorded, but the `TODO: persist the Transaction itself via
 TransactionRepository` means no `Transaction` is ever created yet.
 
 Phased checklist with checkboxes lives in `PLAN.md` (phases 0–10); it is the
-authoritative task order. `docs/prototype.html` is the behavioural spec for
-every screen — open it in a browser rather than guessing interactions.
+authoritative task order. `DESIGN.md` is the design system; the app's demo
+mode (seeded fake data) is the behavioural reference. The old
+`docs/prototype.html` was removed in `3cbed37`.
 
 ## Further memories
 

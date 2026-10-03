@@ -68,7 +68,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -90,6 +89,9 @@ import ph.notifly.ui.theme.ThemeMode
 import ph.notifly.ui.theme.hint
 import ph.notifly.ui.theme.accents
 import ph.notifly.ui.theme.tabular
+import ph.notifly.ui.theme.Space
+import ph.notifly.ui.theme.balance
+import ph.notifly.ui.theme.tray
 
 private val FAB_CLEARANCE = 88.dp
 private const val SWIPE_THRESHOLD = 0.5f
@@ -228,13 +230,13 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
     ) { padding ->
       Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding), contentAlignment = Alignment.TopCenter) {
         LazyVerticalGrid(columns = GridCells.Fixed(2),
-            modifier = Modifier.widthIn(max = WideWidth).fillMaxSize().padding(horizontal = 16.dp)
+            modifier = Modifier.widthIn(max = WideWidth).fillMaxSize().padding(horizontal = Space.lg)
                 .onGloballyPositioned { drag.coordinates = it }
                 .accountDragGestures(drag, reordering && !saving, { currentAccounts }, model::reorderAccounts),
-            state = gridState, horizontalArrangement = Arrangement.spacedBy(12.dp),
+            state = gridState, horizontalArrangement = Arrangement.spacedBy(Space.md),
             contentPadding = PaddingValues(bottom = FAB_CLEARANCE)) {
             item(key = "balance", span = { GridItemSpan(maxLineSpan) }) {
-                Box(Modifier.padding(bottom = 8.dp)) { BalanceHero(s.net, pendingRows.size, pendingTotal, s.hideAmounts) { model.navigate("transactions") } }
+                Box(Modifier.padding(bottom = Space.sm)) { BalanceHero(s.net, pendingRows.size, pendingTotal, s.hideAmounts) { model.navigate("transactions") } }
             }
             if (s.drafts > 0) item(key = "drafts", span = { GridItemSpan(maxLineSpan) }) {
                 FilledTonalButton(onClick = { model.navigate("account-review") }, modifier = Modifier.fillMaxWidth()) {
@@ -336,13 +338,13 @@ private fun BalanceHero(net: Long, pending: Int, pendingTotal: Long, hidden: Boo
             val muted = LocalContentColor.current.copy(alpha = 0.7f)
             Text("Confirmed balance", style = MaterialTheme.typography.labelLarge)
             Text(splitMoney(net, LocalContentColor.current.copy(alpha = 0.55f)),
-                style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.035).em).tabular(),
+                style = MaterialTheme.typography.balance,
                 maxLines = 1, autoSize = TextAutoSize.StepBased(minFontSize = 24.sp, maxFontSize = 44.sp),
-                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp).then(hiddenMoneyModifier(hidden)))
+                modifier = Modifier.padding(top = Space.md, bottom = Space.xs).then(hiddenMoneyModifier(hidden)))
             Text("Transfers between your accounts aren't counted.", style = MaterialTheme.typography.bodySmall, color = muted)
             if (pending > 0) Row(
-                Modifier.padding(top = 16.dp).fillMaxWidth().background(scheme.surface.copy(alpha = 0.35f), RoundedCornerShape(18.dp))
-                    .padding(start = 14.dp, top = 8.dp, end = 8.dp, bottom = 8.dp),
+                Modifier.padding(top = Space.lg).fillMaxWidth().background(scheme.surface.copy(alpha = 0.35f), MaterialTheme.shapes.tray)
+                    .padding(start = 14.dp, top = Space.sm, end = Space.sm, bottom = Space.sm),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 StatusMark(confirmed = false, size = 16.dp)
@@ -354,7 +356,7 @@ private fun BalanceHero(net: Long, pending: Int, pendingTotal: Long, hidden: Boo
                         Text(" · not counted", style = MaterialTheme.typography.bodySmall, color = muted)
                     }
                 }
-                Button(onClick = review, contentPadding = PaddingValues(horizontal = 16.dp)) { Text("Review") }
+                Button(onClick = review, contentPadding = PaddingValues(horizontal = Space.lg)) { Text("Review") }
             }
         }
     }
@@ -371,7 +373,7 @@ private fun AccountsHeader(total: Long, hidden: Boolean, canReorder: Boolean, re
         Text(if (reordering) "Drag a handle to move an account. Moves are saved on this device."
             else "Estimated from confirmed transactions. Tap an account to enter its actual balance.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp))
+            modifier = Modifier.padding(horizontal = Space.xs))
     }
 }
 
@@ -417,7 +419,7 @@ private fun BalanceDialog(account: AccountBalance, hidden: Boolean, dismiss: () 
         onDismissRequest = dismiss,
         title = { Text("${account.account.name} balance") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.md)) {
                 Text("Enter what the app shows now. Confirmed transactions from here on are added to it.")
                 MoneyField(
                     value = text, onValueChange = { text = it; invalid = false },
@@ -521,8 +523,8 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
         floatingActionButton = { if (!selectionMode) AddTransactionFab(expanded = !listState.canScrollBackward) { model.navigate("edit/0") } }
     ) { padding ->
     Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = Space.lg, vertical = Space.sm),
+            horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             TransactionFilter.entries.forEach { f ->
                 FilterChip(
                     selected = s.filter == f,
@@ -541,7 +543,7 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                 FilledTonalButton(onClick = { model.navigate("edit/0") }) { Text("Add one manually") }
             }
         } else {
-            LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), state = listState,
+            LazyColumn(Modifier.weight(1f).padding(horizontal = Space.lg), state = listState,
                 contentPadding = PaddingValues(bottom = FAB_CLEARANCE)) {
                 items(s.rows, key = { it.id }) { t ->
                     val toggle = { selectedIds = if (t.id in selectedIds) selectedIds - t.id else selectedIds + t.id }
@@ -595,7 +597,7 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                                 Box(
                                     Modifier.fillMaxSize().onSizeChanged { width = it.width.toFloat() }.clip(MaterialTheme.shapes.large)
                                         .background(if (toConfirm) accents.confirmed else lerp(scheme.errorContainer, scheme.error, fraction))
-                                        .padding(horizontal = 24.dp),
+                                        .padding(horizontal = Space.xxl),
                                     contentAlignment = if (toConfirm) Alignment.CenterStart else Alignment.CenterEnd,
                                 ) { Icon(if (toConfirm) painterResource(Res.drawable.symbol_check) else painterResource(Res.drawable.symbol_delete),
                                     contentDescription = null, tint = if (toConfirm) accents.onConfirmed
@@ -646,7 +648,7 @@ internal fun DateTimeFields(date: String, time: String, onDate: (String) -> Unit
         if (focusDateError) dateFocus.requestFocus()
         else if (focusTimeError) timeFocus.requestFocus()
     }
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         OutlinedTextField(
             value = date, onValueChange = {}, readOnly = true, label = { Text("Date") },
             isError = dateError != null, supportingText = dateError?.let { { Text(it) } },
@@ -735,12 +737,12 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
         }
     }
     Column(Modifier.fillMaxSize().imePadding()) {
-    LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), state = listState,
-        contentPadding = PaddingValues(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.weight(1f).padding(horizontal = Space.lg), state = listState,
+        contentPadding = PaddingValues(bottom = Space.lg), verticalArrangement = Arrangement.spacedBy(Space.md)) {
         item {
             AnimatedVisibility(reviewing) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+                    Row(Modifier.padding(Space.lg), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         StatusMark(confirmed = false, size = 16.dp)
                         Text("Parsed on your device. Check the details before confirming.",
@@ -866,7 +868,7 @@ private fun SettingsSection(title: String) {
         title.uppercase(),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 24.dp, bottom = 10.dp).semantics { heading() },
+        modifier = Modifier.padding(start = Space.xs, end = Space.xs, top = Space.xxl, bottom = 10.dp).semantics { heading() },
     )
 }
 
@@ -954,9 +956,9 @@ fun SettingsScreen(
     val uriHandler = LocalUriHandler.current
 
     LazyColumn(
-        Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        contentPadding = PaddingValues(bottom = 24.dp),
+        Modifier.fillMaxSize().padding(horizontal = Space.lg),
+        verticalArrangement = Arrangement.spacedBy(Space.xs),
+        contentPadding = PaddingValues(bottom = Space.xxl),
     ) {
         item { SettingsSection("Account & sync") }
         item {
@@ -1007,9 +1009,9 @@ fun SettingsScreen(
         item { SettingsSection("Appearance") }
         item {
             SettingsGroup {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = Space.lg, vertical = Space.md)) {
                         Text("Theme mode", style = MaterialTheme.typography.titleMedium)
-                        SingleChoiceSegmentedButtonRow(Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp)) {
+                        SingleChoiceSegmentedButtonRow(Modifier.horizontalScroll(rememberScrollState()).padding(top = Space.sm)) {
                             ThemeMode.entries.forEachIndexed { index, mode ->
                                 SegmentedButton(
                                     selected = s.themeMode == mode,
@@ -1025,7 +1027,7 @@ fun SettingsScreen(
                     ExposedDropdownMenuBox(
                         expanded = expanded,
                         onExpandedChange = { expanded = !expanded },
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(Space.lg),
                     ) {
                         OutlinedTextField(
                             value = "${s.palette.name} · ${s.palette.hint}",
@@ -1136,13 +1138,13 @@ fun BudgetsScreen(model: BudgetsModel) {
     } < 0L
     Column(Modifier.fillMaxSize().imePadding()) {
         LazyColumn(
-            Modifier.weight(1f).padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            Modifier.weight(1f).padding(horizontal = Space.lg),
+            contentPadding = PaddingValues(bottom = Space.lg),
+            verticalArrangement = Arrangement.spacedBy(Space.sm),
         ) {
             item {
                 Text("Limits reset on the 1st of each month. Only confirmed expenses count toward them.",
-                    Modifier.padding(vertical = 8.dp))
+                    Modifier.padding(vertical = Space.sm))
             }
             item {
                 MoneyField(monthly, { monthly = it; attempted = false }, label = { Text("Monthly budget") }, Modifier.fillMaxWidth(),
@@ -1154,7 +1156,7 @@ fun BudgetsScreen(model: BudgetsModel) {
                     })
             }
             item { Allocation(allocated, cap) }
-            item { SectionHeader("Categories", Modifier.padding(top = 16.dp)) }
+            item { SectionHeader("Categories", Modifier.padding(top = Space.lg)) }
             if (categories.isEmpty()) item { Text("Add a spending category to give it a budget.") }
             items(categories, key = { it.id }) { category ->
                 val value = text(category)
@@ -1201,14 +1203,14 @@ fun AllowListScreen(model: AllowListModel, onFinish: (() -> Unit)? = null) {
     val s by model.state.collectAsState()
     var searchText by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().padding(horizontal = if (onFinish != null) 24.dp else 16.dp)) {
-        if (onFinish != null) Box(Modifier.padding(top = 8.dp, bottom = 4.dp)) { StepTrail(3) }
+        if (onFinish != null) Box(Modifier.padding(top = Space.sm, bottom = Space.xs)) { StepTrail(3) }
         Text(if (onFinish != null) "Only apps you select are read. Pick the bank and e-wallet apps that send you payment alerts."
             else if (s.finance) "Pick the bank and wallet apps you move money between. Matching in and out alerts become one transfer."
-            else "Only apps you explicitly enable can create captures.", Modifier.padding(vertical = 8.dp))
+            else "Only apps you explicitly enable can create captures.", Modifier.padding(vertical = Space.sm))
         OutlinedTextField(
             value = searchText,
             onValueChange = { searchText = it; model.search(it) },
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = Space.sm),
             placeholder = { Text("Search apps") },
             singleLine = true,
             leadingIcon = { Icon(painterResource(Res.drawable.symbol_search), contentDescription = null) },
@@ -1237,12 +1239,12 @@ fun AllowListScreen(model: AllowListModel, onFinish: (() -> Unit)? = null) {
         if (s.apps.isEmpty()) item {
             Text(
                 if (s.query.isNotBlank()) "No apps match \"${s.query}\"." else if (s.finance) "Allow apps first." else "No installed apps available.",
-                Modifier.padding(vertical = 24.dp),
+                Modifier.padding(vertical = Space.xxl),
             )
         }
     }
-    if (onFinish != null) Column(Modifier.fillMaxWidth().padding(vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    if (onFinish != null) Column(Modifier.fillMaxWidth().padding(vertical = Space.md),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         Text(when (s.checked) { 0 -> "No apps selected yet"; 1 -> "1 app selected"; else -> "${s.checked} apps selected" },
             style = MaterialTheme.typography.labelLarge, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
         Button(onClick = onFinish, modifier = WideButton) { Text("Finish setup") }
@@ -1265,11 +1267,11 @@ fun OnboardingScreen(
     val next: () -> Unit = { model.navigate(if (page < 2) "onboarding/${page + 1}" else "choose-apps") }
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Space.xxl, vertical = Space.lg),
+            verticalArrangement = Arrangement.spacedBy(Space.xl)) {
             StepTrail(page)
             Text(listOf("Stop typing your expenses", "One permission to grant", "Keep it running")[page],
-                style = MaterialTheme.typography.displaySmall, modifier = Modifier.padding(top = 12.dp).semantics { heading() })
+                style = MaterialTheme.typography.displaySmall, modifier = Modifier.padding(top = Space.md).semantics { heading() })
             Text(listOf(
                 "Choose your apps. We parse payment alerts on-device. You review and confirm every transaction.",
                 "Notification access lets Notifly read alerts only from allowed apps. Raw notification text is never uploaded.",
@@ -1295,8 +1297,8 @@ fun OnboardingScreen(
                 }
             }
         }
-        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = Space.xxl, vertical = Space.lg),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             when {
                 page == 0 -> {
                     Button(onClick = next, modifier = WideButton) { Text("Get started") }
@@ -1322,7 +1324,7 @@ private val ONBOARDING_STEPS = listOf("Hello", "Access", "Background", "Apps")
 @Composable
 private fun StepTrail(step: Int) {
     val scheme = MaterialTheme.colorScheme
-    Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(Space.md)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             NotiflyMark(size = 28.dp)
             Text("Step ${step + 1} of 4 · ${ONBOARDING_STEPS[step]}", style = MaterialTheme.typography.labelLarge,
@@ -1352,7 +1354,7 @@ private fun SampleSlip() {
             contentDescription = "Example: a GCash alert for $amount becomes a Puregold draft that counts once you confirm it."
         }) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.md)) {
                 Icon(painterResource(Res.drawable.symbol_notifications), null, Modifier.size(20.dp), tint = scheme.onSurfaceVariant)
                 Column {
                     Text("GCash · Example", style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
@@ -1360,7 +1362,7 @@ private fun SampleSlip() {
                 }
             }
             HorizontalDivider(color = scheme.outlineVariant)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.md)) {
                 Column(Modifier.weight(1f)) {
                     Text("Puregold", style = MaterialTheme.typography.titleMedium)
                     Text(if (confirmed) "Groceries · Confirmed" else "Groceries · Needs review", style = MaterialTheme.typography.bodySmall,
@@ -1412,8 +1414,8 @@ fun AuthScreen(model: AuthModel, demo: Boolean) {
     LaunchedEffect(password) {
         snapshotFlow { password.text.toString() }.collect { model.edit(password = it) }
     }
-    Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(if (s.signup) "Create account" else "Welcome back", style = MaterialTheme.typography.displaySmall)
+    Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(Space.xxl), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
+        Text(if (s.signup) "Create account" else "Welcome back", style = MaterialTheme.typography.headlineMedium)
         if (demo) Text("Demo account flow — no account will be created.")
         OutlinedTextField(s.email, { model.edit(email = it) }, label = { Text("Email") }, singleLine = true,
             isError = s.emailError != null, supportingText = s.emailError?.let { { Text(it) } },

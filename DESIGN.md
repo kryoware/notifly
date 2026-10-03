@@ -52,8 +52,10 @@ rounded:
 spacing:
   xs: "4dp"
   sm: "8dp"
-  md: "16dp"
-  lg: "22dp"
+  md: "12dp"
+  lg: "16dp"
+  xl: "20dp"
+  xxl: "24dp"
 components:
   balance-hero:
     backgroundColor: "{colors.halaya}"
@@ -93,7 +95,7 @@ components:
 
 Every notification becomes a slip that waits. It sits as an open ring, uncounted, until the user stamps it with a check. The whole system is built to make that single transition legible and satisfying: open ring to filled tick, pending line to headline balance. Everything else is quiet so the transition reads.
 
-Ube is a violet-on-night world. Dark is the home theme, deep plum surfaces stepping up in small tonal increments, with Lilac as the one light in the room. Light theme is the same hues inverted onto Gata (a warm off-white), not a separate identity. Voice lives in Fraunces: italic serif on display lines against Geist everywhere else. Numbers are Geist with tabular figures, so money columns align and the cents sit dimmer than the pesos.
+Ube is a violet-on-night world. The brand is dark-first: deep plum surfaces stepping up in small tonal increments, with Lilac as the one light in the room. The app follows the system light/dark setting by default; light theme is the same hues inverted onto Gata (a warm off-white), a first-class theme rather than a separate identity. Voice lives in Fraunces: italic serif on taglines and empty states against Geist everywhere else. Numbers are Geist with tabular figures, so money columns align and the cents sit dimmer than the pesos.
 
 The system is Material 3 Expressive in structure (navigation bar, ListItem, Material buttons, snackbars) with the brand expressed through colour roles, type, shape and motion, never through custom controls. Tone: calm, confident, private. It is not loud, glossy, or gamified.
 
@@ -103,7 +105,7 @@ The system is Material 3 Expressive in structure (navigation bar, ListItem, Mate
 - Soft, rounded, tactile: pill buttons, 24dp cards, 10dp chips.
 - Money is tabular, signed, and split: pesos at full weight, centavos dimmed.
 - Fraunces appears only as brand voice; it is never used for data.
-- Five palettes ship (Ube, Evergreen, Indigo, Slate, Clay). Ube is the identity; the others reuse the same roles.
+- Four palettes ship (Ube, Evergreen, Slate, Clay). Ube is the identity and the only palette used on brand surfaces (launcher icon, splash, store art). The others are user themes: they must satisfy the same roles and pass `ColorContrastTest`, but nothing is specified against them.
 
 ## Colors
 
@@ -147,8 +149,10 @@ A single violet hue family on near-black plum, with one pale lilac light and no 
 **Character:** Geist is a clean, slightly technical grotesque that makes numbers calm. Fraunces is the human voice: an italic serif that says "you do" and "checked." The contrast between them is the brand.
 
 ### Hierarchy
-- **Display** (Fraunces, Material display scale, −0.025em): Brand lines and large moments only: onboarding statements, empty states, "Nothing counts until you do."
-- **Headline** (Geist SemiBold, −0.035em, tabular): The confirmed balance. Auto-sizes 24sp to 44sp to fit on one line.
+- **Display** (Fraunces, Material display scale, −0.025em): Brand lines only: onboarding statements and taglines ("Nothing counts until you do."). Not screen titles: "Welcome back" is Geist `headlineMedium`.
+- **Voice** (`typography.voice`, Fraunces italic 26/32sp): Empty-state titles and single spoken lines.
+- **Balance** (`typography.balance`, Geist SemiBold, −0.035em, tabular, from `headlineLarge`): The confirmed balance and insight totals. On the hero it auto-sizes 24sp to 44sp to fit on one line.
+- **Headline** (Geist, Material scale): Screen and auth titles, keypad digits.
 - **Title** (Geist Medium, −0.015em): Screen titles, row titles, amounts in lists.
 - **Body** (Geist Regular): Descriptions, supporting text, explanations.
 - **Label** (Geist Medium): Buttons, chips, nav labels.
@@ -157,11 +161,13 @@ A single violet hue family on near-black plum, with one pale lilac light and no 
 ### Named Rules
 **The Tabular Money Rule.** Every peso amount uses `tabular()` (`tnum`) so columns line up. Centavos are dimmed (about 55% content colour) via `splitMoney`.
 
-**The Voice-Not-Data Rule.** Fraunces never sets numbers, labels, or controls. It is voice only.
+**The Voice-Not-Data Rule.** Fraunces never sets numbers, labels, controls, or screen headings. It is voice only: taglines and empty states.
 
 ## Layout
 
-Single-column phone layout, 16dp side gutters, content in vertical stacks with 12dp to 16dp rhythm between groups and 22dp padding inside hero surfaces. Navigation is a Material navigation bar on compact width with a single FAB for the primary action; rail or drawer on expanded widths per Material guidance. Edge-to-edge with window insets applied. Touch targets are 48dp minimum (confirm control is a 48dp box around a 22dp ring).
+Single-column phone layout, 16dp side gutters, content in vertical stacks with 12dp to 16dp rhythm between groups and 22dp padding inside hero surfaces.
+
+Padding and gaps use the 4dp `Space` scale: `xs` 4, `sm` 8, `md` 12, `lg` 16, `xl` 20, `xxl` 24. Off-grid values (10, 14, 18, 22) are allowed only where they reproduce a measured brand-sheet value: tray insets, chip padding, hero padding. Component sizes (avatars, icons, touch targets) are sizes, not spacing, and stay literal dp. Navigation is a Material navigation bar on compact width with a single FAB for the primary action; rail or drawer on expanded widths per Material guidance. Edge-to-edge with window insets applied. Touch targets are 48dp minimum (confirm control is a 48dp box around a 22dp ring).
 
 Lists use Material `ListItem` with a 40dp leading avatar, title and supporting line, and trailing signed amount plus status mark. The headline balance sits above the review prompt; pending is always its own line, never merged into the total.
 
@@ -174,7 +180,9 @@ Tonal layering, flat at rest. Depth is the climb from Canvas to Night to Plum to
 
 ## Shapes
 
-Rounded and friendly with a few distinct tiers: chips 10dp, FAB 20dp, review tray 18dp, cards 24dp, hero container 28dp (Material extra-large), buttons and nav pills fully round. Corners are always continuous circular arcs; nothing is sharp, nothing is squircle-skewed. The brand mark is a stroked arch with round caps and a 50° check flick, and its geometry (round, single stroke) is the pattern for icons: Material Symbols, rounded, never hand-drawn and never `Icons.Default`.
+Rounded and friendly with a few distinct tiers: chips 10dp, FAB 20dp, review tray 18dp, cards 24dp, hero container 28dp (Material extra-large), buttons and nav pills fully round.
+
+These map to `MaterialTheme.shapes`: `small` = chip (10), `medium` = card (24), `large` = FAB (20), `extraLarge` = hero (28, Material default), `tray` = review tray (18). `large` is smaller than `medium` on purpose: Material's Card reads `medium` and the extended FAB reads `large`, so the scale follows the components, not size order. Corners are always continuous circular arcs; nothing is sharp, nothing is squircle-skewed. The brand mark is a stroked arch with round caps and a 50° check flick, and its geometry (round, single stroke) is the pattern for icons: Material Symbols, rounded, never hand-drawn and never `Icons.Default`.
 
 ## Components
 

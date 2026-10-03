@@ -13,12 +13,6 @@
     <color name="ic_launcher_evergreen_light_mark">#FFFFFFFF</color>
     <color name="ic_launcher_evergreen_dark_background">#FF005237</color>
     <color name="ic_launcher_evergreen_dark_mark">#FFAAF2CC</color>
-    <color name="ic_launcher_indigo_system_background">#FF65558F</color>
-    <color name="ic_launcher_indigo_system_mark">#FFFFFFFF</color>
-    <color name="ic_launcher_indigo_light_background">#FF65558F</color>
-    <color name="ic_launcher_indigo_light_mark">#FFFFFFFF</color>
-    <color name="ic_launcher_indigo_dark_background">#FF4D3D75</color>
-    <color name="ic_launcher_indigo_dark_mark">#FFE9DDFF</color>
     <color name="ic_launcher_slate_system_background">#FF276389</color>
     <color name="ic_launcher_slate_system_mark">#FFFFFFFF</color>
     <color name="ic_launcher_slate_light_background">#FF276389</color>

@@ -37,7 +37,7 @@ class LauncherIconsTest {
     }
 
     @Test fun allMappingsExistAndExactlyOneLauncherSurvivesEverySelection() {
-        assertEquals(15, selections.map(::launcherAlias).toSet().size)
+        assertEquals(12, selections.map(::launcherAlias).toSet().size)
         assertEquals(listOf(Appearance()), active())
         selections.forEach { selection ->
             val info = pm.getActivityInfo(component(selection), PackageManager.MATCH_DISABLED_COMPONENTS)
