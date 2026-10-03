@@ -8,7 +8,6 @@ from material_color_utilities import CustomColor, Variant, theme_from_color
 SEEDS = {
     "Ube": "#7443E6",
     "Evergreen": "#22684B",
-    "Indigo": "#6750A4",
     "Slate": "#35566E",
     "Clay": "#8F4C38",
 }
@@ -32,16 +31,21 @@ ACCENTS = (
     "expense", "expense_container", "on_expense_container",
     "confirmed", "on_confirmed",
 )
-# Ube is the brand palette (docs/brand/run-2026-09-30-ube/ube.css): its roles are pinned to the
+# Ube is the brand palette (docs/brand/ube.css): its roles are pinned to the
 # identity's swatches rather than derived. Tertiary marks pending review, which the brand draws in
 # lilac. Tonal spot fills whatever is not listed.
+# Tonal spot rotates tertiary toward pink; Ube has one hue, so its fixed tertiary mirrors primary fixed.
+UBE_TERTIARY_FIXED = {
+    "tertiary_fixed": "#E9DDFF", "tertiary_fixed_dim": "#CFBDFE",
+    "on_tertiary_fixed": "#201047", "on_tertiary_fixed_variant": "#4C3D75",
+}
 BRAND = {
     ("Ube", "dark"): {
         "primary": "#CBB6FF", "on_primary": "#26134A", "primary_container": "#3A1F66",
         "on_primary_container": "#F4F0F8", "inverse_primary": "#7443E6",
         "secondary_container": "#3A1F66", "on_secondary_container": "#CBB6FF",
         "tertiary": "#CBB6FF", "on_tertiary": "#26134A", "tertiary_container": "#3A1F66",
-        "on_tertiary_container": "#F4F0F8",
+        "on_tertiary_container": "#F4F0F8", **UBE_TERTIARY_FIXED,
         "background": "#110D17", "on_background": "#F4F0F8", "surface": "#110D17",
         "on_surface": "#F4F0F8", "surface_variant": "#2D2439", "on_surface_variant": "#A39AB6",
         "surface_dim": "#110D17", "surface_container_lowest": "#0A0810",
@@ -58,7 +62,7 @@ BRAND = {
         "on_primary_container": "#26134A", "inverse_primary": "#CBB6FF",
         "secondary_container": "#E8DEFF", "on_secondary_container": "#3A1F66",
         "tertiary": "#7443E6", "on_tertiary": "#F4F0F8", "tertiary_container": "#E8DEFF",
-        "on_tertiary_container": "#3A1F66",
+        "on_tertiary_container": "#3A1F66", **UBE_TERTIARY_FIXED,
         "background": "#F4F0F8", "on_background": "#110D17", "surface": "#F4F0F8",
         "on_surface": "#110D17", "surface_variant": "#E4DCEC", "on_surface_variant": "#5F5675",
         "surface_bright": "#F4F0F8", "surface_container_lowest": "#FFFFFF",
@@ -95,13 +99,12 @@ out = [
     " * Material Color Utilities tonal spot, standard contrast, harmonized semantic colors;",
     " * Ube pins its roles to the brand swatches.",
     " */",
-    "enum class NotiflyPalette { Ube, Evergreen, Indigo, Slate, Clay }",
+    "enum class NotiflyPalette { Ube, Evergreen, Slate, Clay }",
     "",
     "val NotiflyPalette.hint: String",
     '    get() = when (this) {',
     '        NotiflyPalette.Ube -> "Violet"',
     '        NotiflyPalette.Evergreen -> "Green"',
-    '        NotiflyPalette.Indigo -> "Purple"',
     '        NotiflyPalette.Slate -> "Blue"',
     '        NotiflyPalette.Clay -> "Terracotta"',
     "    }",

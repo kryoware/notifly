@@ -11,4 +11,4 @@ Parses payment notifications into a personal ledger. Android (KMP-ready).
 
 See `CLAUDE.md` for architecture rules and build order.
 See `PLAN.md` for the phased build order.
-See `docs/prototype.html` for the interaction spec.
+See `DESIGN.md` for the design system.

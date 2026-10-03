@@ -15,8 +15,8 @@ import ph.notifly.ui.StatusMark
 /** Inspect all palettes in both modes; horizontally scroll on phones. */
 @Composable
 fun ThemeGallery(model: SettingsModel) {
-    Row(Modifier.fillMaxSize().horizontalScroll(rememberScrollState()).padding(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    Row(Modifier.fillMaxSize().horizontalScroll(rememberScrollState()).padding(Space.lg),
+        horizontalArrangement = Arrangement.spacedBy(Space.lg)) {
         NotiflyPalette.entries.forEach { palette ->
             listOf(ThemeMode.LIGHT, ThemeMode.DARK).forEach { mode ->
             NotiflyTheme(palette, mode) {
@@ -55,23 +55,23 @@ fun ThemeGallery(model: SettingsModel) {
                     "confirmed" to a.confirmed, "onConfirmed" to a.onConfirmed,
                 )
                 Surface(Modifier.width(280.dp)) {
-                    Column(Modifier.verticalScroll(rememberScrollState()).padding(12.dp)) {
+                    Column(Modifier.verticalScroll(rememberScrollState()).padding(Space.md)) {
                         Text("${palette.name} · ${mode.name.lowercase()}", style = MaterialTheme.typography.headlineSmall)
                         Button(onClick = { model.palette(palette) }) { Text("Use ${palette.name}") }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                             FilterChip(selected = true, onClick = {}, label = { Text("Selected") })
                             FilterChip(selected = false, onClick = {}, enabled = false, label = { Text("Disabled") })
                         }
                         OutlinedTextField(value = "", onValueChange = {}, label = { Text("Invalid field") },
                             isError = true, supportingText = { Text("Example error") })
                         ListItem(headlineContent = { Text("Example row") }, trailingContent = { Switch(true, onCheckedChange = null) })
-                        Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(Modifier.padding(vertical = Space.sm), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                             StatusMark(confirmed = false)
                             StatusMark(confirmed = true)
                             Text("Pending → confirmed", style = MaterialTheme.typography.bodySmall)
                         }
                         roles.forEach { (name, color) ->
-                            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(Modifier.fillMaxWidth().padding(vertical = Space.xs), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                                 Surface(Modifier.size(32.dp), color = color, border = BorderStroke(1.dp, c.outline)) {}
                                 Text(name, style = MaterialTheme.typography.bodySmall)
                             }
