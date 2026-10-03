@@ -177,13 +177,17 @@ class TransactionsModel(private val repository: TransactionRepository, ledger: L
     val state = combine(repository.observeAll(), filter, ledger.observeAccounts(), query, appLabels) { rows, f, accounts, q, labels ->
         val names = accounts.associate { it.id to it.name }
         val needle = q.trim()
+        // Accepts what a row shows, e.g. "−₱1,529.00"; without cents it matches the whole peso, so "1529" finds ₱1,529.50.
+        val amountNeedle = needle.filterNot { it in "₱,+-−" || it.isWhitespace() }
+        val amount = parseAmountMinor(amountNeedle)
+        val exactCents = '.' in amountNeedle
         TransactionsState(rows.filter { when (f) {
             TransactionFilter.ALL -> true
             TransactionFilter.NEEDS_REVIEW -> it.status == TransactionStatus.NEEDS_REVIEW
             TransactionFilter.INCOME -> it.type == TransactionType.INCOME
             TransactionFilter.EXPENSE -> it.type == TransactionType.EXPENSE
             TransactionFilter.TRANSFER -> it.type == TransactionType.TRANSFER
-        } && (needle.isEmpty() || listOfNotNull(it.title, it.category, names[it.accountId], it.toAccountId?.let(names::get),
+        } && (needle.isEmpty() || amount != null && (if (exactCents) it.amountMinor == amount else it.amountMinor / 100 == amount / 100) || listOfNotNull(it.title, it.category, names[it.accountId], it.toAccountId?.let(names::get),
             it.sourceApp, it.sourceApp?.let(labels::get)).any { field -> field.contains(needle, ignoreCase = true) }) },
             f, names, q, accountIcons(accounts))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TransactionsState())

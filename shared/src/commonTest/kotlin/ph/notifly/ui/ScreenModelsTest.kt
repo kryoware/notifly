@@ -287,4 +287,29 @@ class ScreenModelsTest {
             advanceUntilIdle()
         } finally { Dispatchers.resetMain() }
     }
+
+    @Test fun searchMatchesAmountsAsShown() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val repository = DemoTransactions()
+            repository.upsert(repository.byId(2)!!.copy(id = 0, title = "[TEST] amount", amountMinor = 123456))
+            val model = TransactionsModel(repository, DemoLedger(repository))
+            val states = mutableListOf<TransactionsState>()
+            val job = launch { model.state.collect { states.add(it) } }
+            runCurrent()
+            for (query in listOf("1234", "1,234.56", "₱1,234.56", "−₱1,234.56", " 1234.56 ")) {
+                model.search(query)
+                runCurrent()
+                assertEquals(listOf("[TEST] amount"), states.last().rows.map { it.title }, query)
+            }
+            for (query in listOf("1234.5", "12345", "123")) {
+                model.search(query)
+                runCurrent()
+                assertTrue(states.last().rows.isEmpty(), query)
+            }
+            job.cancelAndJoin()
+            model.viewModelScope.cancel()
+            advanceUntilIdle()
+        } finally { Dispatchers.resetMain() }
+    }
 }
