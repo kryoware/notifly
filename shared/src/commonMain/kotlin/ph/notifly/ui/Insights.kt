@@ -91,6 +91,8 @@ fun windowInsights(rows: List<Transaction>, today: LocalDate, days: Int, zone: T
         categories = (expenses.groupBy { it.second.category }
             .map { (category, rows) -> CategorySpend(category, rows.sumOf { it.second.amountMinor }, previousByCategory[category] ?: 0L) } +
             listOfNotNull(CategorySpend(TRANSFER_FEES, current.sumOf { it.second.feeMinor }, previous.sumOf { it.feeMinor }).takeIf { it.spent > 0 }))
+            // A user category may share the fee share's name; merge rather than list it twice.
+            .groupBy { it.category }.map { (category, shares) -> CategorySpend(category, shares.sumOf { it.spent }, shares.sumOf { it.previous }) }
             .sortedByDescending { it.spent },
         largest = expenses.map { it.second }.sortedByDescending { it.amountMinor }.take(3),
     )

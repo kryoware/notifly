@@ -44,6 +44,8 @@ class InsightsTest {
         val w = windowInsights(rows + fee, today, 7, zone)
         assertEquals(CategorySpend(TRANSFER_FEES, 1_500, 0), w.categories.single { it.category == TRANSFER_FEES })
         assertEquals(w.current.spent, w.categories.sumOf { it.spent })
+        val named = windowInsights(rows + fee + row("2026-09-25", 2_000, category = TRANSFER_FEES), today, 7, zone)
+        assertEquals(CategorySpend(TRANSFER_FEES, 3_500, 0), named.categories.single { it.category == TRANSFER_FEES })
     }
 
     @Test fun windowCountsConfirmedCashFlowAndComparesToPreviousWindow() {
