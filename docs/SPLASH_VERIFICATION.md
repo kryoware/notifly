@@ -15,14 +15,14 @@ adb -s emulator-5554 shell am instrument -w ph.notifly.android.test/androidx.tes
 Results: 146 shared unit tests, 7 launcher unit tests, and 4 emulator instrumentation
 tests passed. Debug assembly and lint passed. The launcher unit tests run against
 Robolectric SDK 32 and 33, covering both sequential and batch switching. They check
-all 15 manifest mappings, exactly one active entry, unchanged/repeated application,
+all 12 manifest mappings, exactly one active entry, unchanged/repeated application,
 enable-before-disable ordering, injected failure, and reconciliation on retry.
 The persistence test reopens palette and theme mode together using the existing keys.
 Its Windows host uses DataStore's Okio storage for atomic file replacement.
 
 ## Emulator checks
 
-- All five palettes in System, Light, and Dark: appearance and launcher selection update.
+- All four palettes in System, Light, and Dark: appearance and launcher selection update.
 - Settings mode/palette controls and Theme Gallery both update the launcher while
   the current screen stays open. Android requires a separate task rooted in the
   enabled activity; merely clearing an alias-rooted task retains its alias identity.

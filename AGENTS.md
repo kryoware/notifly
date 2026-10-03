@@ -122,5 +122,5 @@ app runtime dependencies.
 
 Design system: `DESIGN.md` (tokens, components, rules), derived from the brand
 kit in `docs/brand/`. Interaction reference: the app's demo mode, which runs
-every screen against seeded fake data. The old `docs/prototype.html` was
+every screen against seeded fake data, but not unbuilt flows such as the sync progress ring. The old `docs/prototype.html` was
 removed in `3cbed37`; recover it from history if you need the original flows.
