@@ -33,6 +33,12 @@ class InsightsTest {
         row("2026-09-27", 1_000),                                        // future-dated
     )
 
+    @Test fun chartSlicesFoldEverythingPastTheLimitIntoOneSlice() {
+        val shares = listOf("Food" to 500L, "Bills" to 300L, "Other" to 100L, "Gifts" to 60L, "Fees" to 40L)
+        assertEquals(shares.take(2) + ("3 more" to 200L), chartSlices(shares, 2))
+        assertEquals(shares, chartSlices(shares, 5))
+    }
+
     @Test fun windowCountsConfirmedCashFlowAndComparesToPreviousWindow() {
         val w = windowInsights(rows, today, 7, zone)
         assertEquals(LocalDate(2026, 9, 20), w.start)

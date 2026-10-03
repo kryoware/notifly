@@ -45,6 +45,14 @@ data class MonthInsights(val flow: CashFlow, val day: Int, val length: Int, val 
 fun percentChange(current: Long, previous: Long): Long? =
     if (previous == 0L) null else (current - previous) * 100 / previous
 
+/**
+ * Donut slices for [sorted] shares, largest first: the first [limit] keep their names and the rest
+ * fold into one trailing "N more" slice. Not named "Other": that is also a real category.
+ */
+fun chartSlices(sorted: List<Pair<String, Long>>, limit: Int): List<Pair<String, Long>> =
+    if (sorted.size <= limit) sorted
+    else sorted.take(limit) + ("${sorted.size - limit} more" to sorted.drop(limit).sumOf { it.second })
+
 private fun cashFlow(rows: List<Transaction>) = CashFlow(
     rows.filter { it.type == TransactionType.INCOME }.sumOf { it.amountMinor },
     rows.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountMinor } + rows.sumOf { it.feeMinor },

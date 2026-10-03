@@ -68,6 +68,7 @@ data class InsightsState(
     val budget: Long? = null,
     val pending: Int = 0,
     val categoryBudgets: Map<String, Long> = emptyMap(),
+    val accounts: List<AccountBalance> = emptyList(),
 ) {
     val selected get() = windows.firstOrNull { it.days == days }
 }
@@ -132,10 +133,10 @@ private fun localToday() = flow {
 
 class InsightsModel(repository: TransactionRepository, private val preferences: AppPreferences, ledger: LedgerRepository) : ScreenModel() {
     private val days = MutableStateFlow(INSIGHT_WINDOWS.first())
-    val state = combine(repository.observeAll(), days, preferences.monthlyBudget, ledger.observeCategories().map { categories -> categories.filter { it.type == TransactionType.EXPENSE && it.budgetMinor != null }.associate { it.name to it.budgetMinor!! } }, localToday()) { rows, d, budget, categoryBudgets, today ->
+    val state = combine(repository.observeAll().combine(ledger.observeAccounts(), ::Pair), days, preferences.monthlyBudget, ledger.observeCategories().map { categories -> categories.filter { it.type == TransactionType.EXPENSE && it.budgetMinor != null }.associate { it.name to it.budgetMinor!! } }, localToday()) { (rows, accounts), d, budget, categoryBudgets, today ->
         val zone = TimeZone.currentSystemDefault()
         InsightsState(d, INSIGHT_WINDOWS.map { windowInsights(rows, today, it, zone) }, monthInsights(rows, today, zone),
-            budget, rows.count { it.status == TransactionStatus.NEEDS_REVIEW }, categoryBudgets)
+            budget, rows.count { it.status == TransactionStatus.NEEDS_REVIEW }, categoryBudgets, accountBalances(accounts, rows))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InsightsState())
     fun days(value: Int) { days.value = value }
 }
