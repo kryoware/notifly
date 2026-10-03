@@ -15,3 +15,5 @@ xcuserdata/
 
 # Sentry Config File
 sentry.properties
+
+/shared/src/main/assets/notification_model.json
