@@ -32,8 +32,9 @@ ACCENTS = (
     "confirmed", "on_confirmed",
 )
 # Chart slices: one hue (the brand allows no second accent), largest share first, so the ramp runs
-# away from the card surface. Each mode's steps pass the dataviz ordinal check against surface_container_high.
-CHART_TONES = {"light": (20, 30, 40, 50, 60), "dark": (90, 80, 70, 60, 50)}
+# away from the card surface. Dark tops out at primary's tone so no slice outshines the One Light.
+# Each mode's steps pass the dataviz ordinal check against surface_container_high.
+CHART_TONES = {"light": (20, 30, 40, 50, 60), "dark": (80, 70, 60, 50, 40)}
 # Ube is the brand palette (docs/brand/ube.css): its roles are pinned to the
 # identity's swatches rather than derived. Tertiary marks pending review, which the brand draws in
 # lilac. Tonal spot fills whatever is not listed.
