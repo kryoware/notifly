@@ -12,7 +12,7 @@ adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/debug/app-debu
 adb -s emulator-5554 shell am instrument -w ph.notifly.android.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
-Results: 108 shared unit tests, 7 launcher unit tests, and 3 emulator instrumentation
+Results: 146 shared unit tests, 7 launcher unit tests, and 4 emulator instrumentation
 tests passed. Debug assembly and lint passed. The launcher unit tests run against
 Robolectric SDK 32 and 33, covering both sequential and batch switching. They check
 all 15 manifest mappings, exactly one active entry, unchanged/repeated application,
@@ -29,6 +29,8 @@ Its Windows host uses DataStore's Okio storage for atomic file replacement.
 - Force-stop/relaunch and reboot retain Clay/System and exactly one launcher entry.
 - System night-mode changes update the app and the launcher's full-color icon.
   The selected System alias remains the same.
+- Rotation during the trace retains stroke progress; rotation after PIN unlock retains
+  the in-process session. Backgrounding relocks, and a fresh Activity starts locked.
 - Portrait/landscape rotation, Activity recreation, background/resume, and tapping
   the launcher again retain launch completion.
 - Onboarding, home, and PIN lock are revealed after startup. Lock covers app content;
@@ -42,7 +44,10 @@ Local evidence (ignored `captures/` directory): `splash-final.mp4`,
 
 The emulator originally contained a newer database schema. Its original data remains
 on that emulator in `databases.before-splash-test` and `files.before-splash-test`;
-verification used separate clean data. The emulator is left on Clay/System, portrait,
+verification used separate clean data. Instrumentation refuses onboarded or PIN-protected
+data and restores test preferences. Review verification preserved the existing clean
+app data and restored it afterward; its temporary data remains in
+`databases.review-test-results` and `files.review-test-results`. The emulator is left on Clay/System, portrait,
 system light mode, with animations enabled.
 
 API 32 fallback was verified with Robolectric, not an older emulator. Launcher caches,
