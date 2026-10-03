@@ -203,7 +203,7 @@ class LedgerControlsTest {
         unchanged(2, null, "Other", "com.paymaya")
         compose.onNodeWithContentDescription("Clear search").performClick()
         type("com.pay")
-        compose.onNodeWithText("com.paymaya").assertExists()
+        compose.onAllNodesWithText("com.paymaya").assertCountEquals(2)
         unchanged(2, null, "Other", "com.paymaya")
         compose.onNodeWithText("com.paymaya").performClick()
         open("Source app")
@@ -224,7 +224,7 @@ class LedgerControlsTest {
         compose.setContent { NotiflyTheme { Surface(Modifier.fillMaxSize()) { EditorScreen(editor) } } }
         compose.waitUntil { editor.state.value.accounts.isNotEmpty() }
         compose.onNodeWithText("Source app").performScrollTo().performClick()
-        compose.onNodeWithText("com.paymaya").assertExists()
+        compose.onAllNodesWithText("com.paymaya").assertCountEquals(2)
         Assert.assertEquals("com.paymaya", editor.state.value.sourceApp)
     }
 
