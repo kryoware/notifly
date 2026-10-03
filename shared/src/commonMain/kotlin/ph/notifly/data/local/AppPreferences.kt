@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -36,6 +37,8 @@ private const val ACCOUNT_BALANCE_PREFIX = "account_balance:"
 /** A balance the user typed in for a finance app; transactions after [setAt] are applied on top of it. */
 data class ManualBalance(val minor: Long, val setAt: Instant)
 
+data class Appearance(val palette: NotiflyPalette = NotiflyPalette.Ube, val themeMode: ThemeMode = ThemeMode.SYSTEM)
+
 class AppPreferences(private val store: DataStore<Preferences>) {
     private val paletteKey = stringPreferencesKey("palette")
     private val themeModeKey = stringPreferencesKey("theme_mode")
@@ -56,10 +59,12 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     private val data = store.data.catch { exception ->
         if (exception is IOException) emit(emptyPreferences()) else throw exception
     }
-    val palette = data.map { prefs ->
-        NotiflyPalette.entries.firstOrNull { it.name == prefs[paletteKey] } ?: NotiflyPalette.Ube
-    }
-    val themeMode = data.map { prefs -> ThemeMode.entries.firstOrNull { it.name == prefs[themeModeKey] } ?: ThemeMode.SYSTEM }
+    val appearance = data.map { prefs -> Appearance(
+        NotiflyPalette.entries.firstOrNull { it.name == prefs[paletteKey] } ?: NotiflyPalette.Ube,
+        ThemeMode.entries.firstOrNull { it.name == prefs[themeModeKey] } ?: ThemeMode.SYSTEM,
+    ) }.distinctUntilChanged()
+    val palette = appearance.map { it.palette }.distinctUntilChanged()
+    val themeMode = appearance.map { it.themeMode }.distinctUntilChanged()
     val onboardingComplete = data.map { it[onboardingKey] ?: false }
     val offline = data.map { it[offlineKey] ?: true }
     val hideAmounts = data.map { it[hideAmountsKey] ?: false }

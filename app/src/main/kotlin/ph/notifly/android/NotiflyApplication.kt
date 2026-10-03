@@ -5,6 +5,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.component.KoinComponent
@@ -17,6 +19,10 @@ import ph.notifly.di.sharedModule
 class NotiflyApplication : Application(), KoinComponent {
     private val preferences: AppPreferences by inject()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val launches = MutableStateFlow(0L)
+
+    /** An unchanged selection is still reconciled on the next Activity launch after a PM failure. */
+    fun reconcileLauncherIcon() { launches.value += 1 }
 
     override fun onCreate() {
         super.onCreate()
@@ -42,6 +48,11 @@ class NotiflyApplication : Application(), KoinComponent {
             preferences.crashReporting.collect { enabled ->
                 CrashReporting.setEnabled(enabled, this@NotiflyApplication, BuildConfig.SENTRY_DSN)
             }
+        }
+        scope.launch {
+            val launcher = LauncherIcons(packageManager, packageName)
+            preferences.appearance.combine(launches) { appearance, _ -> appearance }
+                .collect { launcher.apply(it) }
         }
     }
 }
