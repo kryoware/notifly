@@ -67,8 +67,10 @@ class NotificationCaptureService : NotificationListenerService() {
                     title = extras?.getCharSequence("android.title")?.toString().orEmpty(),
                     text = (extras?.getCharSequence("android.bigText")
                         ?: extras?.getCharSequence("android.text"))?.toString().orEmpty(),
+                    extras = emptyMap(),
                 )
             },
         )
     }
+
 }

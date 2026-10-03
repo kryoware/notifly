@@ -14,7 +14,11 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
@@ -25,6 +29,7 @@ import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import androidx.savedstate.read
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
 import org.koin.compose.koinInject
 import ph.notifly.data.local.AppPreferences
 import ph.notifly.domain.repository.*
@@ -53,6 +58,10 @@ fun NotiflyApp(
     onReady: () -> Unit = {},
     onLaunchComplete: () -> Unit = {},
     shouldLockOnStop: () -> Boolean = { true },
+    notificationsAllowed: Boolean = true,
+    requestNotifications: () -> Unit = {},
+    launchRoute: String? = null,
+    launchRouteKey: Int = 0,
 ) {
     val preferences = koinInject<AppPreferences>()
     val database = koinInject<ph.notifly.data.local.AppDatabase>()
@@ -60,10 +69,12 @@ fun NotiflyApp(
     val realApps = koinInject<AllowListRepository>()
     val realLedger = koinInject<LedgerRepository>()
     val realCaptures = koinInject<CaptureRepository>()
+    val realBills = koinInject<BillRepository>()
     var demo by rememberSaveable { mutableStateOf(demo) }
     val captures = remember(demo) { if (demo) DemoCaptures() else realCaptures }
     val transactions = remember(demo) { if (demo) DemoTransactions(demoRows()) else realTransactions }
     val ledger = remember(demo) { if (demo) DemoLedger(transactions) else realLedger }
+    val bills = remember(demo) { if (demo) DemoBills(demoRows()) else realBills }
     val apps = remember(demo) { if (demo) DemoAllowList() else realApps }
     val allowed by apps.observeAll().collectAsState(emptyList())
     val appLabels = remember(allowed) { allowed.associate { it.packageName to it.label } }
@@ -87,20 +98,21 @@ fun NotiflyApp(
         }
         nav.navigate(target) {
             launchSingleTop = true
-            if (target in listOf("home", "transactions", "insights", "settings")) popUpTo(nav.graph.id) { inclusive = false }
+            if (target in listOf("home", "transactions", "bills", "insights", "settings")) popUpTo(nav.graph.id) { inclusive = false }
         }
     }
     val handle: (UiEvent) -> Unit = { event -> when (event) {
         is UiEvent.Navigate -> navigate(event.route)
         is UiEvent.Message -> { if (event.undo != null) navigate("transactions"); scope.launch {
-            if (snackbar.showSnackbar(event.text, actionLabel = event.undo?.let { "Undo" }, duration = if (event.undo != null) SnackbarDuration.Long else SnackbarDuration.Short) == SnackbarResult.ActionPerformed) {
-                try { event.undo?.let { transactions.upsert(it) } }
+            val undoable = event.undo != null || event.onUndo != null
+            if (snackbar.showSnackbar(event.text, actionLabel = if (undoable) "Undo" else null, duration = SnackbarDuration.Short) == SnackbarResult.ActionPerformed) {
+                try { event.undo?.let { transactions.upsert(it) }; event.onUndo?.invoke() }
                 catch (e: kotlinx.coroutines.CancellationException) { throw e }
                 catch (_: Exception) { snackbar.showSnackbar("Couldn't restore the transaction. Please try again.") }
             }
         }; Unit }
     } }
-    val topLevel = listOf("home", "transactions", "insights", "settings")
+    val topLevel = listOf("home", "transactions", "bills", "insights", "settings")
     // No default-palette frame while the persisted theme or security state is still loading.
     val loadedAppearance = appearance ?: return
     if (onboarded == null || pinSet == null) return
@@ -122,18 +134,32 @@ fun NotiflyApp(
                     OnboardingScreen(m, it.arguments?.read { getInt("page") } ?: 0, requestPermission, permissionAvailable, batteryExempt, requestBatteryExemption)
                 }
                 composable("auth") { val m = viewModel { AuthModel(preferences, demo) }; Events(m, handle); AuthScreen(m, demo) }
-                composable("home") { val m = viewModel { HomeModel(transactions, apps, preferences, ledger) }; Events(m, handle); HomeScreen(m, appLabels, snackbar, demo,
+                composable("home") { val m = viewModel { HomeModel(transactions, apps, preferences, ledger, bills) }; Events(m, handle); HomeScreen(m, appLabels, snackbar, demo,
                     allowed.filter { it.listening }.map { it.label }, permissionAvailable, requestPermission) }
                 composable("insights") { val m = viewModel { InsightsModel(transactions, preferences, ledger) }; Events(m, handle)
                     AppDestination(if (demo) "Insights · Demo" else "Insights", snackbar) { InsightsScreen(m, appLabels) } }
+                composable("bills") { val m = viewModel { BillsModel(bills, transactions, ledger, preferences) }; Events(m, handle)
+                    BillsScreen(m, appLabels, snackbar, demo, notificationsAllowed, requestNotifications) }
+                composable("bill/{id}?due={due}", arguments = listOf(navArgument("id") { type = NavType.LongType },
+                    navArgument("due") { type = NavType.StringType; nullable = true; defaultValue = null })) {
+                    val id = it.arguments?.read { getLong("id") } ?: 0L
+                    val due = it.arguments?.read { if (contains("due")) getStringOrNull("due") else null }?.let { d -> runCatching { kotlinx.datetime.LocalDate.parse(d) }.getOrNull() }
+                    val m = viewModel { BillEditorModel(bills, ledger, id, due) }; Events(m, handle)
+                    val detected = m.state.collectAsState().value.reviewing
+                    AppDestination(if (detected) "Review bill" else if (id == 0L) "Add bill" else "Edit bill", snackbar,
+                        onBack = { if (!nav.popBackStack()) navigate("bills") }) { BillEditorScreen(m, appLabels) } }
+                composable("pay-bill/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
+                    val id = it.arguments?.read { getLong("id") } ?: 0L
+                    val m = viewModel { EditorModel(transactions, 0L, captures, ledger = ledger, apps = apps, bills = bills, billId = id) }; Events(m, handle)
+                    EditorDestination("Record payment", snackbar, m, appLabels) { if (!nav.popBackStack()) navigate("bills") } }
                 composable("transactions") { val m = viewModel { TransactionsModel(transactions, ledger) }; Events(m, handle); TransactionsScreen(m, appLabels, snackbar, demo) }
                 composable("settings") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle)
                     AppDestination(if (demo) "Settings · Demo" else "Settings", snackbar) {
                         SettingsScreen(m, permissionAvailable, requestPermission, versionName, isDebugBuild, biometricAvailable, authenticateBiometric,
-                            ledger = ledger, demo = demo, onDemo = { demo = it }, transactions = transactions, allowDataTransfer = !demo,
+                            ledger = ledger, demo = demo, onDemo = { demo = it }, transactions = transactions, allowDataTransfer = !demo, notificationsAllowed = notificationsAllowed, requestNotifications = requestNotifications,
                             onDataMessage = { snackbar.showSnackbar(it) }) } }
                 composable("budgets") { val m = viewModel { BudgetsModel(preferences, ledger) }; Events(m, handle)
-                    AppDestination("Category budgets", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { BudgetsScreen(m) } }
+                    AppDestination("Budgets", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { BudgetsScreen(m) } }
                 composable("allow-list") { val m = viewModel { AllowListModel(apps) }; Events(m, handle)
                     AppDestination("Allowed apps", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { AllowListScreen(m) } }
                 composable("choose-apps") { val m = viewModel { AllowListModel(apps) }; Events(m, handle)
@@ -144,8 +170,7 @@ fun NotiflyApp(
                 composable("edit/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val id = it.arguments?.read { getLong("id") } ?: 0L
                     val m = viewModel { EditorModel(transactions, id, captures, ledger = ledger, apps = apps) }; Events(m, handle)
-                    AppDestination(if (id == 0L) "Add transaction" else "Edit transaction", snackbar,
-                        onBack = { if (!nav.popBackStack()) navigate("home") }) { EditorScreen(m, appLabels) }
+                    EditorDestination(if (id == 0L) "Add transaction" else "Edit transaction", snackbar, m, appLabels) { if (!nav.popBackStack()) navigate("home") }
                 }
                 composable("accounts") { val m = viewModel { LedgerSettingsModel(ledger, apps) }; Events(m, handle)
                     AppDestination("Accounts", snackbar, onBack = { nav.popBackStack() }) { AccountsScreen(m) } }
@@ -156,25 +181,30 @@ fun NotiflyApp(
                     AppDestination("Categories", snackbar, onBack = { nav.popBackStack() }) { CategoriesScreen(m) } }
                 composable("category/{id}/{type}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val m = viewModel { LedgerSettingsModel(ledger, apps) }; Events(m, handle)
+                    val monthlyBudget by remember(preferences) {
+                        preferences.monthlyBudget.map { it to true }
+                    }.collectAsState(null to false)
                     AppDestination("Category details", snackbar, onBack = { nav.popBackStack() }) {
                         CategoryEditorScreen(m, it.arguments?.read { getLong("id") } ?: 0L,
-                            ph.notifly.domain.model.TransactionType.valueOf(it.arguments?.read { getString("type") } ?: "EXPENSE")) } }
+                            ph.notifly.domain.model.TransactionType.valueOf(it.arguments?.read { getString("type") } ?: "EXPENSE"),
+                            monthlyBudget.first, monthlyBudgetLoaded = monthlyBudget.second) } }
                 composable("account-review") { val m = viewModel { LedgerSettingsModel(ledger, apps) }; Events(m, handle)
                     AppDestination("Assign accounts", snackbar, onBack = { nav.popBackStack() }) { AccountReviewScreen(m) } }
                 composable("draft/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val m = viewModel { EditorModel(transactions, 0L, captures, ledger = ledger, apps = apps, draftId = it.arguments?.read { getLong("id") }) }; Events(m, handle)
-                    AppDestination("Review transaction", snackbar, onBack = { nav.popBackStack() }) { EditorScreen(m, appLabels) } }
+                    EditorDestination("Review transaction", snackbar, m, appLabels) { nav.popBackStack() } }
                 composable("themes") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle)
                     AppDestination("Theme palettes", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { ThemeGallery(m) } }
                 composable("log") { val m = viewModel { LogModel(captures, preferences) }; Events(m, handle)
-                    AppDestination("Notification log", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { LogScreen(m, appLabels) } }
+                    AppDestination("Notification log", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { LogScreen(m, appLabels, isDebugBuild) } }
                 composable("licenses") { AppDestination("Open source licenses", snackbar, onBack = { nav.popBackStack() }) { LicensesScreen() } }
                 composable("from-log/{captureId}", arguments = listOf(navArgument("captureId") { type = NavType.LongType })) {
                     val m = viewModel { EditorModel(transactions, 0L, captures, it.arguments?.read { getLong("captureId") }, ledger, apps) }; Events(m, handle)
-                    AppDestination("Add transaction", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { EditorScreen(m, appLabels) }
+                    EditorDestination("Add transaction", snackbar, m, appLabels) { if (!nav.popBackStack()) navigate("home") }
                 }
             }
         }
+        LaunchedEffect(launchRoute, launchRouteKey) { if (launchRoute != null && onboarded == true) navigate(launchRoute) }
         val locked = pinSet == true && !session.unlocked
         Box(Modifier.fillMaxSize()) {
             NavigationSuiteScaffold(
@@ -183,6 +213,7 @@ fun NotiflyApp(
                     listOf(
                         Triple("home", "Home", Res.drawable.symbol_home),
                         Triple("transactions", "Transactions", Res.drawable.symbol_receipt_long),
+                        Triple("bills", "Bills", Res.drawable.symbol_event_upcoming),
                         Triple("insights", "Insights", Res.drawable.symbol_pie_chart),
                         Triple("settings", "Settings", Res.drawable.symbol_settings),
                     ).forEach { (target, label, icon) ->
@@ -190,7 +221,11 @@ fun NotiflyApp(
                             selected = route == target,
                             onClick = { navigate(target) },
                             icon = { Icon(painterResource(icon), null) },
-                            label = { Text(label) },
+                            // Hidden when it can't fit on one line, so a narrow bar or large font never wraps a word mid-label.
+                            label = {
+                                var fits by remember(label, LocalDensity.current.fontScale) { mutableStateOf(true) }
+                                if (fits) Text(label, maxLines = 1, softWrap = false, onTextLayout = { if (it.didOverflowWidth) fits = false })
+                            },
                         )
                     }
                 },
@@ -226,6 +261,20 @@ private fun AppDestination(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) { content() }
     }
+}
+
+/** Both the top-bar arrow and system Back ask before throwing away edits. */
+@Composable
+private fun EditorDestination(title: String, snackbar: SnackbarHostState, model: EditorModel,
+                              appLabels: Map<String, String>, exit: () -> Unit) {
+    val s by model.state.collectAsState()
+    var discard by remember { mutableStateOf(false) }
+    NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = s.dirty, onBackCompleted = { discard = true })
+    AppDestination(title, snackbar, onBack = { if (s.dirty) discard = true else exit() }) { EditorScreen(model, appLabels) }
+    if (discard) AlertDialog(onDismissRequest = { discard = false }, title = { Text("Discard changes?") },
+        text = { Text("Your edits to this transaction will be lost.") },
+        confirmButton = { TextButton(onClick = { discard = false; exit() }) { Text("Discard") } },
+        dismissButton = { TextButton(onClick = { discard = false }) { Text("Keep editing") } })
 }
 
 @Composable

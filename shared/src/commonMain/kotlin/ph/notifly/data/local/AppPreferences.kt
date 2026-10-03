@@ -45,6 +45,7 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     private val onboardingKey = booleanPreferencesKey("onboarding_complete")
     private val offlineKey = booleanPreferencesKey("offline")
     private val hideAmountsKey = booleanPreferencesKey("hide_amounts")
+    private val homeAccountOrderKey = stringPreferencesKey("home_account_order")
     private val retentionKey =booleanPreferencesKey("keep_raw_text")
     private val crashReportingKey = booleanPreferencesKey("crash_reporting")
     private val pinHashKey = stringPreferencesKey("pin_hash")
@@ -53,6 +54,8 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     private val pinFailuresKey = intPreferencesKey("pin_failures")
     private val pinLockedUntilKey = longPreferencesKey("pin_locked_until")
     private val monthlyBudgetKey = longPreferencesKey("monthly_budget_minor")
+    private val billReminderDaysKey = intPreferencesKey("bill_reminder_days")
+    private val billPromptDismissedKey = booleanPreferencesKey("bill_reminder_prompt_dismissed")
     private val data = store.data.catch { exception ->
         if (exception is IOException) emit(emptyPreferences()) else throw exception
     }
@@ -65,11 +68,18 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     val onboardingComplete = data.map { it[onboardingKey] ?: false }
     val offline = data.map { it[offlineKey] ?: true }
     val hideAmounts = data.map { it[hideAmountsKey] ?: false }
+    /** Device-local Home order; an empty list preserves repository ordering. */
+    val homeAccountOrder = data.map { prefs ->
+        prefs[homeAccountOrderKey]?.split(',')?.mapNotNull(String::toLongOrNull)?.distinct().orEmpty()
+    }
     val keepRawText = data.map { it[retentionKey] ?: false }
     val crashReporting = data.map { it[crashReportingKey] ?: false }
     val pinSet = data.map { it[pinHashKey] != null }
     val biometricUnlock = data.map { it[pinHashKey] != null && (it[biometricKey] ?: false) }
     val monthlyBudget = data.map { it[monthlyBudgetKey] }
+    /** Days before a bill's due date to remind (0 = the day itself), or null when reminders are off. */
+    val billReminderDays = data.map { it[billReminderDaysKey] }
+    val billPromptDismissed = data.map { it[billPromptDismissedKey] ?: false }
     /** Monthly limit per spending category, keyed by category name. */
     val categoryBudgets = data.map { prefs ->
         prefs.asMap().entries.filter { it.key.name.startsWith(CATEGORY_BUDGET_PREFIX) }
@@ -97,8 +107,16 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     suspend fun resetOnboarding() { store.edit { it[onboardingKey] = false } }
     suspend fun setOffline(value: Boolean) { store.edit { it[offlineKey] = value } }
     suspend fun setHideAmounts(value: Boolean) { store.edit { it[hideAmountsKey] = value } }
+    suspend fun setHomeAccountOrder(ids: List<Long>) { store.edit { it[homeAccountOrderKey] = ids.distinct().joinToString(",") } }
     suspend fun setKeepRawText(value: Boolean) { store.edit { it[retentionKey] = value } }
     suspend fun setCrashReporting(value: Boolean) { store.edit { it[crashReportingKey] = value } }
+    /**
+     * Stores the reminder lead time in days (zero means due day); null disables reminders.
+     * Values are stored without range validation. Preference-write failures propagate.
+     */
+    suspend fun setBillReminderDays(days: Int?) { store.edit { if (days == null) it.remove(billReminderDaysKey) else it[billReminderDaysKey] = days } }
+    /** Persists whether the Bills reminder prompt is dismissed; preference-write failures propagate. */
+    suspend fun setBillPromptDismissed(value: Boolean) { store.edit { it[billPromptDismissedKey] = value } }
     /** Stores the monthly limit in minor units, or removes it when [minor] is null. */
     suspend fun setMonthlyBudget(minor: Long?) { store.edit { if (minor == null) it.remove(monthlyBudgetKey) else it[monthlyBudgetKey] = minor } }
     /** Stores a balance in minor units and its cutoff time for [packageName], or removes it when null. */

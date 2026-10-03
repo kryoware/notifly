@@ -120,7 +120,7 @@ interface RawCaptureDao : LedgerDao {
     @Query("DELETE FROM raw_captures")
     suspend fun clearLog()
 
-    @Query("UPDATE raw_captures SET body = NULL")
+    @Query("UPDATE raw_captures SET body = NULL, extras = NULL")
     suspend fun redactBodies()
 
     @Query("DELETE FROM raw_captures WHERE capturedAtMillis < :cutoffMillis")

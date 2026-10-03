@@ -15,7 +15,7 @@ actual val androidModule: Module = module {
     single { ph.notifly.data.local.InstalledApps(get(), get()) }
     single { ph.notifly.data.local.appPreferences(get()) }
     single { ModelNotificationParser(get(), get()) }
-    single<TransactionSource> { NotificationTransactionSource(get(), get(), get(), get(), get()) }
+    single<TransactionSource> { NotificationTransactionSource(get(), get(), get(), get(), get(), get(), get()) }
     single<AppDatabase> { getRoomDatabase(getDatabaseBuilder(get())) }
     single<ErrorReporter> { SentryErrorReporter() }
 }

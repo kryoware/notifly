@@ -26,6 +26,7 @@ fun TransactionEntity.toDomain() = Transaction(
     categoryId = categoryId,
     fromApp = fromApp,
     toApp = toApp,
+    feeMinor = feeMinor,
 )
 
 fun Transaction.toEntity() = TransactionEntity(
@@ -46,6 +47,7 @@ fun Transaction.toEntity() = TransactionEntity(
     categoryId = categoryId,
     fromApp = fromApp,
     toApp = toApp,
+    feeMinor = feeMinor,
 )
 
 fun RawCaptureEntity.toDomain() = RawCapture(
@@ -58,6 +60,7 @@ fun RawCaptureEntity.toDomain() = RawCapture(
     matchedAmount = matchedAmount,
     matchedDirection = matchedDirection,
     reason = reason,
+    extras = extras?.let(::decodeExtras).orEmpty(),
 )
 
 fun RawCapture.toEntity() = RawCaptureEntity(
@@ -70,7 +73,22 @@ fun RawCapture.toEntity() = RawCaptureEntity(
     matchedAmount = matchedAmount,
     matchedDirection = matchedDirection,
     reason = reason,
+    extras = extras.takeIf { it.isNotEmpty() }?.let(::encodeExtras),
 )
+
+// One "key\tvalue" per line; escaping keeps raw tabs/newlines out so split is safe.
+private fun encodeExtras(extras: Map<String, String>) =
+    extras.entries.joinToString("\n") { (key, value) -> "${key.escapeField()}\t${value.escapeField()}" }
+
+private fun decodeExtras(value: String) = value.split("\n").mapNotNull { line ->
+    line.split("\t").takeIf { it.size == 2 }?.let { (key, field) -> key.unescapeField() to field.unescapeField() }
+}.toMap()
+
+private fun String.escapeField() = replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
+
+private fun String.unescapeField() = Regex("\\\\(.)").replace(this) {
+    when (val c = it.groupValues[1]) { "n" -> "\n"; "t" -> "\t"; else -> c }
+}
 
 fun AllowedAppEntity.toDomain() = AllowedApp(
     packageName = packageName,

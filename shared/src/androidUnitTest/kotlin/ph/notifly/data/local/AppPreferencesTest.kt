@@ -38,19 +38,20 @@ class AppPreferencesTest {
             transform(state.value).also { state.value = it }
     }
 
-    @Test fun appearanceSurvivesReopeningStore() = runBlocking {
+    @Test fun appearanceAndHomeOrderSurviveReopeningStore() = runBlocking {
         val file = File.createTempFile("notifly", ".preferences_pb")
         file.delete()
         val firstScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         val secondScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         try {
-            // Okio's atomic replacement also works on Windows, where File.renameTo cannot replace a file.
+            // Okio supports atomic replacement on Windows as well as Android.
             val first = AppPreferences(PreferenceDataStoreFactory.create(scope = firstScope,
                 storage = OkioStorage(FileSystem.SYSTEM, PreferencesSerializer) { file.toOkioPath() }))
-            assertEquals(NotiflyPalette.Ube, first.palette.first())
             assertEquals(Appearance(), first.appearance.first())
+            assertEquals(emptyList(), first.homeAccountOrder.first())
             first.setPalette(NotiflyPalette.Clay)
             first.setThemeMode(ThemeMode.DARK)
+            first.setHomeAccountOrder(listOf(8L, 3L, 12L))
             firstScope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
             firstScope.coroutineContext[kotlinx.coroutines.Job]!!.join()
             val reopened = AppPreferences(PreferenceDataStoreFactory.create(scope = secondScope,
@@ -58,6 +59,7 @@ class AppPreferencesTest {
             assertEquals(NotiflyPalette.Clay, reopened.palette.first())
             assertEquals(ThemeMode.DARK, reopened.themeMode.first())
             assertEquals(Appearance(NotiflyPalette.Clay, ThemeMode.DARK), reopened.appearance.first())
+            assertEquals(listOf(8L, 3L, 12L), reopened.homeAccountOrder.first())
         } finally {
             firstScope.cancel()
             secondScope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
@@ -74,6 +76,7 @@ class AppPreferencesTest {
         assertEquals(true, preferences.offline.first())
         assertEquals(false, preferences.keepRawText.first())
         assertEquals(false, preferences.crashReporting.first())
+        assertEquals(emptyList(), preferences.homeAccountOrder.first())
     }
 
     @Test fun nonIoReadFailuresAreRethrown() {
