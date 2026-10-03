@@ -46,7 +46,7 @@ actual fun rememberTransactionFiles(
                 }
                 currentImport(csv)
             } catch (e: CancellationException) { throw e }
-            catch (_: Exception) { message("Couldn't read this CSV. Check that it is a UTF-8 Notifly transaction export under 5 million characters.") }
+            catch (_: Exception) { message("Couldn't read this CSV. Check that it is a UTF-8 Notifly or Budge transaction export under 5 million characters.") }
             finally { busy = false }
         }
     }
