@@ -9,12 +9,15 @@ data class SyncTransaction(
     val type: TransactionType,
     val category: String,
     val occurredAtMillis: Long,
+    val feeMinor: Long = 0,
 )
 
 fun Transaction.toSyncTransaction(): SyncTransaction {
     require(status == TransactionStatus.CONFIRMED) { "Only confirmed transactions can sync" }
     require(currency == "PHP") { "Only PHP transactions can sync" }
     require(amountMinor > 0 && title.isNotBlank())
+    require(feeMinor >= 0 && amountMinor <= Long.MAX_VALUE - feeMinor)
+    require(type == TransactionType.TRANSFER || feeMinor == 0L)
     require(accountId > 0 && (type != TransactionType.TRANSFER || (toAccountId != null && toAccountId > 0 && toAccountId != accountId)))
-    return SyncTransaction(id, title, amountMinor, currency, type, category, occurredAt.toEpochMilliseconds())
+    return SyncTransaction(id, title, amountMinor, currency, type, category, occurredAt.toEpochMilliseconds(), feeMinor)
 }

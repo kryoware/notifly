@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewModelScope
@@ -54,6 +55,8 @@ class LedgerSettingsModel(private val ledger: LedgerRepository, apps: AllowListR
 @Composable
 internal fun <T> ChoiceField(title: String, value: String, options: List<T>,
     error: String? = null, searchable: Boolean = false, emptyLabel: String = "options",
+    searchText: (T) -> String = { it.toString() }, supporting: String? = null,
+    leading: (@Composable (T) -> Unit)? = null,
     label: (T) -> String, choose: (T) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf(TextFieldValue(value)) }
@@ -67,7 +70,7 @@ internal fun <T> ChoiceField(title: String, value: String, options: List<T>,
     }
     val search = query.text.trim()
     val filtered = if (searchable && searching && search.isNotEmpty()) options.filter {
-        label(it).contains(search, ignoreCase = true)
+        label(it).contains(search, ignoreCase = true) || searchText(it).contains(search, ignoreCase = true)
     } else options
     fun close() { expanded = false; query = TextFieldValue(value); keyboard?.hide() }
     ExposedDropdownMenuBox(expanded, { shouldExpand ->
@@ -86,7 +89,8 @@ internal fun <T> ChoiceField(title: String, value: String, options: List<T>,
             readOnly = !searchable,
             singleLine = true,
             label = { Text(title) }, isError = error != null,
-            supportingText = error?.let { { Text(it) } },
+            leadingIcon = leading?.let { content -> options.find { label(it) == value }?.let { item -> { content(item) } } },
+            supportingText = (error ?: supporting)?.let { { Text(it) } },
             trailingIcon = {
                 if (searchable && expanded && query.text.isNotEmpty()) IconButton(
                     onClick = { query = TextFieldValue(""); searching = true; expanded = true },
@@ -105,17 +109,19 @@ internal fun <T> ChoiceField(title: String, value: String, options: List<T>,
                 enabled = false, onClick = {})
             filtered.forEach { item -> DropdownMenuItem(
                 text = { Text(label(item)) }, modifier = Modifier.heightIn(min = 48.dp),
+                leadingIcon = leading?.let { content -> { content(item) } },
                 onClick = { choose(item); close() }) }
         }
     }
 }
 
 @Composable
-internal fun AccountPicker(title: String, selected: Long?, accounts: List<Account>, error: String? = null,
-    searchable: Boolean = false, choose: (Long) -> Unit) {
-    ChoiceField(title, accounts.find { it.id == selected }?.name ?: "Choose an account", accounts, error,
-        searchable = searchable, emptyLabel = "accounts",
-        label = { it.name + if (it.type == AccountType.CARD) " · Card" else "" }) { choose(it.id) }
+internal fun AccountPicker(title: String, selected: Long?, accounts: List<Account>, error: String? = null, searchable: Boolean = true, choose: (Long) -> Unit) {
+    val account = accounts.find { it.id == selected }
+    ChoiceField(title, account?.pickerLabel() ?: "Choose an account", accounts, error, searchable = searchable, emptyLabel = "accounts",
+        supporting = account?.let { listOfNotNull(it.type.name.lowercase().replaceFirstChar { c -> c.uppercase() },
+            it.cardType, it.lastFour?.let { digits -> "Ending $digits" }).joinToString(" · ") },
+        leading = { AccountSymbol(it) }, label = { it.pickerLabel() }) { choose(it.id) }
 }
 
 @Composable
@@ -201,7 +207,7 @@ fun AccountEditorScreen(model: LedgerSettingsModel, id: Long) {
                 signed = true, modifier = Modifier.fillMaxWidth()) }
             item { SettingsRow("Reconcile balance now", "Only later confirmed transactions will change this balance",
                 checked = reconcile, onCheckedChange = { reconcile = it }) }
-            item { SettingsRow("Free transfers", "Account information; no fee is inferred", checked = free, onCheckedChange = { free = it }) }
+            item { SettingsRow("Free transfers", "Otherwise, a transfer fee is required when recording transfers", checked = free, onCheckedChange = { free = it }) }
             item { Text("Linked finance apps", style = MaterialTheme.typography.titleMedium) }
             if (s.apps.none { it.finance || it.packageName in links }) item {
                 TextButton(onClick = { model.navigate("finance-apps") }) { Text("Choose finance apps") }

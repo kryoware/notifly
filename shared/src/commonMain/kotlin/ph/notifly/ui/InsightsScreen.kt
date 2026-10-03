@@ -159,7 +159,7 @@ private fun CashFlowCard(w: WindowInsights) {
                     Change(w.current.spent, w.previous.spent, null)
                 }
             }
-            Text("Compared with the previous ${w.days} days. Transfers between your accounts aren't counted.",
+            Text("Compared with the previous ${w.days} days. Transfer amounts aren't counted; fees count as spending.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = Space.sm))
         }

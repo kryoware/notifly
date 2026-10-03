@@ -84,6 +84,7 @@ class LedgerControlsTest {
         compose.onNodeWithText("Category").performScrollTo().performClick()
         compose.onNodeWithText("Salary").assertExists().performClick()
         compose.runOnIdle { Assert.assertEquals("Salary", editor.state.value.category) }
+        compose.onNodeWithText("Source details").performScrollTo().performClick()
         compose.onNodeWithText("Source app").performScrollTo().performClick()
         compose.onNodeWithText("GCash").assertExists()
         compose.onNodeWithText("Maya").performClick()
@@ -132,7 +133,10 @@ class LedgerControlsTest {
         }
         compose.waitUntil { editor.state.value.accounts.isNotEmpty() }
 
-        fun open(title: String) { compose.onNodeWithText(title).performScrollTo().performClick() }
+        fun open(title: String) {
+            if (title == "Source app" && compose.onAllNodesWithText("Source app").fetchSemanticsNodes().isEmpty())
+                compose.onNodeWithText("Source details").performScrollTo().performClick()
+            compose.onNodeWithText(title).performScrollTo().performClick() }
         fun type(query: String) { compose.onNode(isFocused()).performTextInput(query) }
         fun unchanged(account: Long?, destination: Long?, category: String, source: String?) {
             compose.runOnIdle {
@@ -197,6 +201,7 @@ class LedgerControlsTest {
         unchanged(2, null, "Other", "com.paymaya")
         compose.onNode(isFocused()).performImeAction()
 
+        compose.onNodeWithText("Source details").performScrollTo().performClick()
         open("Source app")
         type("zz-no-source")
         compose.onNodeWithText("No matching sources").assertExists()
@@ -223,8 +228,9 @@ class LedgerControlsTest {
         val editor = EditorModel(transactions, 1, ledger = DemoLedger(transactions), apps = DemoAllowList())
         compose.setContent { NotiflyTheme { Surface(Modifier.fillMaxSize()) { EditorScreen(editor) } } }
         compose.waitUntil { editor.state.value.accounts.isNotEmpty() }
-        compose.onNodeWithText("Source app").performScrollTo().performClick()
-        compose.onAllNodesWithText("com.paymaya").assertCountEquals(2)
+        compose.onNodeWithText("Source details").performScrollTo().performClick()
+        compose.onNodeWithText("Source: com.paymaya").performScrollTo().assertExists()
+        compose.onNodeWithText("Source app").assertDoesNotExist()
         Assert.assertEquals("com.paymaya", editor.state.value.sourceApp)
     }
 
@@ -252,7 +258,11 @@ class LedgerControlsTest {
                 type = if (title.endsWith("account")) TransactionType.TRANSFER else TransactionType.INCOME,
                 accountId = 2, toAccountId = 1, category = "Other", sourceApp = "com.paymaya") }
             val before = editor.state.value
-            fun open() { compose.onNodeWithText(title).performScrollTo().performClick() }
+            fun open() {
+                if (title == "Source app" && compose.onAllNodesWithText(title).fetchSemanticsNodes().isEmpty())
+                    compose.onNodeWithText("Source details").performScrollTo().performClick()
+                compose.onNodeWithText(title).performScrollTo().performClick()
+            }
             fun unchanged() { compose.runOnIdle { Assert.assertEquals(before, editor.state.value) } }
             open()
             compose.onNode(isFocused()).performTextInput("zz-no-match")
@@ -272,6 +282,11 @@ class LedgerControlsTest {
             if (title == "Source app") screenshotPopup("search-source-filtered.png")
             androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
                 .sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+            compose.waitForIdle()
+            // Android can consume the first Back to hide the IME before dismissing the menu.
+            if (compose.onAllNodes(isPopup()).fetchSemanticsNodes().isNotEmpty())
+                androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+                    .sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
             compose.onNode(isPopup()).assertDoesNotExist()
             compose.onNodeWithText(selected).assertExists()
             unchanged()

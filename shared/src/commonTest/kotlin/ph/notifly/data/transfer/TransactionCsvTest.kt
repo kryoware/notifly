@@ -5,6 +5,16 @@ import kotlin.test.*
 import kotlin.time.Instant
 
 class TransactionCsvTest {
+    @Test fun feesRoundTripAndOlderFilesDefaultToZero() {
+        val simple = row.copy(title = "Transfer", note = "", feeMinor = 1500)
+        val csv = TransactionCsv.encode(listOf(simple))
+        assertEquals(1500L, TransactionCsv.decode(csv).single().feeMinor)
+        val v2 = csv.trimEnd().lines().joinToString("\n") { it.substringBeforeLast(',') }
+        assertEquals(0L, TransactionCsv.decode(v2).single().feeMinor)
+        val v1 = v2.lines().joinToString("\n") { line -> line.split(',').take(12).joinToString(",") }
+        assertEquals(0L, TransactionCsv.decode(v1).single().feeMinor)
+        assertFailsWith<IllegalArgumentException> { TransactionCsv.decode(csv.replace("\"1500\"", "\"-1\"")) }
+    }
     private val row = Transaction(id = 42, title = "=Merchant, \"name\"\nsecond line", amountMinor = 12345,
         type = TransactionType.TRANSFER, status = TransactionStatus.CONFIRMED, category = "Transfer",
         occurredAt = Instant.parse("2026-10-01T12:00:00Z"), sourceApp = "wallet", captureId = 99,
@@ -45,22 +55,22 @@ class TransactionCsvTest {
     private val budge = """
         Format version,Period,User ID
         1,01-01-2026..31-01-2026,user
-        
+
         ###
-        
+
         Date,Payment,Is paid,Amount,Currency,Account,Category,Subcategory,Goal,Description
         05-01-2026,Coffee Shop ,true,-590.80,PHP,Card A,Dining,Delivery,,late
         05-01-2026,Coffee Shop ,true,-590.80,PHP,Card A,Dining,Delivery,,late
         06-01-2026,,true,1500.5,PHP,Bank B,,,,
         07-01-2026,Planned,false,-100,PHP,Bank B,Bills,,,
-        
+
         ###
-        
+
         Account,Account Balance,Available Balance,Credit Limit,Currency,Is savings,Description
         Card A,-100,900,1000,PHP,false,
-        
+
         ###
-        
+
         Goal,whatever,mangled
         Rainy day,1,2
     """.trimIndent()

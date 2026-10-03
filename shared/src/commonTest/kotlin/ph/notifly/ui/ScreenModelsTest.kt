@@ -234,7 +234,7 @@ class ScreenModelsTest {
             runCurrent()
         } finally { Dispatchers.resetMain() }
     }
-    @Test fun transferFeeOnlyAppliesBetweenBanksWithoutFreeTransfers() = runTest {
+    @Test fun transferFeeIsRequiredForOriginsWithoutFreeTransfers() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
             val repository = DemoTransactions()
@@ -244,11 +244,12 @@ class ScreenModelsTest {
             val editor = EditorModel(repository, 0, ledger = ledger, apps = DemoAllowList())
             runCurrent()
             editor.edit(type = TransactionType.TRANSFER, accountId = free, toAccountId = paid)
-            assertFalse(editor.state.value.feeApplies)
+            assertFalse(editor.state.value.feeRequired)
             editor.edit(accountId = 1, toAccountId = paid)
-            assertFalse(editor.state.value.feeApplies)
-            editor.edit(title = "[TEST] fee", amount = "100", accountId = paid, toAccountId = free, fee = "15")
-            assertTrue(editor.state.value.feeApplies)
+            assertTrue(editor.state.value.feeRequired)
+            editor.edit(title = "[TEST] fee", amount = "100", accountId = paid, toAccountId = free)
+            editor.edit(fee = "15")
+            assertTrue(editor.state.value.feeRequired)
             editor.save()
             runCurrent()
             val saved = repository.observeAll().first().first { it.title == "[TEST] fee" }
@@ -258,7 +259,7 @@ class ScreenModelsTest {
             ledger.saveAccount(ledger.observeAccounts().first().first { it.id == paid }.copy(freeTransfer = true))
             val reopened = EditorModel(repository, saved.id, ledger = ledger, apps = DemoAllowList())
             runCurrent()
-            assertTrue(reopened.state.value.feeApplies)
+            assertTrue(reopened.state.value.feeRequired)
             reopened.edit(title = "[TEST] fee renamed")
             reopened.save()
             runCurrent()

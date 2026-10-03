@@ -59,6 +59,8 @@ interface TransactionDao {
     suspend fun validated(entity: TransactionEntity): TransactionEntity {
         require(entity.title.isNotBlank() && entity.amountMinor > 0 && entity.currency == "PHP")
         require(entity.type in listOf("INCOME", "EXPENSE", "TRANSFER"))
+        require(entity.feeMinor >= 0 && entity.amountMinor <= Long.MAX_VALUE - entity.feeMinor)
+        require(entity.type == "TRANSFER" || entity.feeMinor == 0L)
         require(entity.status in listOf("CONFIRMED", "NEEDS_REVIEW"))
         val previous = if (entity.id != 0L) byId(entity.id) else null
         val account = requireNotNull(accountById(entity.accountId)) { "Choose an account." }
@@ -124,7 +126,8 @@ interface TransactionDao {
         """
         SELECT COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amountMinor
                                   WHEN type = 'EXPENSE' THEN -amountMinor
-                                  ELSE -feeMinor END), 0)
+                                  WHEN type = 'TRANSFER' THEN -feeMinor
+                                  ELSE 0 END), 0)
         FROM transactions
         WHERE status = 'CONFIRMED' AND currency = 'PHP'
         """

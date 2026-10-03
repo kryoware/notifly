@@ -58,16 +58,19 @@ fun chartSlices(sorted: List<Pair<String, Long>>, limit: Int): List<Pair<String,
 
 private fun cashFlow(rows: List<Transaction>) = CashFlow(
     rows.filter { it.type == TransactionType.INCOME }.sumOf { it.amountMinor },
-    rows.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountMinor } + rows.sumOf { it.feeMinor },
+    rows.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountMinor },
 )
 
 /** NEEDS_REVIEW rows never count: insights describe the same money as the headline balance. */
 private fun List<Transaction>.confirmedByDate(zone: TimeZone) = filter { it.status == TransactionStatus.CONFIRMED }
+    .map { if (it.type == TransactionType.TRANSFER) it.copy(type = TransactionType.EXPENSE,
+        amountMinor = it.feeMinor, feeMinor = 0, title = "Transfer fee · ${it.title}", category = "Transfer fees") else it }
+    .filter { it.amountMinor > 0 }
     .map { it.occurredAt.toLocalDateTime(zone).date to it }
 
 /**
  * Summarizes confirmed cash flow over [days] calendar days ending on [today], compared with the
- * preceding equally sized window. [zone] assigns occurrence dates; later dates and transfers are excluded.
+ * preceding equally sized window. [zone] assigns occurrence dates; later dates and transfer principal are excluded.
  * Amounts stay in minor units. Daily spending includes zero-spend days, oldest first; categories
  * hold current-window expenses plus a [TRANSFER_FEES] share, in descending total order. [WindowInsights.largest] holds
  * up to three expenses, largest first. Use a positive [days] for a meaningful window and daily average.
@@ -101,7 +104,7 @@ fun windowInsights(rows: List<Transaction>, today: LocalDate, days: Int, zone: T
 
 /**
  * Summarizes confirmed income and expenses from the month's first day through [today], inclusive,
- * using occurrence dates in [zone]. Transfers and later dates are excluded; totals are in minor units.
+ * using occurrence dates in [zone]. Transfer principal and later dates are excluded; fees count as spending.
  */
 fun monthInsights(rows: List<Transaction>, today: LocalDate, zone: TimeZone): MonthInsights {
     val first = LocalDate(today.year, today.month, 1)

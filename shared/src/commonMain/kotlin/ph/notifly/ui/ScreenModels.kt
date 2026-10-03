@@ -243,13 +243,10 @@ data class EditorState(
     val loaded get() = baseline != null
     val dirty get() = loaded && baseline != fields()
     internal fun withBaseline() = copy(baseline = fields())
-    /**
-     * Bank-to-bank transfers out of an account without free transfers can carry a fee. A transfer
-     * that already has one keeps the field, so later account changes never silently drop it.
-     */
-    val feeApplies get() = type == TransactionType.TRANSFER && ((original?.feeMinor ?: 0) > 0 ||
-        accounts.find { it.id == accountId }?.let { it.type == AccountType.BANK && !it.freeTransfer } == true &&
-        accounts.find { it.id == toAccountId }?.type == AccountType.BANK)
+    val feeRequired: Boolean get() = type == TransactionType.TRANSFER && accounts.find { it.id == accountId }?.let {
+        !it.freeTransfer || (original?.accountId == it.id && original.feeMinor > 0)
+    } == true
+
 }
 class EditorModel(private val repository: TransactionRepository, id: Long,
                   captures: CaptureRepository? = null, captureId: Long? = null,
@@ -269,7 +266,7 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
             EditorState(t, t?.title.orEmpty(), t?.let { amountText(it.amountMinor) }.orEmpty(),
                 t?.category ?: "Other", t?.type ?: TransactionType.EXPENSE,
                 accountId = t?.accountId, toAccountId = t?.toAccountId, categoryId = t?.categoryId, sourceApp = t?.sourceApp,
-                fee = t?.feeMinor?.takeIf { it > 0 }?.let(::amountText).orEmpty(),
+                fee = t?.takeIf { it.type == TransactionType.TRANSFER }?.let { amountText(it.feeMinor) }.orEmpty(),
                 date = local.date.toString(),
                 time = if (t == null) "00:00" else local.hour.toString().padStart(2, '0') + ":" + local.minute.toString().padStart(2, '0'))
         }
@@ -324,7 +321,9 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
             category = if (type == TransactionType.TRANSFER) "Transfer" else if (type != state.value.type && chosen == null) "Other" else category,
             categoryId = if (type == TransactionType.TRANSFER) null else chosen?.id, type = type, date = date, time = time,
             accountId = suggestion, toAccountId = toAccountId.takeIf { type == TransactionType.TRANSFER }, sourceApp = sourceApp,
-            fee = fee, feeError = null, accountError = null, toAccountError = null, error = null, titleError = null, amountError = null, dateError = null, timeError = null)
+            fee = if (type != TransactionType.TRANSFER) "" else if (suggestion != state.value.accountId) "" else fee,
+            feeError = null,
+            accountError = null, toAccountError = null, error = null, titleError = null, amountError = null, dateError = null, timeError = null)
     }
     /**
      * Validates the editor fields and asynchronously saves a confirmed transaction, then navigates
@@ -340,15 +339,13 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
         val amount = parseAmountMinor(s.amount)
         val date = runCatching { LocalDate.parse(s.date) }.getOrNull()
         val time = runCatching { LocalTime.parse(s.time) }.getOrNull()
-        val fee = if (!s.feeApplies || s.fee.isBlank()) 0L else parseAmountMinor(s.fee)
-        if (date == null || time == null || s.title.isBlank() || amount == null || fee == null) {
+        if (date == null || time == null || s.title.isBlank() || amount == null) {
             mutableState.value = s.copy(
                 error = "Correct the highlighted fields.",
                 titleError = if (s.title.isBlank()) "Add a description." else null,
                 amountError = if (amount == null) "Enter an amount above zero, with at most two decimal places." else null,
                 dateError = if (date == null) "Enter a valid date as YYYY-MM-DD." else null,
                 timeError = if (time == null) "Enter a valid time as HH:MM." else null,
-                feeError = if (fee == null) "Enter a fee above zero with at most two decimal places, or leave it blank." else null,
             )
             return
         }
@@ -357,6 +354,13 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
         if (account == null || (s.type == TransactionType.TRANSFER && (destination == null || destination.id == account.id))) {
             mutableState.value = s.copy(accountError = if (account == null) "Choose an account." else null,
                 toAccountError = if (s.type == TransactionType.TRANSFER) "Choose a different destination account." else null)
+            return
+        }
+        val fee = if (!s.feeRequired) 0L else parseFeeMinor(s.fee)
+        if (fee == null || amount > Long.MAX_VALUE - fee) {
+            mutableState.value = s.copy(feeError = if (fee == null)
+                "Enter the fee, or 0 if this transfer was free. Use at most two decimal places."
+                else "The transfer amount and fee are too large.")
             return
         }
         mutableState.value = s.copy(saving = true)
@@ -477,8 +481,18 @@ class BillsModel(private val bills: BillRepository, private val transactions: Tr
     /** The user's tap is the confirmation, so a NEEDS_REVIEW expense is confirmed as it is linked. */
     fun link(bill: Bill, due: LocalDate, transaction: Transaction) = work {
         val review = transaction.status == TransactionStatus.NEEDS_REVIEW
-        if (review) transactions.upsert(transaction.copy(status = TransactionStatus.CONFIRMED))
-        settle(bill, due, transaction.id, "${bill.name} marked paid") { if (review) transactions.upsert(transaction) }
+        val paymentId = bills.settle(bill.id, due, transaction.id)
+        if (paymentId < 0) return@work
+        try {
+            if (review) transactions.upsert(transaction.copy(status = TransactionStatus.CONFIRMED))
+        } catch (e: Exception) {
+            withContext(NonCancellable) { bills.unsettle(paymentId) }
+            throw e
+        }
+        mutableEvents.emit(UiEvent.Message("${bill.name} marked paid", onUndo = {
+            bills.unsettle(paymentId)
+            if (review) transactions.upsert(transaction)
+        }))
     }
     /** Asynchronously records the occurrence as skipped and offers Undo; non-cancellation failures become UI messages. */
     fun skip(bill: Bill, due: LocalDate) = work { settle(bill, due, null, "${bill.name} skipped") {} }

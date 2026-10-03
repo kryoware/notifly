@@ -84,6 +84,8 @@ class DemoTransactions(initial: List<Transaction> = listOf(
     override suspend fun upsert(transaction: Transaction): Long {
         require(transaction.accountId > 0 && transaction.amountMinor > 0 && transaction.title.isNotBlank() && transaction.currency == "PHP")
         require(transaction.type != TransactionType.TRANSFER || (transaction.toAccountId != null && transaction.toAccountId != transaction.accountId))
+        require(transaction.feeMinor >= 0 && transaction.amountMinor <= Long.MAX_VALUE - transaction.feeMinor)
+        require(transaction.type == TransactionType.TRANSFER || transaction.feeMinor == 0L)
         val id = transaction.id.takeIf { it != 0L } ?: nextId++
         rows.value = (rows.value.filterNot { it.id == id } + transaction.copy(id = id))
             .sortedWith(compareByDescending<Transaction> { it.occurredAt }.thenByDescending { it.createdAt })
