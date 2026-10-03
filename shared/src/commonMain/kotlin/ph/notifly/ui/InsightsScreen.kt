@@ -392,7 +392,8 @@ private fun ShareDonut(shares: List<Pair<String, Long>>, caption: String, chart:
     val colors = slices.indices.map { sliceColor(it) }
     val (label, amount) = picked?.let { slices[it] } ?: (caption to total)
     PieChart(
-        values = slices.map { ratio(it.second, total) },
+        // Floored so every row keeps a visible arc: each slice loses its 1° gap on both sides.
+        values = slices.map { maxOf(ratio(it.second, total), 0.01f) },
         modifier = Modifier.fillMaxWidth().semantics {
             contentDescription = "$chart chart. " + slices.joinToString { (name, value) -> "$name ${value * 100 / total}%" }
         },
