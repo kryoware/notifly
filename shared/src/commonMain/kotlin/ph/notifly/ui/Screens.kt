@@ -47,6 +47,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -468,6 +470,7 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
     LaunchedEffect(appLabels) { model.appLabels(appLabels) }
     var searching by remember { mutableStateOf(s.query.isNotEmpty()) }
     val searchFocus = remember { FocusRequester() }
+    var queryField by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue(s.query, TextRange(s.query.length))) }
     fun closeSearch() { searching = false; model.search("") }
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = searching && !selectionMode, onBackCompleted = ::closeSearch)
     // Selected rows separate into individual slips so the tint reads per row, not as one block.
@@ -492,7 +495,8 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             ) else if (searching) TopAppBar(
                 title = {
-                    TextField(s.query, model::search, Modifier.fillMaxWidth().focusRequester(searchFocus),
+                    TextField(if (queryField.text == s.query) queryField else TextFieldValue(s.query, TextRange(s.query.length)),
+                        { queryField = it; model.search(it.text) }, Modifier.fillMaxWidth().focusRequester(searchFocus),
                         placeholder = { Text("Search transactions") }, singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         colors = MaterialTheme.colorScheme.surface.let { bar -> TextFieldDefaults.colors(focusedContainerColor = bar,
