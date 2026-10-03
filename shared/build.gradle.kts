@@ -19,7 +19,7 @@ kotlin {
     }
 
     // Declared so commonMain stays honest about platform leakage.
-    // There is no iosApp/ yet — see CLAUDE.md § "Platform boundary".
+    // There is no iosApp/ yet — see docs/DEVELOPMENT.md § "Platform boundary".
     // iosX64()
     iosArm64()
     iosSimulatorArm64()
