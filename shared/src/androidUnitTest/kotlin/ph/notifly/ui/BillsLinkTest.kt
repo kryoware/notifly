@@ -26,7 +26,8 @@ class BillsLinkTest {
         val bills = DemoBills()
         val ledger = DemoLedger(transactions)
         val model = BillsModel(bills, transactions, ledger, AppPreferences(store))
-        val pending = transactions.byId(2)!!
+        val pendingId = transactions.upsert(transactions.byId(2)!!.copy(id = 0, title = "[TEST] bill link expense"))
+        val pending = transactions.byId(pendingId)!!
         val bill = bills.byId(1)!!
         val due = bill.nextDue!!
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.events.collect() }
@@ -53,6 +54,7 @@ class BillsLinkTest {
             assertEquals(pending.id, bills.observePayments().first().single().transactionId)
         } finally {
             model.viewModelScope.cancel()
+            transactions.delete(pendingId)
             Dispatchers.resetMain()
         }
     }
