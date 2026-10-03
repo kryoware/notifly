@@ -16,6 +16,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.SideEffect
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
@@ -27,6 +32,7 @@ import ph.notifly.ui.NotiflyApp
 class MainActivity : ComponentActivity() {
     private val source: TransactionSource by inject()
     private val installedApps: ph.notifly.data.local.InstalledApps by inject()
+    private val preferences: ph.notifly.data.local.AppPreferences by inject()
     private val available = mutableStateOf(false)
     private val batteryExempt = mutableStateOf(false)
     private val biometricAvailable = mutableStateOf(false)
@@ -37,8 +43,9 @@ class MainActivity : ComponentActivity() {
         notificationsAllowed.value = it
     }
     private fun refreshNotificationsAllowed() {
-        notificationsAllowed.value = Build.VERSION.SDK_INT < 33 ||
-            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        notificationsAllowed.value = getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled() &&
+            (Build.VERSION.SDK_INT < 33 ||
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED)
     }
     // ponytail: framework BiometricPrompt needs API 30 for BIOMETRIC_STRONG; API 26–29 get PIN only. androidx.biometric if older devices matter.
     /**
@@ -69,17 +76,34 @@ class MainActivity : ComponentActivity() {
         refreshNotificationsAllowed()
 
         setContent {
+            val themeMode by preferences.themeMode.collectAsState(ph.notifly.ui.theme.ThemeMode.SYSTEM)
+            val dark = when (themeMode) {
+                ph.notifly.ui.theme.ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                ph.notifly.ui.theme.ThemeMode.LIGHT -> false
+                ph.notifly.ui.theme.ThemeMode.DARK -> true
+            }
+            SideEffect {
+                WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = !dark
+                    isAppearanceLightNavigationBars = !dark
+                }
+            }
             NotiflyApp(
                 permissionAvailable = available.value,
                 requestPermission = { openSystemSettings(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS) },
                 batteryExempt = batteryExempt.value,
                 requestBatteryExemption = { openSystemSettings(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS) },
                 versionName = BuildConfig.VERSION_NAME,
+                buildLabel = "${BuildConfig.BUILD_TYPE}-${BuildConfig.SOURCE_REF}-${BuildConfig.SOURCE_SHA}",
                 isDebugBuild = BuildConfig.DEBUG,
                 biometricAvailable = biometricAvailable.value,
                 authenticateBiometric = ::authenticate,
                 notificationsAllowed = notificationsAllowed.value,
-                requestNotifications = { if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS) },
+                requestNotifications = {
+                    if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                        notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    else startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+                },
                 launchRoute = launchRoute.value,
                 launchRouteKey = launchRouteKey.intValue,
             )

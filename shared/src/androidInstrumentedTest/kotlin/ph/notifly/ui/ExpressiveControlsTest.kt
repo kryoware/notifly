@@ -63,6 +63,7 @@ class ExpressiveControlsTest {
         compose.setContent { NotiflyTheme { HomeScreen(model) } }
         val full = "SM Supermarket, ₱2,450.50, needs review"
         compose.waitUntil { model.state.value.rows.isNotEmpty() }
+        compose.onNode(hasScrollAction()).performScrollToNode(hasContentDescription(full))
         compose.onNodeWithContentDescription(full).assertExists()
         compose.onNodeWithContentDescription("Hide amounts").performClick()
         compose.waitUntil { model.state.value.hideAmounts }

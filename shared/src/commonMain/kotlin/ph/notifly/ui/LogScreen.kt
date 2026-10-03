@@ -74,12 +74,12 @@ private fun CaptureResult?.icon() = when (this) {
 }
 
 @Composable
-fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDebugBuild: Boolean = false) {
+fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDebugBuild: Boolean = false, onMessage: (String) -> Unit = {}) {
     val s by model.state.collectAsState()
     var expanded by remember { mutableStateOf<Long?>(null) }
     var clear by remember { mutableStateOf(false) }
     val parser = remember { NotificationParser() }
-    val saveCsv = rememberCsvSaver { s.captures.toCsv(raw = isDebugBuild) }
+    val saveCsv = rememberCsvSaver(csv = { s.captures.toCsv() }, onMessage = onMessage)
     Column(Modifier.fillMaxSize()) {
         val filters = listOf(null) + CaptureResult.entries.filter { it != CaptureResult.IGNORED }
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -95,11 +95,11 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDe
         }
         Column(Modifier.padding(horizontal = 16.dp)) {
             SettingsGroup { SettingsRow("Keep raw text on device", checked = s.keepRaw, onCheckedChange = model::retain) }
-            Text(if (isDebugBuild) "Debug build: raw text is included in CSV exports and removed after 7 days."
+            Text(if (isDebugBuild) "Raw text stays on device and is removed after 7 days. Exports contain metadata only."
                 else "Raw text is never uploaded and is removed after 24 hours.", style = MaterialTheme.typography.bodySmall)
         }
         Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            IconTooltip("Export CSV") { IconButton(onClick = {
+            if (isDebugBuild) IconTooltip("Export CSV") { IconButton(onClick = {
                 val tab = s.filter?.exportName() ?: "all"
                 saveCsv("${tab}_${Clock.System.now().epochSeconds}.csv")
             }, enabled = s.captures.isNotEmpty()) {

@@ -6,6 +6,23 @@ plugins {
     alias(libs.plugins.sentry)
 }
 
+fun gitValue(vararg args: String): String = providers.exec {
+    workingDir(rootProject.projectDir)
+    commandLine("git", *args)
+    isIgnoreExitValue = true
+}.standardOutput.asText.get().trim()
+
+val sourceRef = providers.environmentVariable("NOTIFLY_SOURCE_REF")
+    .orElse(providers.environmentVariable("GITHUB_HEAD_REF").filter { it.isNotBlank() })
+    .orElse(providers.environmentVariable("GITHUB_REF_NAME"))
+    .orElse(providers.environmentVariable("CI_COMMIT_REF_NAME"))
+    .orElse(providers.environmentVariable("BUILD_SOURCEBRANCHNAME"))
+    .getOrElse(gitValue("symbolic-ref", "--quiet", "--short", "HEAD").ifBlank {
+        if (gitValue("rev-parse", "--verify", "HEAD").isNotBlank()) "detached" else "unknown"
+    }).ifBlank { "unknown" }.removePrefix("refs/heads/")
+val sourceSha = gitValue("rev-parse", "--verify", "HEAD").take(7).ifBlank { "unknown" }
+fun buildStringLiteral(value: String) = "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
 android {
     namespace = "ph.notifly.android"
     compileSdk = libs.versions.compileSdk.get().toInt()
@@ -18,6 +35,8 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("String", "SOURCE_REF", buildStringLiteral(sourceRef))
+        buildConfigField("String", "SOURCE_SHA", buildStringLiteral(sourceSha))
         val sentryDsn = providers.gradleProperty("sentryDsn")
             .orElse(providers.environmentVariable("SENTRY_DSN"))
             .getOrElse("")

@@ -70,16 +70,16 @@ fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyM
                 supportingContent = { Text("Confirm them to include them here", color = MaterialTheme.colorScheme.onTertiaryContainer) },
             )
         }
-        item { CashFlowCard(w) }
-        item { DailySpendingCard(w) }
-        item { PaceCard(s.windows, s.days, model::days) }
-        item { CategoryCard(w) }
+        item { Box(Modifier.padding(top = 12.dp)) { CashFlowCard(w) } }
+        item { Box(Modifier.padding(top = 12.dp)) { DailySpendingCard(w) } }
+        item { Box(Modifier.padding(top = 12.dp)) { PaceCard(s.windows, s.days, model::days) } }
+        item { Box(Modifier.padding(top = 12.dp)) { CategoryCard(w) } }
         if (w.largest.isNotEmpty()) {
-            item { SectionHeader("Largest expenses · last ${w.days} days") }
+            item { SectionHeader("Largest expenses · last ${w.days} days", topPadding = 12.dp) }
             items(w.largest, key = { it.id }) { t -> TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") }) }
         }
         s.month?.let { month ->
-            item { SectionHeader("This month") }
+            item { SectionHeader("This month", topPadding = 12.dp) }
             item { BudgetCard(month, s.budget) { model.navigate("budgets") } }
             if (s.categoryBudgets.isNotEmpty()) item { CategoryBudgetCard(month, s.categoryBudgets) { model.navigate("budgets") } }
         }

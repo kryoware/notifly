@@ -52,8 +52,8 @@ internal fun StatusMark(confirmed: Boolean, size: Dp = 22.dp) {
 }
 
 @Composable
-internal fun SectionHeader(title: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
-    Row(modifier.fillMaxWidth().padding(start = 4.dp, top = 8.dp).heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+internal fun SectionHeader(title: String, modifier: Modifier = Modifier, topPadding: Dp = 24.dp, action: (@Composable () -> Unit)? = null) {
+    Row(modifier.fillMaxWidth().padding(start = 4.dp, top = topPadding).heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
         action?.invoke()
     }

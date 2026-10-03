@@ -89,7 +89,8 @@ class NotificationCaptureService : NotificationListenerService() {
                         is android.os.Bundle -> {
                             val text = item.getCharSequence("text")?.toString() ?: return@mapNotNull null
                             // MessagingStyle: preserve sender for parser training.
-                            val sender = (item.getParcelable("sender_person") as? android.app.Person)?.name
+                            val sender = if (android.os.Build.VERSION.SDK_INT >= 28)
+                                (item.getParcelable("sender_person") as? android.app.Person)?.name else null
                                 ?: item.getCharSequence("sender")
                             if (sender != null) "$sender: $text" else text
                         }

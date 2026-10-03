@@ -532,26 +532,40 @@ class BillEditorModel(private val bills: BillRepository, ledger: LedgerRepositor
 }
 
 /** [checked] counts every enabled app, not just those matching [query]. */
-data class AllowListState(val apps: List<AllowedApp> = emptyList(), val query: String = "", val finance: Boolean = false, val checked: Int = 0)
-/** In [finance] mode, lists only allowed apps and toggles whether each one takes part in transfer detection. */
+data class AllowListState(
+    val apps: List<AllowedApp> = emptyList(), val query: String = "", val finance: Boolean = false,
+    val checked: Int = 0, val suggestions: List<AllowedApp> = emptyList(), val selectedPackage: String? = null,
+)
+private data class AppSearch(val query: String = "", val selectedPackage: String? = null)
+/** In finance mode, only allowed apps are eligible, including search suggestions. */
+@OptIn(kotlinx.coroutines.FlowPreview::class)
 class AllowListModel(private val repository: AllowListRepository, private val finance: Boolean = false) : ScreenModel() {
-    private val query = MutableStateFlow("")
-    /** Packages listening as of the first load. Keeps the pinned-at-top section from reordering under the user's finger; refreshed only when the screen (and model) is recreated. */
+    private val search = MutableStateFlow(AppSearch())
+    // Keep initial enabled packages pinned until this model is recreated.
     private var pinned: Set<String>? = null
-    val state = combine(repository.observeAll(), query.debounce(150).onStart { emit(query.value) }) { all, q ->
+    val state = combine(repository.observeAll(), search,
+        search.debounce { if (it.query.isBlank() || it.selectedPackage != null) 0L else 150L }) { all, current, settled ->
         val apps = if (finance) all.filter { it.listening } else all
         val p = pinned ?: apps.filter { it.isChecked() }.map { it.packageName }.toSet().also { pinned = it }
-        val visible = apps.filter { q.isBlank() || it.label.contains(q, ignoreCase = true) || it.packageName.contains(q, ignoreCase = true) }
-        AllowListState(visible.sortedBy { it.packageName !in p }, q, finance, apps.count { it.isChecked() })
+        val q = settled.query.trim()
+        val matching = apps.filter { q.isBlank() || it.label.contains(q, true) || it.packageName.contains(q, true) }
+        val visible = if (current.selectedPackage != null) apps.filter { it.packageName == current.selectedPackage } else matching
+        val suggestions = if (current == settled && q.isNotBlank() && settled.selectedPackage == null)
+            matching.sortedWith(compareBy<AllowedApp> { !it.label.startsWith(q, true) }
+                .thenBy { it.label.lowercase() }.thenBy { it.packageName }).take(5) else emptyList()
+        AllowListState(visible.sortedBy { it.packageName !in p }, settled.query, finance,
+            apps.count { it.isChecked() }, suggestions, current.selectedPackage)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AllowListState(finance = finance))
-    /** Returns the finance flag in finance mode, or the listening flag otherwise. */
     fun AllowedApp.isChecked() = if (this@AllowListModel.finance) finance else listening
-    /** Asynchronously toggles the finance or listening flag selected by this model's mode. */
     fun toggle(app: AllowedApp) = work {
         if (finance) repository.setFinance(app.packageName, !app.finance)
         else repository.setListening(app.packageName, !app.listening)
     }
-    fun search(value: String) { query.value = value }
+    fun search(value: String) { search.value = AppSearch(value) }
+    fun selectSuggestion(packageName: String) {
+        if (state.value.suggestions.any { it.packageName == packageName } && search.value.query == state.value.query)
+            search.value = search.value.copy(selectedPackage = packageName)
+    }
 }
 /** First run has no account step: finishing starts offline, and Settings keeps sign-in. */
 class OnboardingModel(private val preferences: AppPreferences) : ScreenModel() {

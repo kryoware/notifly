@@ -117,9 +117,7 @@ private fun UpcomingTab(model: BillsModel, s: BillsState, appLabels: Map<String,
     val showPrompt = s.reminderDays == null && !s.promptDismissed && active.isNotEmpty()
     if (!s.loaded) return
     if (active.isEmpty() && s.detected.isEmpty()) {
-        EmptyState("Nothing due.", "Add a bill, or let Notifly spot due notices from your allowed apps.", Modifier.fillMaxSize()) {
-            FilledTonalButton(onClick = { model.navigate("bill/0") }) { Text("Add bill") }
-        }
+        EmptyState("Nothing due.", "Add a bill, or let Notifly spot due notices from your allowed apps.", Modifier.fillMaxSize())
         return
     }
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), state = listState, contentPadding = PaddingValues(top = 12.dp, bottom = FAB_CLEARANCE)) {
@@ -142,7 +140,7 @@ private fun UpcomingTab(model: BillsModel, s: BillsState, appLabels: Map<String,
         }
         if (showPrompt) item {
             Card(Modifier.padding(top = 16.dp).fillMaxWidth(), colors = brandCardColors()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Get reminded before bills are due", style = MaterialTheme.typography.titleMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { if (!notificationsAllowed) requestNotifications(); model.turnOnReminders() }) { Text("Turn on") }
@@ -159,7 +157,7 @@ private fun SummaryCard(s: BillsState) {
     val sum = s.summary
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, colors = brandCardColors()) {
-        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Due in the next 30 days", style = MaterialTheme.typography.labelLarge)
             Text(splitMoney(sum.dueSoonMinor, LocalContentColor.current.copy(alpha = 0.55f)),
                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold).tabular(),
@@ -399,54 +397,55 @@ fun BillEditorScreen(model: BillEditorModel, appLabels: Map<String, String> = em
     var showDate by remember { mutableStateOf(false) }
     var delete by remember { mutableStateOf(false) }
     val reviewing = s.reviewing
-    LazyColumn(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(vertical = 12.dp)) {
-        if (s.error != null && !s.ready) item { Text(s.error!!, color = MaterialTheme.colorScheme.error) }
-        if (reviewing) item {
-            val source = s.original?.sourceApp?.let { appLabels[it] ?: it } ?: "a"
-            val on = s.original?.createdAt?.toLocalDateTime(TimeZone.currentSystemDefault())?.date?.let { shortDate(it) }
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatusMark(confirmed = false, size = 16.dp)
-                    Text("Detected from ${if (source == "a") "a" else "a $source"} notification${on?.let { " on $it" }.orEmpty()}. Check the amount and due date.",
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onTertiaryContainer)
-                }
-            }
-        }
-        item { OutlinedTextField(s.name, { model.edit(name = it) }, label = { Text("Name") }, singleLine = true, isError = s.nameError != null,
-            supportingText = s.nameError?.let { { Text(it) } }, modifier = Modifier.fillMaxWidth()) }
-        item { OutlinedTextField(s.amount, { model.edit(amount = it) }, label = { Text("Amount") }, prefix = { Text("₱") }, singleLine = true,
-            isError = s.amountError != null, supportingText = s.amountError?.let { { Text(it) } }, placeholder = { Text("0.00") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth()) }
-        item {
-            OutlinedTextField(s.due.toString(), {}, readOnly = true, label = { Text("Due date") }, modifier = Modifier.fillMaxWidth(),
-                trailingIcon = { IconTooltip("Choose date") { IconButton(onClick = { showDate = true }) {
-                    Icon(painterResource(Res.drawable.symbol_calendar_today), "Choose date") } } })
-        }
-        item {
-            Text("Repeats", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(bottom = 4.dp))
-            SingleChoiceSegmentedButtonRow(Modifier.horizontalScroll(rememberScrollState())) {
-                BillRepeat.entries.forEachIndexed { i, r ->
-                    SegmentedButton(selected = s.repeat == r, onClick = { model.edit(repeat = r) },
-                        shape = SegmentedButtonDefaults.itemShape(i, BillRepeat.entries.size), label = { Text(if (r == BillRepeat.ONCE) "Once" else r.label()) })
-                }
-            }
-        }
-        item { CategoryField(s.category, s.categories) { model.edit(category = it) } }
-        item {
-            ChoiceField("Pay from account", s.accounts.find { it.id == s.accountId }?.name ?: "Any account", listOf<Account?>(null) + s.accounts,
-                label = { it?.name ?: "Any account" }) { model.edit(accountId = it?.id) }
-        }
-        item {
+    StickyActionScaffold(actions = {
             Button(onClick = { if (reviewing) model.confirm() else model.save() }, enabled = s.ready && !s.saving, modifier = WideButton,
                 colors = if (reviewing) ButtonDefaults.buttonColors(containerColor = MaterialTheme.accents.confirmed, contentColor = MaterialTheme.accents.onConfirmed)
                 else ButtonDefaults.buttonColors()) {
                 if (reviewing) Icon(painterResource(Res.drawable.symbol_check), null, Modifier.padding(end = 8.dp).size(18.dp))
                 Text(if (reviewing) "Confirm bill" else "Save bill")
             }
+    }) { contentModifier ->
+        LazyColumn(contentModifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(vertical = 12.dp)) {
+            if (s.error != null && !s.ready) item { Text(s.error!!, color = MaterialTheme.colorScheme.error) }
+            if (reviewing) item {
+                val source = s.original?.sourceApp?.let { appLabels[it] ?: it } ?: "a"
+                val on = s.original?.createdAt?.toLocalDateTime(TimeZone.currentSystemDefault())?.date?.let { shortDate(it) }
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                    Row(Modifier.padding(20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StatusMark(confirmed = false, size = 16.dp)
+                        Text("Detected from ${if (source == "a") "a" else "a $source"} notification${on?.let { " on $it" }.orEmpty()}. Check the amount and due date.",
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                    }
+                }
+            }
+            item { OutlinedTextField(s.name, { model.edit(name = it) }, label = { Text("Name") }, singleLine = true, isError = s.nameError != null,
+                supportingText = s.nameError?.let { { Text(it) } }, modifier = Modifier.fillMaxWidth()) }
+            item { OutlinedTextField(s.amount, { model.edit(amount = it) }, label = { Text("Amount") }, prefix = { Text("₱") }, singleLine = true,
+                isError = s.amountError != null, supportingText = s.amountError?.let { { Text(it) } }, placeholder = { Text("0.00") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth()) }
+            item {
+                OutlinedTextField(s.due.toString(), {}, readOnly = true, label = { Text("Due date") }, modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = { IconTooltip("Choose date") { IconButton(onClick = { showDate = true }) {
+                        Icon(painterResource(Res.drawable.symbol_calendar_today), "Choose date") } } })
+            }
+            item {
+                Text("Repeats", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(bottom = 4.dp))
+                SingleChoiceSegmentedButtonRow(Modifier.horizontalScroll(rememberScrollState())) {
+                    BillRepeat.entries.forEachIndexed { i, r ->
+                        SegmentedButton(selected = s.repeat == r, onClick = { model.edit(repeat = r) },
+                            shape = SegmentedButtonDefaults.itemShape(i, BillRepeat.entries.size), label = { Text(if (r == BillRepeat.ONCE) "Once" else r.label()) })
+                    }
+                }
+            }
+            item { CategoryField(s.category, s.categories) { model.edit(category = it) } }
+            item {
+                ChoiceField("Pay from account", s.accounts.find { it.id == s.accountId }?.name ?: "Any account", listOf<Account?>(null) + s.accounts,
+                    label = { it?.name ?: "Any account" }) { model.edit(accountId = it?.id) }
+            }
+            if (reviewing) item { TextButton(onClick = model::dismiss) { Text("Dismiss") } }
+            else if (s.original != null) item { TextButton(onClick = { delete = true }) { Text("Delete bill", color = MaterialTheme.colorScheme.error) } }
         }
-        if (reviewing) item { TextButton(onClick = model::dismiss) { Text("Dismiss") } }
-        else if (s.original != null) item { TextButton(onClick = { delete = true }) { Text("Delete bill", color = MaterialTheme.colorScheme.error) } }
     }
     if (showDate) {
         val pickerState = rememberDatePickerState(initialSelectedDateMillis = s.due.atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds())
