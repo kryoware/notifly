@@ -752,7 +752,7 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
         item {
             AnimatedVisibility(reviewing) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                    Row(Modifier.padding(Space.lg), verticalAlignment = Alignment.CenterVertically,
+                    Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         StatusMark(confirmed = false, size = 16.dp)
                         Text("Parsed on your device. Check the details before confirming.",
@@ -844,20 +844,6 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
         if (s.original != null) item {
             TextButton(onClick = { delete = true }) {
                 Text("Delete transaction", color = MaterialTheme.colorScheme.error)
-            }
-        }
-    }
-    // Pinned so saving never needs a scroll past the form.
-    // With the keyboard up the bar shrinks so landscape keeps more than one field in view.
-    val typing = (WindowInsets.ime.getBottom(LocalDensity.current) > 0)
-    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-        Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = if (typing) 4.dp else 12.dp)) {
-            // Confirming is the one moment money starts to count, so it takes the confirmed tick's colour.
-            Button(onClick = model::save, enabled = s.ready && !s.saving, modifier = if (typing) Modifier.fillMaxWidth() else WideButton,
-                colors = if (reviewing) ButtonDefaults.buttonColors(containerColor = MaterialTheme.accents.confirmed,
-                    contentColor = MaterialTheme.accents.onConfirmed) else ButtonDefaults.buttonColors()) {
-                if (reviewing) Icon(painterResource(Res.drawable.symbol_check), null, Modifier.padding(end = 8.dp).size(18.dp))
-                Text(if (reviewing || s.captureId != null) "Confirm transaction" else "Save transaction")
             }
         }
     }

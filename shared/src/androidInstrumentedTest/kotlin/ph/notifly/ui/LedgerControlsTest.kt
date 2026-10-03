@@ -214,7 +214,7 @@ class LedgerControlsTest {
         unchanged(2, null, "Other", null)
     }
 
-    @Test fun capturedTransactionSourceStaysReadOnly() {
+    @Test fun capturedTransactionSourceStaysAvailableInPicker() {
         val transactions = DemoTransactions(listOf(Transaction(
             id = 1, title = "Captured", amountMinor = 500, type = TransactionType.EXPENSE,
             status = TransactionStatus.NEEDS_REVIEW, category = "Shopping", occurredAt = kotlin.time.Clock.System.now(),
@@ -223,8 +223,8 @@ class LedgerControlsTest {
         val editor = EditorModel(transactions, 1, ledger = DemoLedger(transactions), apps = DemoAllowList())
         compose.setContent { NotiflyTheme { Surface(Modifier.fillMaxSize()) { EditorScreen(editor) } } }
         compose.waitUntil { editor.state.value.accounts.isNotEmpty() }
-        compose.onNodeWithText("Source: com.paymaya").performScrollTo().assertExists()
-        compose.onNodeWithText("Source app").assertDoesNotExist()
+        compose.onNodeWithText("Source app").performScrollTo().performClick()
+        compose.onNodeWithText("com.paymaya").assertExists()
         Assert.assertEquals("com.paymaya", editor.state.value.sourceApp)
     }
 

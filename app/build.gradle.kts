@@ -6,18 +6,22 @@ plugins {
     alias(libs.plugins.sentry)
 }
 
-fun gitValue(vararg args: String): String = providers.exec {
-    workingDir(rootProject.projectDir)
-    commandLine("git", *args)
-    isIgnoreExitValue = true
-}.standardOutput.asText.get().trim()
+fun gitValue(vararg args: String): String = try {
+    providers.exec {
+        workingDir(rootProject.projectDir)
+        commandLine("git", *args)
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim()
+} catch (_: Exception) {
+    ""
+}
 
-val sourceRef = providers.environmentVariable("NOTIFLY_SOURCE_REF")
+val sourceRef = (providers.environmentVariable("NOTIFLY_SOURCE_REF")
     .orElse(providers.environmentVariable("GITHUB_HEAD_REF").filter { it.isNotBlank() })
     .orElse(providers.environmentVariable("GITHUB_REF_NAME"))
     .orElse(providers.environmentVariable("CI_COMMIT_REF_NAME"))
     .orElse(providers.environmentVariable("BUILD_SOURCEBRANCHNAME"))
-    .getOrElse(gitValue("symbolic-ref", "--quiet", "--short", "HEAD").ifBlank {
+    .orNull ?: gitValue("symbolic-ref", "--quiet", "--short", "HEAD").ifBlank {
         if (gitValue("rev-parse", "--verify", "HEAD").isNotBlank()) "detached" else "unknown"
     }).ifBlank { "unknown" }.removePrefix("refs/heads/")
 val sourceSha = gitValue("rev-parse", "--verify", "HEAD").take(7).ifBlank { "unknown" }

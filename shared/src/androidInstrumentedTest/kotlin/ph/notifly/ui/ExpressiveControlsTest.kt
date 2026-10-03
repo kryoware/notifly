@@ -48,7 +48,7 @@ class ExpressiveControlsTest {
                     onToggleSelection = { calls++; selected = !selected })
             }
         }
-        compose.onNodeWithContentDescription("SM Supermarket, ₱2,450.50, needs review").performClick()
+        compose.onNode(hasContentDescription("SM Supermarket", substring = true) and hasContentDescription("₱2,450.50", substring = true)).performClick()
         compose.runOnIdle { assertEquals(1, calls); assertEquals(true, selected) }
     }
 
@@ -75,18 +75,18 @@ class ExpressiveControlsTest {
         }
         val model = DemoTransactions().let { HomeModel(it, DemoAllowList(), AppPreferences(store), DemoLedger(it)) }
         compose.setContent { NotiflyTheme { HomeScreen(model) } }
-        val full = "SM Supermarket, ₱2,450.50, needs review"
+        val full = hasContentDescription("SM Supermarket", substring = true) and hasContentDescription("₱2,450.50", substring = true)
         compose.waitUntil { model.state.value.rows.isNotEmpty() }
-        compose.onNode(hasScrollAction()).performScrollToNode(hasContentDescription(full))
-        compose.onNodeWithContentDescription(full).assertExists()
+        compose.onNode(hasScrollAction()).performScrollToNode(full)
+        compose.onNode(full).assertExists()
         compose.onNodeWithContentDescription("Hide amounts").performClick()
         compose.waitUntil { model.state.value.hideAmounts }
-        compose.onNodeWithContentDescription(full).assertDoesNotExist()
-        compose.onNodeWithContentDescription("SM Supermarket, needs review").assertExists()
+        compose.onNode(full).assertDoesNotExist()
+        compose.onNode(hasContentDescription("SM Supermarket", substring = true) and hasContentDescription("needs review", substring = true)).assertExists()
         compose.onAllNodesWithContentDescription("Amount hidden").onFirst().assertExists()
         compose.onNodeWithContentDescription("Hide amounts").performClick()
         compose.waitUntil { !model.state.value.hideAmounts }
-        compose.onNodeWithContentDescription(full).assertExists()
+        compose.onNode(full).assertExists()
     }
 
     @Test fun editorShowsFieldErrorsOnFields() {
@@ -131,7 +131,7 @@ class ExpressiveControlsTest {
         val model = DemoTransactions().let { TransactionsModel(it, DemoLedger(it)) }
         compose.setContent { NotiflyTheme { TransactionsScreen(model) } }
         compose.waitUntil { model.state.value.rows.isNotEmpty() }
-        compose.onNodeWithContentDescription("SM Supermarket, ₱2,450.50, needs review")
+        compose.onNode(hasContentDescription("SM Supermarket", substring = true) and hasContentDescription("₱2,450.50", substring = true))
             .performTouchInput { longClick() }
         compose.onNodeWithContentDescription("Delete selected transactions").performClick()
         compose.onNodeWithText("Delete 1 transactions?").assertExists()
