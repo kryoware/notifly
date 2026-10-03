@@ -307,6 +307,16 @@ class ScreenModelsTest {
                 runCurrent()
                 assertTrue(states.last().rows.isEmpty(), query)
             }
+            repository.upsert(repository.byId(2)!!.copy(id = 0, title = "[TEST] cents", amountMinor = 50))
+            runCurrent()
+            for (query in listOf("0", "00", "₱0")) {
+                model.search(query)
+                runCurrent()
+                assertEquals(listOf("[TEST] cents"), states.last().rows.map { it.title }, query)
+            }
+            model.search("0.00")
+            runCurrent()
+            assertTrue(states.last().rows.isEmpty())
             job.cancelAndJoin()
             model.viewModelScope.cancel()
             advanceUntilIdle()

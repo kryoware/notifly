@@ -179,7 +179,7 @@ class TransactionsModel(private val repository: TransactionRepository, ledger: L
         val needle = q.trim()
         // Accepts what a row shows, e.g. "−₱1,529.00"; without cents it matches the whole peso, so "1529" finds ₱1,529.50.
         val amountNeedle = needle.filterNot { it in "₱,+-−" || it.isWhitespace() }
-        val amount = parseAmountMinor(amountNeedle)
+        val amount = parseAmountMinor(amountNeedle) ?: 0L.takeIf { amountNeedle.isNotEmpty() && amountNeedle.all { it == '0' } }
         val exactCents = '.' in amountNeedle
         TransactionsState(rows.filter { when (f) {
             TransactionFilter.ALL -> true
