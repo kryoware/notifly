@@ -471,6 +471,8 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
     var searching by remember { mutableStateOf(s.query.isNotEmpty()) }
     val searchFocus = remember { FocusRequester() }
     var queryField by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue(s.query, TextRange(s.query.length))) }
+    // Only an external clear needs syncing; echoing every query back would race with fast typing.
+    LaunchedEffect(s.query) { if (s.query.isEmpty() && queryField.text.isNotEmpty()) queryField = TextFieldValue() }
     fun closeSearch() { searching = false; model.search("") }
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = searching && !selectionMode, onBackCompleted = ::closeSearch)
     // Selected rows separate into individual slips so the tint reads per row, not as one block.
@@ -495,7 +497,7 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             ) else if (searching) TopAppBar(
                 title = {
-                    TextField(if (queryField.text == s.query) queryField else TextFieldValue(s.query, TextRange(s.query.length)),
+                    TextField(queryField,
                         { queryField = it; model.search(it.text) }, Modifier.fillMaxWidth().focusRequester(searchFocus),
                         placeholder = { Text("Search transactions") }, singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),

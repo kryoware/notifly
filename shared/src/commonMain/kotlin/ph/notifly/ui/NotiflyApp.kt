@@ -114,6 +114,7 @@ fun NotiflyApp(
         }; Unit }
     } }
     val topLevel = listOf("home", "transactions", "bills", "insights", "settings")
+    val railSecondary = listOf("accounts", "categories", "budgets", "allow-list", "finance-apps", "themes", "licenses", "log")
     NotiflyTheme(palette, themeMode, onDarkChanged) {
         if (onboarded == null || pinSet == null) {
             Surface(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
@@ -123,9 +124,9 @@ fun NotiflyApp(
         val navigationSuiteType = when {
             route in topLevel -> adaptiveType
             route == "auth" || route?.startsWith("onboarding") == true || route == "choose-apps" -> NavigationSuiteType.None
-            // A rail stays put on secondary screens; only the bottom bar steps aside.
-            adaptiveType == NavigationSuiteType.NavigationBar -> NavigationSuiteType.None
-            else -> adaptiveType
+            // A rail stays put on read-only secondary screens so it can't skip an editor's discard prompt.
+            adaptiveType != NavigationSuiteType.NavigationBar && route in railSecondary -> adaptiveType
+            else -> NavigationSuiteType.None
         }
         val destinations: @Composable (Modifier) -> Unit = { navModifier ->
             NavHost(
@@ -170,7 +171,7 @@ fun NotiflyApp(
                                 Text("Select a transaction", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             } else key(id) {
                                 val em = viewModel(key = "pane-$id") { EditorModel(transactions, id, captures, ledger = ledger, apps = apps) }; Events(em, handle)
-                                EditorDestination(if (id == 0L) "Add transaction" else "Edit transaction", remember { SnackbarHostState() }, em, appLabels) { paneId = null }
+                                EditorDestination(if (id == 0L) "Add transaction" else "Edit transaction", remember { SnackbarHostState() }, em, appLabels, paneBack = true) { paneId = null }
                             }
                         }
                     }
@@ -291,10 +292,10 @@ private fun AppDestination(
 /** Both the top-bar arrow and system Back ask before throwing away edits. */
 @Composable
 private fun EditorDestination(title: String, snackbar: SnackbarHostState, model: EditorModel,
-                              appLabels: Map<String, String>, exit: () -> Unit) {
+                              appLabels: Map<String, String>, paneBack: Boolean = false, exit: () -> Unit) {
     val s by model.state.collectAsState()
     var discard by rememberSaveable { mutableStateOf(false) }
-    NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = s.dirty, onBackCompleted = { discard = true })
+    NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = s.dirty || paneBack, onBackCompleted = { if (s.dirty) discard = true else exit() })
     AppDestination(title, snackbar, maxWidth = FormWidth, onBack = { if (s.dirty) discard = true else exit() }) { EditorScreen(model, appLabels) }
     if (discard) AlertDialog(onDismissRequest = { discard = false }, title = { Text("Discard changes?") },
         text = { Text("Your edits to this transaction will be lost.") },
