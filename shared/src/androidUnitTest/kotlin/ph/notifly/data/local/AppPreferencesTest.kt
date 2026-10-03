@@ -1,7 +1,9 @@
 package ph.notifly.data.local
 
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.okio.OkioStorage
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.PreferencesSerializer
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.emptyPreferences
 import java.io.File
@@ -15,9 +17,12 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import ph.notifly.ui.theme.NotiflyPalette
+import ph.notifly.ui.theme.ThemeMode
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import okio.IOException
+import okio.FileSystem
+import okio.Path.Companion.toOkioPath
 
 class AppPreferencesTest {
     private fun failingStore(error: Throwable) = object : DataStore<Preferences> {
@@ -33,28 +38,33 @@ class AppPreferencesTest {
             transform(state.value).also { state.value = it }
     }
 
-    @Test fun paletteAndHomeOrderSurviveReopeningStore() = runBlocking {
-        for (order in listOf(false, true)) {
-            val file = File.createTempFile("notifly", ".preferences_pb")
+    @Test fun appearanceAndHomeOrderSurviveReopeningStore() = runBlocking {
+        val file = File.createTempFile("notifly", ".preferences_pb")
+        file.delete()
+        val firstScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val secondScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        try {
+            // Okio supports atomic replacement on Windows as well as Android.
+            val first = AppPreferences(PreferenceDataStoreFactory.create(scope = firstScope,
+                storage = OkioStorage(FileSystem.SYSTEM, PreferencesSerializer) { file.toOkioPath() }))
+            assertEquals(Appearance(), first.appearance.first())
+            assertEquals(emptyList(), first.homeAccountOrder.first())
+            first.setPalette(NotiflyPalette.Clay)
+            first.setThemeMode(ThemeMode.DARK)
+            first.setHomeAccountOrder(listOf(8L, 3L, 12L))
+            firstScope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
+            firstScope.coroutineContext[kotlinx.coroutines.Job]!!.join()
+            val reopened = AppPreferences(PreferenceDataStoreFactory.create(scope = secondScope,
+                storage = OkioStorage(FileSystem.SYSTEM, PreferencesSerializer) { file.toOkioPath() }))
+            assertEquals(NotiflyPalette.Clay, reopened.palette.first())
+            assertEquals(ThemeMode.DARK, reopened.themeMode.first())
+            assertEquals(Appearance(NotiflyPalette.Clay, ThemeMode.DARK), reopened.appearance.first())
+            assertEquals(listOf(8L, 3L, 12L), reopened.homeAccountOrder.first())
+        } finally {
+            firstScope.cancel()
+            secondScope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
+            secondScope.coroutineContext[kotlinx.coroutines.Job]!!.join()
             file.delete()
-            val firstScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-            val secondScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-            try {
-                val first = AppPreferences(PreferenceDataStoreFactory.create(scope = firstScope) { file })
-                assertEquals(NotiflyPalette.Ube, first.palette.first())
-                assertEquals(emptyList(), first.homeAccountOrder.first())
-                if (order) first.setHomeAccountOrder(listOf(8L, 3L, 12L)) else first.setPalette(NotiflyPalette.Clay)
-                firstScope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
-                firstScope.coroutineContext[kotlinx.coroutines.Job]!!.join()
-                val reopened = AppPreferences(PreferenceDataStoreFactory.create(scope = secondScope) { file })
-                if (order) assertEquals(listOf(8L, 3L, 12L), reopened.homeAccountOrder.first())
-                else assertEquals(NotiflyPalette.Clay, reopened.palette.first())
-            } finally {
-                firstScope.cancel()
-                secondScope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
-                secondScope.coroutineContext[kotlinx.coroutines.Job]!!.join()
-                file.delete()
-            }
         }
     }
 

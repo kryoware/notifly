@@ -1,0 +1,8 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Preserve the existing 0.44 scale / 32dp offset and adaptive safe zone. -->
+    <group android:scaleX="0.44" android:scaleY="0.44" android:translateX="32" android:translateY="32">
+        <path android:strokeColor="@color/ic_launcher_slate_system_mark" android:strokeWidth="16" android:strokeLineCap="round"
+            android:strokeLineJoin="round" android:pathData="M16,78.5 V44.5 A23,23 0 0 1 62,44.5 V74.5 L84,48.5" />
+    </group>
+</vector>
