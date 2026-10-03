@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.time.Instant
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -16,6 +17,8 @@ import ph.notifly.domain.model.Transaction
 import ph.notifly.domain.model.TransactionStatus
 import ph.notifly.domain.model.TransactionType
 import kotlin.test.assertFailsWith
+import kotlinx.datetime.LocalDate
+import ph.notifly.domain.model.BillRepeat
 
 @RunWith(RobolectricTestRunner::class)
 class AppDatabaseTest {
@@ -128,5 +131,63 @@ class AppDatabaseTest {
         dao.upsert(base.copy(title = "Legacy dollar income", amountMinor = 99_000, currency = "USD").toEntity())
 
         assertEquals(10_000, TransactionRepositoryImpl(dao).observeConfirmedNetMinor().first())
+    }
+
+    @Test
+    fun `selected later occurrence is recorded and transaction deletion reverses payment and queues sync delete`() = runTest {
+        val db = buildDatabase()
+        try {
+            val billDao = db.billDao()
+            val startsOn = LocalDate(2026, 1, 15)
+            val billId = billDao.save(BillEntity(name = "Electricity", amountMinor = 20_000, category = "Bills", accountId = 1,
+                startsOnDay = startsOn.toEpochDays(), repeats = BillRepeat.MONTHLY.name, settled = 0,
+                status = TransactionStatus.CONFIRMED.name, detected = false, sourceApp = null, captureId = null,
+                remindedForDay = null, createdAtMillis = 0))
+            val repository = TransactionRepositoryImpl(db.transactionDao(), bills = billDao, database = db)
+            val transactionId = repository.upsert(Transaction(title = "Electricity payment", amountMinor = 20_000,
+                type = TransactionType.EXPENSE, status = TransactionStatus.CONFIRMED, category = "Other",
+                occurredAt = Instant.fromEpochMilliseconds(0), sourceApp = null, captureId = null, accountId = 1))
+            val selectedOccurrence = LocalDate(2026, 3, 15)
+
+            val paymentId = billDao.settle(billId, selectedOccurrence, transactionId, 1)
+
+            assertTrue(paymentId > 0)
+            assertEquals(selectedOccurrence, billDao.paymentById(paymentId)!!.toDomain().dueOn)
+            assertEquals(0, billDao.byId(billId)!!.settled)
+            repository.delete(transactionId)
+
+            assertNull(db.transactionDao().byId(transactionId))
+            assertNull(billDao.paymentById(paymentId))
+            assertEquals(emptyList(), billDao.paymentsForTransaction(transactionId))
+            assertEquals(0, billDao.byId(billId)!!.settled)
+            assertEquals("DELETE", db.transactionDao().pendingChanges().single().operation)
+        } finally { db.close() }
+    }
+
+    @Test
+    fun `confirming detected bill preserves existing recurring schedule and payment dates`() = runTest {
+        val db = buildDatabase()
+        try {
+            val dao = db.billDao()
+            val startsOn = LocalDate(2026, 1, 15)
+            val existingId = dao.save(BillEntity(name = "Electricity", amountMinor = 10_000, category = "Bills", accountId = 1,
+                startsOnDay = startsOn.toEpochDays(), repeats = BillRepeat.MONTHLY.name, settled = 0,
+                status = TransactionStatus.CONFIRMED.name, detected = false, sourceApp = "com.utility", captureId = null,
+                remindedForDay = null, createdAtMillis = 0))
+            val paymentId = dao.settle(existingId, startsOn, null, 1)
+            val draftId = dao.save(BillEntity(name = "electricity", amountMinor = 12_000, category = "Bills", accountId = 1,
+                startsOnDay = LocalDate(2026, 2, 15).toEpochDays(), repeats = BillRepeat.MONTHLY.name, settled = 0,
+                status = TransactionStatus.NEEDS_REVIEW.name, detected = true, sourceApp = "com.utility", captureId = null,
+                remindedForDay = null, createdAtMillis = 0))
+
+            dao.confirm(draftId)
+
+            val confirmed = dao.byId(existingId)!!
+            assertEquals(startsOn.toEpochDays(), confirmed.startsOnDay)
+            assertEquals(12_000L, confirmed.amountMinor)
+            assertEquals(1, confirmed.settled)
+            assertEquals(startsOn, dao.paymentById(paymentId)!!.toDomain().dueOn)
+            assertNull(dao.byId(draftId))
+        } finally { db.close() }
     }
 }

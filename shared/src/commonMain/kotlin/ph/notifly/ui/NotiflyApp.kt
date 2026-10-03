@@ -171,11 +171,13 @@ fun NotiflyApp(
                     val detected = m.state.collectAsState().value.reviewing
                     AppDestination(if (detected) "Review bill" else if (id == 0L) "Add bill" else "Edit bill", snackbar, maxWidth = FormWidth, sticky = true,
                         onBack = { if (!nav.popBackStack()) navigate("bills") }) { BillEditorScreen(m, appLabels) } }
-                composable("pay-bill/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
+                composable("pay-bill/{id}?due={due}", arguments = listOf(navArgument("id") { type = NavType.LongType },
+                    navArgument("due") { type = NavType.StringType; nullable = true; defaultValue = null })) {
                     val id = it.arguments?.read { getLong("id") } ?: 0L
-                    val m = viewModel { EditorModel(transactions, 0L, captures, ledger = ledger, apps = apps, bills = bills, billId = id) }; Events(m, handle)
+                    val due = it.arguments?.read { if (contains("due")) getStringOrNull("due") else null }?.let { date -> runCatching { kotlinx.datetime.LocalDate.parse(date) }.getOrNull() }
+                    val m = viewModel { EditorModel(transactions, 0L, captures, ledger = ledger, apps = apps, bills = bills, billId = id, billDueOn = due) }; Events(m, handle)
                     EditorDestination("Record payment", snackbar, m, appLabels) { if (!nav.popBackStack()) navigate("bills") } }
-                composable("transactions") { val m = viewModel { TransactionsModel(transactions, ledger) }; Events(m, handle)
+                composable("transactions") { val m = viewModel { TransactionsModel(transactions, ledger, bills) }; Events(m, handle)
                     if (!wide) TransactionsScreen(m, appLabels, snackbar, demo)
                     else Row(Modifier.fillMaxSize()) {
                         Box(Modifier.weight(0.45f)) { TransactionsScreen(m, appLabels, if (paneId == null) snackbar else null, demo) }

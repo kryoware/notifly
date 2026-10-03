@@ -242,20 +242,26 @@ class DemoBills(rows: List<Transaction> = emptyList()) : BillRepository {
         val existing = bills.value.find { it.id != id && it.status == TransactionStatus.CONFIRMED && draft.sourceApp != null &&
             it.sourceApp == draft.sourceApp && it.name.equals(draft.name, ignoreCase = true) }
         if (existing == null) save(draft.copy(status = TransactionStatus.CONFIRMED))
-        else { save(existing.copy(amountMinor = draft.amountMinor, startsOn = draft.startsOn, remindedFor = null)); delete(id) }
+        else { save(existing.copy(amountMinor = draft.amountMinor, remindedFor = null)); delete(id) }
     }
     /** Returns false for a matching app (including null), case-insensitive name, and start date; otherwise saves with a new ID. */
     override suspend fun recordDetected(bill: Bill): Boolean {
         if (bills.value.any { it.sourceApp == bill.sourceApp && it.name.equals(bill.name, true) && it.startsOn == bill.startsOn }) return false
         save(bill.copy(id = 0)); return true
     }
-    /** Records only the current next due date and increments the demo settled count; returns -1 for missing or stale bills. */
+    /** Records an available scheduled occurrence and recomputes the contiguous settled count. */
     override suspend fun settle(billId: Long, dueOn: LocalDate, transactionId: Long?): Long {
         val bill = byId(billId) ?: return -1
-        if (bill.nextDue != dueOn) return -1
-        save(bill.copy(settled = bill.settled + 1))
+        val paymentDays = payments.value.filter { it.billId == billId }.map { it.dueOn }.toSet()
+        val occurrenceExists = if (bill.repeat == BillRepeat.ONCE) bill.startsOn == dueOn else
+            generateSequence(bill.settled) { it + 1 }.takeWhile { bill.occurrence(it) <= dueOn }.any { bill.occurrence(it) == dueOn }
+        if (!occurrenceExists || dueOn in paymentDays) return -1
         val id = nextPaymentId++
         payments.value = payments.value + BillPayment(id, billId, dueOn, transactionId, Clock.System.now())
+        val recorded = paymentDays + dueOn
+        val settled = if (bill.repeat == BillRepeat.ONCE) if (bill.startsOn in recorded) 1 else 0
+            else generateSequence(0) { it + 1 }.takeWhile { bill.occurrence(it) in recorded }.count()
+        save(bill.copy(settled = settled))
         return id
     }
     /** Removes the demo payment or skip and decrements the settled count, clamped at zero; missing payments do nothing. */

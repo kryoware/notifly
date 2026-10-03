@@ -156,11 +156,24 @@ class BudgetsModel(private val preferences: AppPreferences, private val ledger: 
         try {
         val categories = ledger.observeCategories().first().filter { it.type == TransactionType.EXPENSE }.associateBy { it.id }
         require(budgets.keys.all { it in categories }) { "A category no longer exists. Reload budgets and try again." }
-        // Navigation must not cancel halfway through writes to these separate stores.
+        val changed = budgets.mapNotNull { (id, minor) ->
+            categories.getValue(id).takeIf { it.budgetMinor != minor }?.let { it to minor }
+        }
+        val previousMonthly = preferences.monthlyBudget.first()
         withContext(NonCancellable) {
-            preferences.setMonthlyBudget(monthly)
-            budgets.forEach { (id, minor) ->
-                categories.getValue(id).takeIf { it.budgetMinor != minor }?.let { ledger.saveCategory(it.copy(budgetMinor = minor)) }
+            val saved = mutableListOf<Category>()
+            try {
+                changed.forEach { (category, minor) ->
+                    ledger.saveCategory(category.copy(budgetMinor = minor))
+                    saved += category
+                }
+                preferences.setMonthlyBudget(monthly)
+            } catch (failure: Throwable) {
+                saved.asReversed().forEach { category ->
+                    try { ledger.saveCategory(category) } catch (rollbackFailure: Throwable) { failure.addSuppressed(rollbackFailure) }
+                }
+                try { preferences.setMonthlyBudget(previousMonthly) } catch (rollbackFailure: Throwable) { failure.addSuppressed(rollbackFailure) }
+                throw failure
             }
         }
         mutableEvents.emit(UiEvent.Message("Budgets saved"))
@@ -171,7 +184,8 @@ class BudgetsModel(private val preferences: AppPreferences, private val ledger: 
 enum class TransactionFilter { ALL, NEEDS_REVIEW, INCOME, EXPENSE, TRANSFER }
 data class TransactionsState(val rows: List<Transaction> = emptyList(), val filter: TransactionFilter = TransactionFilter.ALL,
     val accountNames: Map<Long, String> = emptyMap(), val query: String = "", val accountIcons: Map<Long, String> = emptyMap())
-class TransactionsModel(private val repository: TransactionRepository, ledger: LedgerRepository) : ScreenModel() {
+class TransactionsModel(private val repository: TransactionRepository, ledger: LedgerRepository,
+                        private val bills: BillRepository? = null) : ScreenModel() {
     private val filter = MutableStateFlow(TransactionFilter.ALL)
     private val query = MutableStateFlow("")
     private val appLabels = MutableStateFlow(emptyMap<String, String>())
@@ -201,8 +215,14 @@ class TransactionsModel(private val repository: TransactionRepository, ledger: L
         mutableEvents.emit(UiEvent.Message("Transaction confirmed", undo = t))
     }
     fun delete(t: Transaction) = work {
+        val linkedPayments = bills?.observePayments()?.first().orEmpty().filter { it.transactionId == t.id }
         repository.delete(t.id)
-        mutableEvents.emit(UiEvent.Message("Transaction deleted", undo = t))
+        val restorePayments: (suspend () -> Unit)? = if (linkedPayments.isEmpty()) null else ({
+            linkedPayments.forEach { payment ->
+                check((bills?.settle(payment.billId, payment.dueOn, t.id) ?: -1L) > 0L) { "The bill payment could not be restored." }
+            }
+        })
+        mutableEvents.emit(UiEvent.Message("Transaction deleted", undo = t, onUndo = restorePayments))
     }
     /**
      * Confirms supplied review rows asynchronously, leaving other statuses unchanged.
@@ -251,7 +271,8 @@ data class EditorState(
 class EditorModel(private val repository: TransactionRepository, id: Long,
                   captures: CaptureRepository? = null, captureId: Long? = null,
                   private val ledger: LedgerRepository, apps: AllowListRepository, private val draftId: Long? = null,
-                  private val bills: BillRepository? = null, private val billId: Long? = null) : ScreenModel() {
+                  private val bills: BillRepository? = null, private val billId: Long? = null,
+                  private val billDueOn: LocalDate? = null) : ScreenModel() {
     private val mutableState = MutableStateFlow(EditorState())
     val state = mutableState.asStateFlow()
     /** Set when this editor records a bill payment: the occurrence being paid and the bill's name. */
@@ -283,7 +304,7 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
         }
         if (billId != null) {
             val bill = bills?.byId(billId)
-            val due = bill?.nextDue
+            val due = billDueOn ?: bill?.nextDue
             if (bill == null || due == null) { mutableState.value = state.value.copy(ready = false, error = "Bill no longer exists."); return@work }
             billDue = due
             billName = bill.name

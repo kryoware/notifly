@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
 import android.os.Build
@@ -159,6 +160,25 @@ class MainActivity : ComponentActivity() {
         launchRoute.value = intent.getStringExtra(EXTRA_ROUTE)
         launchRouteKey.intValue++
     }
+    private fun tryRebindNotificationListener() {
+        if (!available.value || source.connection.value == "Connected") return
+        val component = ComponentName(this, NotificationCaptureService::class.java)
+        runCatching {
+            packageManager.setComponentEnabledSetting(
+                component,
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP,
+            )
+            packageManager.setComponentEnabledSetting(
+                component,
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                PackageManager.DONT_KILL_APP,
+            )
+        }
+        runCatching {
+            NotificationListenerService.requestRebind(component)
+        }
+    }
     override fun onResume() {
         super.onResume()
         animationsEnabled.value = ValueAnimator.areAnimatorsEnabled()
@@ -167,7 +187,7 @@ class MainActivity : ComponentActivity() {
         batteryExempt.value = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
         biometricAvailable.value = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
             getSystemService(BiometricManager::class.java).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
-        if (available.value) NotificationListenerService.requestRebind(ComponentName(this, NotificationCaptureService::class.java))
+        tryRebindNotificationListener()
         lifecycleScope.launch {
             try { installedApps.refresh() }
             catch (e: kotlinx.coroutines.CancellationException) { throw e }

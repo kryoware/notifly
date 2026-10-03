@@ -34,8 +34,9 @@ interface BillRepository {
      */
     suspend fun recordDetected(bill: Bill): Boolean
     /**
-     * Records [dueOn] as paid by [transactionId], or skipped when null, and advances the bill.
-     * Returns the payment ID, or -1 if the bill is missing or the occurrence is no longer eligible.
+    * Records the available scheduled [dueOn] as paid by [transactionId], or skipped when null.
+    * Recomputes the contiguous settled count. Returns the payment ID, or -1 if the bill is missing
+    * or the occurrence is no longer eligible.
      * Does not create or confirm the linked transaction. Storage failures propagate.
      */
     suspend fun settle(billId: Long, dueOn: LocalDate, transactionId: Long?): Long

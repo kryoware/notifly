@@ -85,9 +85,13 @@ fun BillsScreen(model: BillsModel, appLabels: Map<String, String> = emptyMap(), 
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
     var payingId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var payingDueOn by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedDay = selected?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: s.today
     val listState = rememberLazyListState()
-    val paying = payingId?.let { id -> s.bills.find { it.id == id }?.let { b -> b.nextDue?.let { BillDue(b, it) } } }
+    val paying = payingId?.let { id -> s.bills.find { it.id == id }?.let { b ->
+        (payingDueOn?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: b.nextDue)?.let { BillDue(b, it) }
+    } }
+    val openPaySheet: (BillDue) -> Unit = { due -> payingId = due.bill.id; payingDueOn = due.dueOn.toString() }
     Scaffold(
         topBar = { TopAppBar(title = { Text(if (demo) "Bills · Demo" else "Bills") }) },
         snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) },
@@ -99,9 +103,9 @@ fun BillsScreen(model: BillsModel, appLabels: Map<String, String> = emptyMap(), 
     ) { padding ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
           if (maxWidth >= WideWidth) Row(Modifier.fillMaxSize()) {
-            Box(Modifier.weight(1f)) { UpcomingTab(model, s, appLabels, listState, notificationsAllowed, requestNotifications) { payingId = it.bill.id } }
+            Box(Modifier.weight(1f)) { UpcomingTab(model, s, appLabels, listState, notificationsAllowed, requestNotifications, openPaySheet) }
             VerticalDivider()
-            Box(Modifier.weight(1f)) { CalendarTab(model, s, appLabels, selectedDay, { selected = it.toString() }) { payingId = it.bill.id } }
+            Box(Modifier.weight(1f)) { CalendarTab(model, s, appLabels, selectedDay, { selected = it.toString() }, openPaySheet) }
           } else Column(Modifier.fillMaxSize()) {
             PrimaryTabRow(selectedTabIndex = tab) {
                 listOf("Upcoming", "Calendar").forEachIndexed { i, title ->
@@ -109,13 +113,13 @@ fun BillsScreen(model: BillsModel, appLabels: Map<String, String> = emptyMap(), 
                 }
             }
             Crossfade(tab, label = "bills-tab") { current ->
-                if (current == 0) UpcomingTab(model, s, appLabels, listState, notificationsAllowed, requestNotifications) { payingId = it.bill.id }
-                else CalendarTab(model, s, appLabels, selectedDay, { selected = it.toString() }) { payingId = it.bill.id }
+                if (current == 0) UpcomingTab(model, s, appLabels, listState, notificationsAllowed, requestNotifications, openPaySheet)
+                else CalendarTab(model, s, appLabels, selectedDay, { selected = it.toString() }, openPaySheet)
             }
         }
         }
     }
-    paying?.let { due -> PaySheet(model, s, due, onDismiss = { payingId = null }) }
+    paying?.let { due -> PaySheet(model, s, due, onDismiss = { payingId = null; payingDueOn = null }) }
 }
 
 @Composable
@@ -389,7 +393,7 @@ private fun PaySheet(model: BillsModel, s: BillsState, due: BillDue, onDismiss: 
                     )
                 }
             }
-            Button(onClick = { model.navigate("pay-bill/${bill.id}"); onDismiss() }, modifier = WideButton) { Text("Record payment") }
+            Button(onClick = { model.navigate("pay-bill/${bill.id}?due=${due.dueOn}"); onDismiss() }, modifier = WideButton) { Text("Record payment") }
             if (bill.repeat != BillRepeat.ONCE) TextButton(onClick = { model.skip(bill, due.dueOn); onDismiss() }, Modifier.fillMaxWidth()) { Text("Skip this one") }
         }
     }

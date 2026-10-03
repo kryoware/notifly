@@ -87,5 +87,5 @@ class BillReminderService : JobService() {
     /** Cancels all service coroutine work before destruction. */
     override fun onDestroy() { scope.cancel(); super.onDestroy() }
 
-    private companion object { const val CHANNEL = "bill_reminders" }
+    internal companion object { const val CHANNEL = "bill_reminders" }
 }

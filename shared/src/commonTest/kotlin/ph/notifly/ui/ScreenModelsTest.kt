@@ -2,9 +2,11 @@ package ph.notifly.ui
 
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.*
@@ -122,6 +124,41 @@ class ScreenModelsTest {
             // confirm() emits UiEvent.Message(undo = t); re-upserting the pre-confirm transaction is the undo path.
             repository.upsert(t)
             assertEquals(TransactionStatus.NEEDS_REVIEW, repository.byId(2)?.status)
+            model.viewModelScope.cancel()
+            runCurrent()
+        } finally { Dispatchers.resetMain() }
+    }
+    @Test fun deletingLinkedTransactionUndoRestoresItsBillPayment() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val transactions = DemoTransactions()
+            val bills = DemoBills()
+            val transaction = transactions.byId(2)!!.copy(title = "[TEST] linked payment", status = TransactionStatus.CONFIRMED)
+            transactions.upsert(transaction)
+            val bill = bills.observeBills().first().first()
+            val due = bill.nextDue!!
+            bills.settle(bill.id, due, transaction.id)
+            val repository = object : ph.notifly.domain.repository.TransactionRepository by transactions {
+                override suspend fun delete(id: Long) {
+                    bills.observePayments().first().filter { it.transactionId == id }.forEach { bills.unsettle(it.id) }
+                    transactions.delete(id)
+                }
+            }
+            val model = TransactionsModel(repository, DemoLedger(transactions), bills)
+            val event = backgroundScope.async(start = CoroutineStart.UNDISPATCHED) { model.events.first() }
+
+            model.delete(transaction)
+            runCurrent()
+            val message = assertIs<UiEvent.Message>(event.await())
+            assertNull(repository.byId(transaction.id))
+            assertTrue(bills.observePayments().first().isEmpty())
+
+            message.undo?.let { repository.upsert(it) }
+            message.onUndo?.invoke()
+
+            assertEquals(transaction, repository.byId(transaction.id))
+            assertEquals(transaction.id, bills.observePayments().first().single().transactionId)
+            assertEquals(due, bills.observePayments().first().single().dueOn)
             model.viewModelScope.cancel()
             runCurrent()
         } finally { Dispatchers.resetMain() }

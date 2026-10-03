@@ -40,13 +40,42 @@ class BudgetsModelTest {
             val model = BudgetsModel(preferences, ledger)
             val save = model.save(4_000, categories.associate { it.id to 2_000L })
             runCurrent()
-            assertEquals(4_000L, preferences.monthlyBudget.first())
-            model.viewModelScope.cancel()
+            assertEquals(10_000L, preferences.monthlyBudget.first())
+            save.cancel()
             resume.complete(Unit)
             save.join()
+            runCurrent()
             val saved = delegate.observeCategories().first().filter { it.id in categories.map(Category::id) }
             assertTrue(saved.all { it.budgetMinor == 2_000L })
             assertEquals(4_000L, saved.sumOf { it.budgetMinor ?: 0L })
+            assertEquals(4_000L, preferences.monthlyBudget.first())
+            model.viewModelScope.cancel()
+            runCurrent()
+        } finally { Dispatchers.resetMain() }
+    }
+
+    @Test fun categoryFailureRestoresEarlierWritesAndLeavesMonthlyCapUnchanged() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val preferences = preferences()
+            preferences.setMonthlyBudget(10_000)
+            val delegate = DemoLedger(DemoTransactions())
+            val categories = delegate.observeCategories().first().filter { it.type == TransactionType.EXPENSE }.take(2)
+            categories.forEachIndexed { index, category -> delegate.saveCategory(category.copy(budgetMinor = 5_000L + index * 1_000L)) }
+            val initial = categories.map { category -> delegate.observeCategories().first().first { it.id == category.id } }
+            val ledger = object : LedgerRepository by delegate {
+                override suspend fun saveCategory(category: Category): Long {
+                    if (category.id == initial[1].id && category.budgetMinor == 2_000L) error("write failed")
+                    return delegate.saveCategory(category)
+                }
+            }
+            val model = BudgetsModel(preferences, ledger)
+            model.save(4_000, initial.associate { it.id to 2_000L }).join()
+            val saved = delegate.observeCategories().first().filter { it.id in initial.map(Category::id) }
+            assertEquals(initial.associate { it.id to it.budgetMinor }, saved.associate { it.id to it.budgetMinor })
+            assertEquals(10_000L, preferences.monthlyBudget.first())
+            model.viewModelScope.cancel()
+            runCurrent()
         } finally { Dispatchers.resetMain() }
     }
 

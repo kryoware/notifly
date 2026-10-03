@@ -32,6 +32,11 @@ class BillReminderParserTest {
         assertEquals(LocalDate(2026, 10, 25), bill.dueOn)
     }
 
+    @Test fun totalAmountDueWinsOverMinimumAmountDue() {
+        val bill = assertNotNull(parse("Minimum amount due PHP 500.00; total amount due PHP 2,000.00. Due Oct 15, 2026."))
+        assertEquals(200_000L, bill.amountMinor)
+    }
+
     @Test fun tagalogNotice() {
         val bill = assertNotNull(parse("Bayaran bago 15 Oct ang iyong Meralco bill na PHP 2,410.", app = "Meralco App"))
         assertEquals("Meralco", bill.name)

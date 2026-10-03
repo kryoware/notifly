@@ -19,6 +19,7 @@ class BillReminderParser(private val amounts: NotificationParser = NotificationP
     private val settled = Regex("""(?i)\b(?:received|successful(?:ly)?|paid|thank you for (?:your )?payment)\b""")
     private val dueCue = Regex("""(?i)(?:\bdue(?: date)?|on or before|\bbago|huling araw)\W+(?:\w+\W+){0,2}$""")
     private val amountCue = Regex("""(?i)\b(?:minimum amount due|total amount due|amount due|due amount|amount to pay)\b\W{0,6}""")
+    private val totalAmountCue = Regex("""(?i)\btotal amount due\b\W{0,6}""")
     private val billName = Regex("""(?i)\b(?:your|iyong|inyong)\s+([A-Za-z][\w&.' -]{1,38}?)\s+(?:e-?statement\s+)?bill\b""")
     private val leadingNoise = Regex("""(?i)^(?:(?:latest|new|current|monthly|total|unpaid)\s+)+""")
 
@@ -38,7 +39,7 @@ class BillReminderParser(private val amounts: NotificationParser = NotificationP
      */
     fun parse(appLabel: String, body: String, today: LocalDate): BillDraft? {
         if (!cue.containsMatchIn(body) || settled.containsMatchIn(body)) return null
-        val amountMinor = amountCue.find(body)?.let { amounts.firstAmountMinor(body, it.range.first) }
+        val amountMinor = (totalAmountCue.find(body) ?: amountCue.find(body))?.let { amounts.firstAmountMinor(body, it.range.first) }
             ?: amounts.firstAmountMinor(body) ?: return null
         if (amountMinor <= 0) return null
         val dueOn = dueDate(body, today) ?: return null

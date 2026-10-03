@@ -7,6 +7,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.component.KoinComponent
@@ -48,6 +49,18 @@ class NotiflyApplication : Application(), KoinComponent {
             preferences.crashReporting.collect { enabled ->
                 CrashReporting.setEnabled(enabled, this@NotiflyApplication, BuildConfig.SENTRY_DSN)
             }
+        }
+        scope.launch {
+            preferences.hideAmounts.combine(preferences.pinSet) { hidden, pin -> hidden || pin }
+                .distinctUntilChanged()
+                .collect { quiet ->
+                    if (quiet) {
+                        val manager = getSystemService(android.app.NotificationManager::class.java)
+                        manager.activeNotifications
+                            .filter { it.notification.channelId == ph.notifly.android.service.BillReminderService.CHANNEL }
+                            .forEach { manager.cancel(it.id) }
+                    }
+                }
         }
         scope.launch {
             val launcher = LauncherIcons(packageManager, packageName)

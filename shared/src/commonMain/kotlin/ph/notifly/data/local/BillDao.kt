@@ -47,7 +47,7 @@ interface BillDao {
         val draft = byId(id) ?: return
         val existing = draft.sourceApp?.let { activeFrom(it, draft.name, id) }
         if (existing == null) { markConfirmed(id); return }
-        val updated = existing.copy(amountMinor = draft.amountMinor, startsOnDay = draft.startsOnDay, remindedForDay = null)
+        val updated = existing.copy(amountMinor = draft.amountMinor, remindedForDay = null)
         save(updated)
         delete(id)
     }
@@ -65,21 +65,21 @@ interface BillDao {
     }
 
     /**
-     * Records the first unrecorded occurrence at or after the settled count, then recomputes that count.
-     * A null [transactionId] records a skip; [settledAtMillis] is milliseconds since the Unix epoch.
-     * Returns the payment ID, or -1 when the bill is missing or [dueOn] differs from that occurrence,
-     * so a double tap cannot settle twice. Storage, row-conversion, and date arithmetic failures propagate.
+    * Records the supplied unrecorded occurrence at or after the settled count, then recomputes that count.
+    * A null [transactionId] records a skip; [settledAtMillis] is milliseconds since the Unix epoch.
+    * Returns the payment ID, or -1 when the bill is missing or [dueOn] is not an available occurrence.
+    * Storage, row-conversion, and date arithmetic failures propagate.
      */
     @androidx.room.Transaction
     suspend fun settle(billId: Long, dueOn: LocalDate, transactionId: Long?, settledAtMillis: Long): Long {
         val bill = byId(billId)?.toDomain() ?: return -1
         val paymentDays = paymentsFor(billId).map { it.dueOnDay }.toSet()
-        val next = if (bill.repeat == ph.notifly.domain.model.BillRepeat.ONCE) {
-            bill.occurrence(0).takeIf { it.toEpochDays() !in paymentDays }
+        val index = if (bill.repeat == ph.notifly.domain.model.BillRepeat.ONCE) {
+            0.takeIf { bill.occurrence(0) == dueOn }
         } else generateSequence(bill.settled) { it + 1 }
-            .firstOrNull { bill.occurrence(it).toEpochDays() !in paymentDays }
-            ?.let(bill::occurrence)
-        if (next != dueOn) return -1
+            .takeWhile { bill.occurrence(it) <= dueOn }
+            .firstOrNull { bill.occurrence(it) == dueOn }
+        if (index == null || dueOn.toEpochDays() in paymentDays) return -1
         val id = insertPayment(BillPaymentEntity(billId = billId, dueOnDay = dueOn.toEpochDays(), transactionId = transactionId, settledAtMillis = settledAtMillis))
         setSettled(billId, contiguousSettled(billId, bill))
         return id

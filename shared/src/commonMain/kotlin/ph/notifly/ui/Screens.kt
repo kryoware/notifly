@@ -878,6 +878,20 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
             }
         }
     }
+    // Pinned so saving never needs a scroll past the form.
+    // With the keyboard up the bar shrinks so landscape keeps more than one field in view.
+    val typing = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+        Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = if (typing) 4.dp else 12.dp)) {
+            // Confirming is the one moment money starts to count, so it takes the confirmed tick's colour.
+            Button(onClick = model::save, enabled = s.ready && !s.saving, modifier = if (typing) Modifier.fillMaxWidth() else WideButton,
+                colors = if (reviewing) ButtonDefaults.buttonColors(containerColor = MaterialTheme.accents.confirmed,
+                    contentColor = MaterialTheme.accents.onConfirmed) else ButtonDefaults.buttonColors()) {
+                if (reviewing) Icon(painterResource(Res.drawable.symbol_check), null, Modifier.padding(end = 8.dp).size(18.dp))
+                Text(if (reviewing || s.captureId != null) "Confirm transaction" else "Save transaction")
+            }
+        }
+    }
     }
     if (delete) AlertDialog(onDismissRequest = { delete = false }, title = { Text("Delete transaction?") },
         text = { Text("You can undo this immediately after deleting.") },

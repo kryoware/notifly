@@ -1,6 +1,5 @@
 package ph.notifly.android.service
 
-import android.content.ComponentName
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import kotlinx.coroutines.CancellationException
@@ -45,7 +44,6 @@ class NotificationCaptureService : NotificationListenerService() {
 
     override fun onListenerDisconnected() {
         (source as NotificationTransactionSource).connected(false)
-        requestRebind(ComponentName(this, NotificationCaptureService::class.java))
         super.onListenerDisconnected()
     }
 

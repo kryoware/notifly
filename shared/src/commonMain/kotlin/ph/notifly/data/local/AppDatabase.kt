@@ -92,6 +92,7 @@ val databaseMigrations = arrayOf(
 fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase =
     builder
         .addMigrations(*databaseMigrations)
+        .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
         .setDriver(BundledSQLiteDriver())
         .setQueryCoroutineContext(Dispatchers.IO)
         .build()
