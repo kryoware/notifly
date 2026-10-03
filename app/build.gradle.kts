@@ -6,6 +6,27 @@ plugins {
     alias(libs.plugins.sentry)
 }
 
+fun gitValue(vararg args: String): String = try {
+    providers.exec {
+        workingDir(rootProject.projectDir)
+        commandLine("git", *args)
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim()
+} catch (_: Exception) {
+    ""
+}
+
+val sourceRef = (providers.environmentVariable("NOTIFLY_SOURCE_REF")
+    .orElse(providers.environmentVariable("GITHUB_HEAD_REF").filter { it.isNotBlank() })
+    .orElse(providers.environmentVariable("GITHUB_REF_NAME"))
+    .orElse(providers.environmentVariable("CI_COMMIT_REF_NAME"))
+    .orElse(providers.environmentVariable("BUILD_SOURCEBRANCHNAME"))
+    .orNull ?: gitValue("symbolic-ref", "--quiet", "--short", "HEAD").ifBlank {
+        if (gitValue("rev-parse", "--verify", "HEAD").isNotBlank()) "detached" else "unknown"
+    }).ifBlank { "unknown" }.removePrefix("refs/heads/")
+val sourceSha = gitValue("rev-parse", "--verify", "HEAD").take(7).ifBlank { "unknown" }
+fun buildStringLiteral(value: String) = "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
 android {
     namespace = "ph.notifly.android"
     compileSdk = libs.versions.compileSdk.get().toInt()
@@ -18,6 +39,9 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("String", "SOURCE_REF", buildStringLiteral(sourceRef))
+        buildConfigField("String", "SOURCE_SHA", buildStringLiteral(sourceSha))
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         val sentryDsn = providers.gradleProperty("sentryDsn")
             .orElse(providers.environmentVariable("SENTRY_DSN"))
             .getOrElse("")
@@ -59,6 +83,7 @@ android {
     }
 
     sourceSets["main"].java.srcDirs("src/main/kotlin")
+    testOptions { unitTests.isIncludeAndroidResources = true }
 }
 
 dependencies {
@@ -68,6 +93,12 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.kotlinx.datetime)
     implementation(libs.koin.android)
+    testImplementation(kotlin("test"))
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test:runner:1.7.0")
 }
 
 

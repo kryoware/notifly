@@ -2,13 +2,12 @@
 
 from pathlib import Path
 
-from material_color_utilities import CustomColor, Variant, theme_from_color
+from material_color_utilities import CustomColor, Hct, TonalPalette, Variant, theme_from_color
 
 
 SEEDS = {
     "Ube": "#7443E6",
     "Evergreen": "#22684B",
-    "Indigo": "#6750A4",
     "Slate": "#35566E",
     "Clay": "#8F4C38",
 }
@@ -32,16 +31,25 @@ ACCENTS = (
     "expense", "expense_container", "on_expense_container",
     "confirmed", "on_confirmed",
 )
-# Ube is the brand palette (docs/brand/run-2026-09-30-ube/ube.css): its roles are pinned to the
+# Chart slices: one hue (the brand allows no second accent), largest share first, so the ramp runs
+# away from the card surface. Dark tops out at primary's tone so no slice outshines the One Light.
+# Each mode's steps pass the dataviz ordinal check against surface_container_high.
+CHART_TONES = {"light": (20, 30, 40, 50, 60), "dark": (80, 70, 60, 50, 40)}
+# Ube is the brand palette (docs/brand/ube.css): its roles are pinned to the
 # identity's swatches rather than derived. Tertiary marks pending review, which the brand draws in
 # lilac. Tonal spot fills whatever is not listed.
+# Tonal spot rotates tertiary toward pink; Ube has one hue, so its fixed tertiary mirrors primary fixed.
+UBE_TERTIARY_FIXED = {
+    "tertiary_fixed": "#E9DDFF", "tertiary_fixed_dim": "#CFBDFE",
+    "on_tertiary_fixed": "#201047", "on_tertiary_fixed_variant": "#4C3D75",
+}
 BRAND = {
     ("Ube", "dark"): {
         "primary": "#CBB6FF", "on_primary": "#26134A", "primary_container": "#3A1F66",
         "on_primary_container": "#F4F0F8", "inverse_primary": "#7443E6",
         "secondary_container": "#3A1F66", "on_secondary_container": "#CBB6FF",
         "tertiary": "#CBB6FF", "on_tertiary": "#26134A", "tertiary_container": "#3A1F66",
-        "on_tertiary_container": "#F4F0F8",
+        "on_tertiary_container": "#F4F0F8", **UBE_TERTIARY_FIXED,
         "background": "#110D17", "on_background": "#F4F0F8", "surface": "#110D17",
         "on_surface": "#F4F0F8", "surface_variant": "#2D2439", "on_surface_variant": "#A39AB6",
         "surface_dim": "#110D17", "surface_container_lowest": "#0A0810",
@@ -58,7 +66,7 @@ BRAND = {
         "on_primary_container": "#26134A", "inverse_primary": "#CBB6FF",
         "secondary_container": "#E8DEFF", "on_secondary_container": "#3A1F66",
         "tertiary": "#7443E6", "on_tertiary": "#F4F0F8", "tertiary_container": "#E8DEFF",
-        "on_tertiary_container": "#3A1F66",
+        "on_tertiary_container": "#3A1F66", **UBE_TERTIARY_FIXED,
         "background": "#F4F0F8", "on_background": "#110D17", "surface": "#F4F0F8",
         "on_surface": "#110D17", "surface_variant": "#E4DCEC", "on_surface_variant": "#5F5675",
         "surface_bright": "#F4F0F8", "surface_container_lowest": "#FFFFFF",
@@ -95,13 +103,12 @@ out = [
     " * Material Color Utilities tonal spot, standard contrast, harmonized semantic colors;",
     " * Ube pins its roles to the brand swatches.",
     " */",
-    "enum class NotiflyPalette { Ube, Evergreen, Indigo, Slate, Clay }",
+    "enum class NotiflyPalette { Ube, Evergreen, Slate, Clay }",
     "",
     "val NotiflyPalette.hint: String",
     '    get() = when (this) {',
     '        NotiflyPalette.Ube -> "Violet"',
     '        NotiflyPalette.Evergreen -> "Green"',
-    '        NotiflyPalette.Indigo -> "Purple"',
     '        NotiflyPalette.Slate -> "Blue"',
     '        NotiflyPalette.Clay -> "Terracotta"',
     "    }",
@@ -111,9 +118,12 @@ out = [
     "    val income: Color, val incomeContainer: Color, val onIncomeContainer: Color,",
     "    val expense: Color, val expenseContainer: Color, val onExpenseContainer: Color,",
     "    val confirmed: Color, val onConfirmed: Color,",
+    "    /** Ordinal one-hue ramp for chart slices, largest share first. */",
+    "    val chart: List<Color>,",
     ")",
     "",
 ]
+icon_roles = {}
 for name, seed in SEEDS.items():
     theme = theme_from_color(
         seed, 0.0, Variant.TONALSPOT,
@@ -123,6 +133,7 @@ for name, seed in SEEDS.items():
     for mode in ("light", "dark"):
         scheme = getattr(theme.schemes, mode)
         brand = BRAND.get((name, mode), {})
+        icon_roles[name, mode] = {role: brand.get(role, getattr(scheme, role)) for role in ("primary", "on_primary", "primary_container", "on_primary_container")}
         out.append(f"private val {name}{mode.title()} = {mode}ColorScheme(")
         for role in ROLES:
             # on_background is the same neutral role as on_surface in this utility release.
@@ -145,6 +156,8 @@ for name, seed in SEEDS.items():
         out.append(f"private val {name}{mode.title()}Accents = NotiflyAccents(")
         for role in ACCENTS:
             out.append(f"    {color(brand.get(role, accents[role]))},")
+        ramp = TonalPalette(Hct(brand.get("primary", scheme.primary)))
+        out.append(f"    listOf({', '.join(color(ramp.get(t)) for t in CHART_TONES[mode])}),")
         out.append(")")
         out.append("")
 
@@ -168,17 +181,47 @@ Path("shared/src/commonMain/kotlin/ph/notifly/ui/theme/Color.kt").write_text(
     "\n".join(out), encoding="utf-8"
 )
 
-# Launcher icon and Android 12 splash render outside Compose, so they get plain resources.
-LAUNCHER = {
-    "notifly_ube": SEEDS["Ube"],
-    "notifly_gata": BRAND[("Ube", "light")]["background"],
-    "notifly_night": BRAND[("Ube", "dark")]["background"],
-}
-Path("app/src/main/res/values/colors.xml").write_text(
-    "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-    "<!-- Generated by tools/generate_colors.py. Launcher and splash only. -->\n"
-    "<resources>\n"
-    + "".join(f"    <color name=\"{n}\">#FF{v[1:].upper()}</color>\n" for n, v in LAUNCHER.items())
-    + "</resources>\n",
-    encoding="utf-8",
-)
+# Platform icons render outside Compose. Generated from the same final (including Ube) roles.
+import xml.etree.ElementTree as ET
+
+RES = Path("app/src/main/res")
+ANDROID = "{http://schemas.android.com/apk/res/android}"
+mark = ET.parse("shared/src/commonMain/composeResources/drawable/notifly_mark.xml").getroot().find("path")
+path_data = mark.attrib[ANDROID + "pathData"]
+foreground = '''<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Preserve the existing 0.44 scale / 32dp offset and adaptive safe zone. -->
+    <group android:scaleX="0.44" android:scaleY="0.44" android:translateX="32" android:translateY="32">
+        <path android:strokeColor="@color/{color}" android:strokeWidth="16" android:strokeLineCap="round"
+            android:strokeLineJoin="round" android:pathData="{path}" />
+    </group>
+</vector>
+'''
+adaptive = '''<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/{name}_background" />
+    <foreground android:drawable="@drawable/{name}_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>
+'''
+colors = {"values": {}, "values-night": {}}
+for palette in SEEDS:
+    for mode in ("system", "light", "dark"):
+        name = f"ic_launcher_{palette.lower()}_{mode}"
+        for qualifier in colors:
+            dark = mode == "dark" or (mode == "system" and qualifier == "values-night")
+            roles = icon_roles[palette, "dark" if dark else "light"]
+            colors[qualifier][name + "_background"] = roles["primary_container" if dark else "primary"]
+            colors[qualifier][name + "_mark"] = roles["on_primary_container" if dark else "on_primary"]
+        (RES / "drawable" / (name + "_foreground.xml")).write_text(
+            foreground.format(color=name + "_mark", path=path_data), encoding="utf-8")
+        (RES / "mipmap-anydpi" / (name + ".xml")).write_text(adaptive.format(name=name), encoding="utf-8")
+for qualifier, entries in colors.items():
+    folder = RES / qualifier
+    folder.mkdir(exist_ok=True)
+    (folder / "colors.xml").write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n<!-- Generated by tools/generate_colors.py. Launcher only. -->\n<resources>\n'
+        + "".join(f'    <color name="{name}">#FF{value[1:].upper()}</color>\n' for name, value in entries.items())
+        + "</resources>\n", encoding="utf-8")
+(RES / "drawable/ic_launcher_monochrome.xml").write_text(
+    foreground.format(color="android:color/white", path=path_data).replace("@color/android:", "@android:"), encoding="utf-8")
+(RES / "mipmap-anydpi/ic_launcher.xml").write_text(adaptive.format(name="ic_launcher_ube_system"), encoding="utf-8")

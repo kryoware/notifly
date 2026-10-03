@@ -32,9 +32,7 @@ class NotificationParser {
         val text = body.trim()
         if (text.isEmpty()) return ParseOutcome.Unrecognized("Empty notification body.")
         if (text.length > 8192) return ParseOutcome.Unrecognized("Notification exceeds the parser input limit.")
-        val candidates = AmountContexts.find(text).filter {
-            !Regex("(?i)^(?:USD|EUR|GBP|\\$|€|£)").containsMatchIn(it.match.value)
-        }
+        val candidates = AmountContexts.find(text).filter { supportedCurrency(text, it.match) }
         if (candidates.isEmpty()) return ParseOutcome.Unrecognized("No supported amount found.")
         val usable = candidates.filter { !it.blocked && it.cue != null }
         val context = usable.minWithOrNull(compareBy<AmountContexts.Context> { it.cue!!.distance }.thenBy { it.cue!!.lines })
@@ -44,8 +42,14 @@ class NotificationParser {
         val document = context.nearest(AmountContexts.documents)
         var inEvidence = context.nearest(AmountContexts.inbound)
         // Receiving a receipt/document does not mean receiving money.
+        // Directly receiving the amount or a payment is income even with a receipt attached.
         if (document != null && inEvidence?.word == "received" &&
-            context.nearest(listOf("payment received", "received payment", "received money")) == null) inEvidence = null
+            (inEvidence.distance > 0 || document.distance == 0) &&
+            context.nearest(listOf(
+                "payment received", "received payment", "received money",
+                "received your payment", "we received your payment",
+                "we received payment", "received a payment",
+            )) == null) inEvidence = null
         val inWord = inEvidence?.word
         val outEvidence = context.nearest(AmountContexts.outbound.filter { it != "payment" || inWord == null })
         val outWord = outEvidence?.word
@@ -117,6 +121,24 @@ class NotificationParser {
                 else hint?.let { it == TransactionType.INCOME } ?: inWord?.let { true } ?: outWord?.let { false },
         )
         return ParseOutcome.Parsed(draft, reason)
+    }
+
+    /**
+     * Converts the first recognized amount starting at or after character offset [from] to minor units.
+     * Returns null if no amount matches or conversion fails, including overflow; does not try later matches.
+     * Filters unsupported currencies, but not transaction context. Shared with [BillReminderParser].
+     */
+    internal fun firstAmountMinor(text: String, from: Int = 0): Long? =
+        AmountContexts.find(text).firstOrNull { it.match.range.first >= from && supportedCurrency(text, it.match) }?.match?.let { match ->
+            runCatching { toMinorUnits(match.groupValues[1] + match.groupValues.getOrNull(2).orEmpty()) }.getOrNull()
+        }
+
+    private fun supportedCurrency(text: String, match: MatchResult): Boolean {
+        if (Regex("(?i)^(?:USD|EUR|GBP|\\$|€|£)").containsMatchIn(match.value)) return false
+        val before = text.substring(0, match.range.first)
+        val after = text.substring(match.range.last + 1)
+        return !Regex("^\\s*(?:USD|EUR|GBP)\\b", RegexOption.IGNORE_CASE).containsMatchIn(after) &&
+            !Regex("(?:USD|EUR|GBP)\\s*$", RegexOption.IGNORE_CASE).containsMatchIn(before)
     }
 
     /** "48,000.00" -> 4800000. String maths only; never Double for money. */

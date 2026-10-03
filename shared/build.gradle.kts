@@ -30,8 +30,10 @@ kotlin {
             implementation(compose.foundation)
             implementation(libs.compose.material3)
             implementation(libs.compose.material3.navigation.suite)
+            implementation(libs.compose.navigationevent)
             implementation(compose.components.resources)
             implementation(libs.aboutlibraries.compose.m3)
+            implementation(libs.koalaplot.core)
 
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.datetime)

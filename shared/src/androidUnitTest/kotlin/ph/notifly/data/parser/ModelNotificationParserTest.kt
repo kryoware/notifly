@@ -122,7 +122,8 @@ class ModelNotificationParserTest {
             val ledger = ph.notifly.data.repository.LedgerRepositoryImpl(db.ledgerDao(), ph.notifly.data.local.appPreferences(context))
             ledger.saveAccount(ph.notifly.domain.model.Account(1, "GCash", ph.notifly.domain.model.AccountType.WALLET, linkedApps = setOf("GCash")))
             val source = NotificationTransactionSource(context, CaptureRepositoryImpl(db.rawCaptureDao()),
-                AllowListRepositoryImpl(db.allowedAppDao()), parser, ledger)
+                AllowListRepositoryImpl(db.allowedAppDao()), parser, ledger,
+                ph.notifly.data.repository.BillRepositoryImpl(db.billDao()), ph.notifly.data.parser.BillReminderParser())
             source.capture(NotificationEvent("blocked", "blocked.app", 0) { error("Blocked app content must not be read") })
             assertTrue(db.rawCaptureDao().observeLog(null).first().isEmpty())
             val body = "PHP 800.00 added to your wallet from ACME CORP."

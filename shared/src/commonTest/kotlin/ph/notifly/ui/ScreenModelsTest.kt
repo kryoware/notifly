@@ -2,15 +2,20 @@ package ph.notifly.ui
 
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.*
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import ph.notifly.domain.model.Account
+import ph.notifly.domain.model.AccountType
 import ph.notifly.domain.model.AllowedApp
+import ph.notifly.domain.model.TransactionType
 import ph.notifly.domain.model.TransactionStatus
 import ph.notifly.domain.repository.FakeAllowListRepository
 import kotlin.test.*
@@ -123,6 +128,41 @@ class ScreenModelsTest {
             runCurrent()
         } finally { Dispatchers.resetMain() }
     }
+    @Test fun deletingLinkedTransactionUndoRestoresItsBillPayment() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val transactions = DemoTransactions()
+            val bills = DemoBills()
+            val transaction = transactions.byId(2)!!.copy(title = "[TEST] linked payment", status = TransactionStatus.CONFIRMED)
+            transactions.upsert(transaction)
+            val bill = bills.observeBills().first().first()
+            val due = bill.nextDue!!
+            bills.settle(bill.id, due, transaction.id)
+            val repository = object : ph.notifly.domain.repository.TransactionRepository by transactions {
+                override suspend fun delete(id: Long) {
+                    bills.observePayments().first().filter { it.transactionId == id }.forEach { bills.unsettle(it.id) }
+                    transactions.delete(id)
+                }
+            }
+            val model = TransactionsModel(repository, DemoLedger(transactions), bills)
+            val event = backgroundScope.async(start = CoroutineStart.UNDISPATCHED) { model.events.first() }
+
+            model.delete(transaction)
+            runCurrent()
+            val message = assertIs<UiEvent.Message>(event.await())
+            assertNull(repository.byId(transaction.id))
+            assertTrue(bills.observePayments().first().isEmpty())
+
+            message.undo?.let { repository.upsert(it) }
+            message.onUndo?.invoke()
+
+            assertEquals(transaction, repository.byId(transaction.id))
+            assertEquals(transaction.id, bills.observePayments().first().single().transactionId)
+            assertEquals(due, bills.observePayments().first().single().dueOn)
+            model.viewModelScope.cancel()
+            runCurrent()
+        } finally { Dispatchers.resetMain() }
+    }
     @Test fun bulkActionsConfirmPendingAndDeleteSelectedRows() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
@@ -210,6 +250,111 @@ class ScreenModelsTest {
             val maya = repository.observeAll().first().first { it.packageName == "com.maya" }
             assertTrue(maya.finance)
             assertTrue(maya.listening)
+            job.cancelAndJoin()
+            model.viewModelScope.cancel()
+            advanceUntilIdle()
+        } finally { Dispatchers.resetMain() }
+    }
+    @Test fun editorFlagsUnsavedChangesUntilRestored() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val repository = DemoTransactions()
+            val editor = EditorModel(repository, 2, ledger = DemoLedger(repository), apps = DemoAllowList())
+            runCurrent()
+            val title = editor.state.value.title
+            assertFalse(editor.state.value.dirty)
+            editor.edit(title = "Changed")
+            assertTrue(editor.state.value.dirty)
+            editor.edit(title = title)
+            assertFalse(editor.state.value.dirty)
+            editor.viewModelScope.cancel()
+            runCurrent()
+        } finally { Dispatchers.resetMain() }
+    }
+    @Test fun transferFeeIsRequiredForOriginsWithoutFreeTransfers() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val repository = DemoTransactions()
+            val ledger = DemoLedger(repository)
+            val paid = ledger.saveAccount(Account(name = "Paid bank", type = AccountType.BANK))
+            val free = ledger.saveAccount(Account(name = "Free bank", type = AccountType.BANK, freeTransfer = true))
+            val editor = EditorModel(repository, 0, ledger = ledger, apps = DemoAllowList())
+            runCurrent()
+            editor.edit(type = TransactionType.TRANSFER, accountId = free, toAccountId = paid)
+            assertFalse(editor.state.value.feeRequired)
+            editor.edit(accountId = 1, toAccountId = paid)
+            assertTrue(editor.state.value.feeRequired)
+            editor.edit(title = "[TEST] fee", amount = "100", accountId = paid, toAccountId = free)
+            editor.edit(fee = "15")
+            assertTrue(editor.state.value.feeRequired)
+            editor.save()
+            runCurrent()
+            val saved = repository.observeAll().first().first { it.title == "[TEST] fee" }
+            assertEquals(1500L, saved.feeMinor)
+            editor.viewModelScope.cancel()
+            // Once the origin gains free transfers, the recorded fee survives an unrelated edit.
+            ledger.saveAccount(ledger.observeAccounts().first().first { it.id == paid }.copy(freeTransfer = true))
+            val reopened = EditorModel(repository, saved.id, ledger = ledger, apps = DemoAllowList())
+            runCurrent()
+            assertTrue(reopened.state.value.feeRequired)
+            reopened.edit(title = "[TEST] fee renamed")
+            reopened.save()
+            runCurrent()
+            assertEquals(1500L, repository.byId(saved.id)?.feeMinor)
+            reopened.viewModelScope.cancel()
+            runCurrent()
+        } finally { Dispatchers.resetMain() }
+    }
+    @Test fun searchMatchesAccountNamesAndAppLabels() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val repository = DemoTransactions()
+            repository.upsert(repository.byId(2)!!.copy(id = 0, title = "[TEST] search", accountId = 2))
+            val model = TransactionsModel(repository, DemoLedger(repository))
+            val states = mutableListOf<TransactionsState>()
+            val job = launch { model.state.collect { states.add(it) } }
+            runCurrent()
+            model.search("maya wal")
+            runCurrent()
+            assertEquals(listOf("[TEST] search"), states.last().rows.map { it.title })
+            model.search("zzz-no-match")
+            runCurrent()
+            assertTrue(states.last().rows.isEmpty())
+            job.cancelAndJoin()
+            model.viewModelScope.cancel()
+            advanceUntilIdle()
+        } finally { Dispatchers.resetMain() }
+    }
+
+    @Test fun searchMatchesAmountsAsShown() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val repository = DemoTransactions()
+            repository.upsert(repository.byId(2)!!.copy(id = 0, title = "[TEST] amount", amountMinor = 123456))
+            val model = TransactionsModel(repository, DemoLedger(repository))
+            val states = mutableListOf<TransactionsState>()
+            val job = launch { model.state.collect { states.add(it) } }
+            runCurrent()
+            for (query in listOf("1234", "1,234.56", "₱1,234.56", "−₱1,234.56", " 1234.56 ")) {
+                model.search(query)
+                runCurrent()
+                assertEquals(listOf("[TEST] amount"), states.last().rows.map { it.title }, query)
+            }
+            for (query in listOf("1234.5", "12345", "123")) {
+                model.search(query)
+                runCurrent()
+                assertTrue(states.last().rows.isEmpty(), query)
+            }
+            repository.upsert(repository.byId(2)!!.copy(id = 0, title = "[TEST] cents", amountMinor = 50))
+            runCurrent()
+            for (query in listOf("0", "00", "₱0")) {
+                model.search(query)
+                runCurrent()
+                assertEquals(listOf("[TEST] cents"), states.last().rows.map { it.title }, query)
+            }
+            model.search("0.00")
+            runCurrent()
+            assertTrue(states.last().rows.isEmpty())
             job.cancelAndJoin()
             model.viewModelScope.cancel()
             advanceUntilIdle()

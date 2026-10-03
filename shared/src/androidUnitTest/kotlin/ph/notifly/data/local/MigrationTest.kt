@@ -14,6 +14,30 @@ import kotlin.test.assertEquals
 
 @RunWith(RobolectricTestRunner::class)
 class MigrationTest {
+    @Test fun upgradeFromVersion9KeepsExistingAmountsAndDefaultsFeeToZero() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "migration-9-${System.nanoTime()}.db"
+        val schema = JSONObject(java.io.File("schemas/ph.notifly.data.local.AppDatabase/9.json").readText()).getJSONObject("database")
+        context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null).use { sqlite ->
+            val entities = schema.getJSONArray("entities")
+            for (i in 0 until entities.length()) {
+                val entity = entities.getJSONObject(i)
+                sqlite.execSQL(entity.getString("createSql").replace("\${TABLE_NAME}", entity.getString("tableName")))
+                val indices = entity.optJSONArray("indices") ?: continue
+                for (j in 0 until indices.length()) sqlite.execSQL(indices.getJSONObject(j).getString("createSql").replace("\${TABLE_NAME}", entity.getString("tableName")))
+            }
+            sqlite.execSQL("INSERT INTO transactions(id,title,amountMinor,currency,type,status,category,occurredAtMillis,createdAtMillis,note,accountId) VALUES (1,'Existing',12345,'PHP','INCOME','CONFIRMED','Other',1000,1000,'',1)")
+            sqlite.version = 9
+        }
+        val db = Room.databaseBuilder<AppDatabase>(context, name).setDriver(AndroidSQLiteDriver())
+            .addMigrations(*databaseMigrations).build()
+        try {
+            val row = db.transactionDao().observeAll().first().single()
+            assertEquals(12345L, row.amountMinor)
+            assertEquals(0L, row.feeMinor)
+            assertEquals(12345L, db.transactionDao().observeConfirmedNetMinor().first())
+        } finally { db.close(); context.deleteDatabase(name) }
+    }
     @Test fun upgradeFromOriginalDatabasePreservesLedgerAndSeedsOnlyConfirmedPhpQueue() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val name = "migration-${System.nanoTime()}.db"
@@ -93,6 +117,7 @@ class MigrationTest {
             assertEquals(wallet.id, transfer.toAccountId)
             assertEquals("CONFIRMED", transfer.status)
             assertEquals(400L, transfer.createdAtMillis)
+            assertEquals(0L, transfer.feeMinor)
             assertEquals("Legacy", accounts.single { it.id == rows.single { it.id == 11L }.accountId }.name)
             assertEquals("Legacy transfer destination", accounts.single { it.id == rows.single { it.id == 12L }.toAccountId }.name)
             assertEquals("Coffee", db.ledgerDao().categoryById(rows.single { it.id == 11L }.categoryId!!)!!.name)

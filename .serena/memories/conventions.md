@@ -41,8 +41,8 @@ editing; they are the spec. Inline comments are rare and mark hazards
 
 ## Compose / theming
 
-- Four palettes in `NotiflyPalette` (Evergreen, Indigo, Slate, Clay), each with
-  a `lightColorScheme` in `Color.kt` plus a `NotiflyAccents` (income/expense)
+- Four palettes in `NotiflyPalette` (Ube brand, Evergreen, Slate, Clay), each with
+  light/dark schemes in `Color.kt` plus a `NotiflyAccents` (income/expense)
   record, because MD3 has no income/expense roles. Reach them via
   `MaterialTheme.accents` (a `staticCompositionLocalOf`), never a literal.
 - `Color.kt` is generated from Figma (file key `BTqrcTY3MPDY5WeDng5dzi`);
@@ -52,5 +52,5 @@ editing; they are the spec. Inline comments are rare and mark hazards
 ## Tests
 
 `commonTest` uses `kotlin.test` with backticked descriptive test-function names.
-`NotificationParserTest` mirrors the seeded log in `docs/prototype.html`; add a
+`NotificationParserTest` mirrors the seeded log from the old prototype (removed in `3cbed37`); add a
 case there for every real-world misparse.

@@ -5,6 +5,17 @@ import kotlin.time.Instant
 import ph.notifly.domain.model.*
 
 class AccountsTest {
+    @Test fun homeOrderReconcilesWithoutChangingBalancesOrVisibility() {
+        val accounts = listOf(
+            AccountBalance(Account(1, "Alpha", AccountType.BANK), -50L),
+            AccountBalance(Account(2, "Beta", AccountType.WALLET, archived = true), 100L),
+            AccountBalance(Account(3, "New account", AccountType.CARD), 500L))
+        assertEquals(accounts, homeAccountOrder(accounts, emptyList()))
+        assertEquals(listOf(2L, 1L, 3L), homeAccountOrder(accounts, listOf(9L, 2L, 2L, 1L)).map { it.account.id })
+        assertEquals(listOf(accounts[1], accounts[2]), homeAccountOrder(accounts.drop(1), listOf(2L, 1L)))
+        assertEquals(emptyList(), homeAccountOrder(emptyList(), listOf(2L, 1L)))
+        assertEquals(accounts.take(1), homeAccountOrder(accounts.take(1), listOf(2L, 1L)))
+    }
     private val at = Instant.fromEpochMilliseconds(1000)
     private fun row(account: Long, amount: Long, type: TransactionType, status: TransactionStatus = TransactionStatus.CONFIRMED,
         to: Long? = null, time: Long = 2000) = Transaction(title = "Test", amountMinor = amount,
@@ -20,6 +31,11 @@ class AccountsTest {
         assertEquals(listOf(8000L, 3800L), balances.map { it.estimate })
         assertEquals(4200L, balances.sumOf { it.netValue })
         assertEquals(5000L, accountBalances(listOf(bank, card), emptyList()).sumOf { it.netValue })
+    }
+    @Test fun transferFeeLeavesOnlyTheOriginAccount() {
+        val other = Account(3, "Other bank", AccountType.BANK, balanceMinor = 0, balanceAsOf = at)
+        val balances = accountBalances(listOf(bank, other), listOf(row(1, 2000, TransactionType.TRANSFER, to = 3).copy(feeMinor = 1500)))
+        assertEquals(listOf(6500L, 2000L), balances.map { it.estimate })
     }
     @Test fun reconciliationExcludesEarlierAndEqualTimesAndAllowsNegativeCredit() {
         val rows = listOf(row(1, 9999, TransactionType.EXPENSE, time = 999), row(1, 9999, TransactionType.EXPENSE, time = 1000),

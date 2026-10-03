@@ -5,6 +5,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.component.KoinComponent
@@ -17,11 +20,16 @@ import ph.notifly.di.sharedModule
 class NotiflyApplication : Application(), KoinComponent {
     private val preferences: AppPreferences by inject()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val launches = MutableStateFlow(0L)
+
+    /** An unchanged selection is still reconciled on the next Activity launch after a PM failure. */
+    fun reconcileLauncherIcon() { launches.value += 1 }
 
     override fun onCreate() {
         super.onCreate()
         startKoin {
             androidContext(this@NotiflyApplication)
+            properties(mapOf("debug" to BuildConfig.DEBUG))
             modules(sharedModule, androidModule)
         }
         val scheduler = getSystemService(android.app.job.JobScheduler::class.java)
@@ -30,11 +38,34 @@ class NotiflyApplication : Application(), KoinComponent {
             .setPeriodic(java.util.concurrent.TimeUnit.HOURS.toMillis(6))
             .setPersisted(true)
             .build())
+        // ponytail: JobScheduler can't fire at a fixed hour. Switch to AlarmManager inexact at 9am if users want a fixed time.
+        scheduler.schedule(android.app.job.JobInfo.Builder(2,
+            android.content.ComponentName(this, ph.notifly.android.service.BillReminderService::class.java))
+            .setPeriodic(java.util.concurrent.TimeUnit.HOURS.toMillis(12))
+            .setPersisted(true)
+            .build())
 
         scope.launch {
             preferences.crashReporting.collect { enabled ->
                 CrashReporting.setEnabled(enabled, this@NotiflyApplication, BuildConfig.SENTRY_DSN)
             }
+        }
+        scope.launch {
+            preferences.hideAmounts.combine(preferences.pinSet) { hidden, pin -> hidden || pin }
+                .distinctUntilChanged()
+                .collect { quiet ->
+                    if (quiet) {
+                        val manager = getSystemService(android.app.NotificationManager::class.java)
+                        manager.activeNotifications
+                            .filter { it.notification.channelId == ph.notifly.android.service.BillReminderService.CHANNEL }
+                            .forEach { manager.cancel(it.id) }
+                    }
+                }
+        }
+        scope.launch {
+            val launcher = LauncherIcons(packageManager, packageName)
+            preferences.appearance.combine(launches) { appearance, _ -> appearance }
+                .collect { launcher.apply(it) }
         }
     }
 }

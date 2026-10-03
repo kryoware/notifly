@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ph.notifly.domain.repository.TransactionRepository
+import ph.notifly.ui.theme.Space
 
 data class TransactionFiles(val available: Boolean, val busy: Boolean = false,
     val import: () -> Unit = {}, val export: () -> Unit = {})
@@ -37,14 +38,8 @@ internal fun TransactionDataControls(repository: TransactionRepository, demo: Bo
         val type = if (destination) entry.toAccountType else entry.accountType
         val pkg = if (destination) entry.transaction.toApp else entry.transaction.fromApp ?: entry.transaction.sourceApp
         val role = if (destination) "To" else if (entry.transaction.type == TransactionType.TRANSFER) "From" else "Account"
-        val identity = if (name != null) "$name · ${type?.name.orEmpty()}" else pkg ?: "Manual / unassigned"
+        val identity = if (name != null) listOfNotNull(name, type?.name).joinToString(" · ") else pkg ?: "Manual / unassigned"
         return "$role: $identity"
-    }
-    fun suggested(entry: TransactionCsv.Entry, destination: Boolean): Long? {
-        val name = if (destination) entry.toAccountName else entry.accountName
-        val type = if (destination) entry.toAccountType else entry.accountType
-        val pkg = if (destination) entry.transaction.toApp else entry.transaction.fromApp ?: entry.transaction.sourceApp
-        return accounts.filter { !it.archived && if (name != null) it.name.equals(name, true) && it.type == type else pkg != null && pkg in it.linkedApps }.singleOrNull()?.id
     }
     var saving by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -65,13 +60,13 @@ internal fun TransactionDataControls(repository: TransactionRepository, demo: Bo
         files.busy || saving -> "Working…"
         else -> null
     }
-    SettingsRow("Import transactions", unavailable ?: "Choose a Notifly CSV. Imported rows wait for your review.",
+    SettingsRow("Import transactions", unavailable ?: "Choose a Notifly or Budge CSV. Imported rows wait for your review.",
         onClick = if (enabled) files.import else null)
     SettingsRow("Export transactions", unavailable ?: "Save all transactions as CSV, without notification text",
         onClick = if (enabled) files.export else null)
     preview?.let { entries ->
         val endpoints = entries.flatMap { entry -> listOf(entry to false) + if (entry.transaction.type == TransactionType.TRANSFER) listOf(entry to true) else emptyList() }.distinctBy { (entry, destination) -> key(entry, destination) }
-        val assignments = endpoints.associate { (entry, destination) -> key(entry, destination) to (mapping[key(entry, destination)] ?: suggested(entry, destination)) }
+        val assignments = endpoints.associate { (entry, destination) -> key(entry, destination) to (mapping[key(entry, destination)] ?: suggestedImportAccount(entry, destination, accounts)) }
         val valid = entries.all { entry ->
             val from = assignments[key(entry, false)]
             val to = assignments[key(entry, true)]
@@ -80,7 +75,7 @@ internal fun TransactionDataControls(repository: TransactionRepository, demo: Bo
         AlertDialog(
             onDismissRequest = { if (!saving) preview = null },
             title = { Text("Import ${entries.size} transactions?") },
-            text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.md)) {
                 Text("Assign accounts before importing. Rows await review; exact duplicates are skipped. Categories missing from your list will be added.")
                 if (accounts.none { !it.archived }) Text("Create an account in Settings → Accounts first.")
                 endpoints.forEach { (entry, destination) ->
@@ -106,4 +101,13 @@ internal fun TransactionDataControls(repository: TransactionRepository, demo: Bo
             dismissButton = { TextButton(enabled = !saving, onClick = { preview = null }) { Text("Cancel") } },
         )
     }
+}
+
+internal fun suggestedImportAccount(entry: TransactionCsv.Entry, destination: Boolean, accounts: List<Account>): Long? {
+    val name = if (destination) entry.toAccountName else entry.accountName
+    val type = if (destination) entry.toAccountType else entry.accountType
+    val pkg = if (destination) entry.transaction.toApp else entry.transaction.fromApp ?: entry.transaction.sourceApp
+    // Budge exports have names without account types; require an explicit choice.
+    if (name != null && type == null) return null
+    return accounts.filter { !it.archived && if (name != null) it.name.equals(name, true) && it.type == type else pkg != null && pkg in it.linkedApps }.singleOrNull()?.id
 }

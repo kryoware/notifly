@@ -17,9 +17,13 @@ Compose Multiplatform.
   No hardcoded hex in app sources outside `ui/theme/Color.kt`; the local generator
   stores the four seed hex values.
 
-Platform-rendered launcher and Android 12 splash assets are the sole scoped
+Platform-rendered launcher and Android 12 splash assets have a scoped
 exception: they may use Android system black/white resources because they are
 outside Compose and cannot access `MaterialTheme`.
+
+Material Symbols vector XML may also use a literal opaque black mask fill:
+Compose's resource parser cannot resolve Android color references. The visible
+icon tint must still come from `MaterialTheme`.
 
 ## UI guides
 
@@ -116,6 +120,7 @@ the four original primary seeds with `python tools/generate_colors.py` after
 installing `material-color-utilities==0.2.6`. Keep the Python generator outside
 app runtime dependencies.
 
-Interaction reference: `docs/prototype.html` — open it in a browser. It is the
-behavioural spec for every screen, including the notification log and the
-offline sync ring.
+Design system: `DESIGN.md` (tokens, components, rules), derived from the brand
+kit in `docs/brand/`. Interaction reference: the app's demo mode, which runs
+every screen against seeded fake data, but not unbuilt flows such as the sync progress ring. The old `docs/prototype.html` was
+removed in `3cbed37`; recover it from history if you need the original flows.

@@ -28,4 +28,4 @@ Processes that inherit `JAVA_HOME` (the wrapper included) resolve a JDK fine.
 
 - Repo has LF in the index, CRLF in the working tree; `git diff` prints
   "LF will be replaced by CRLF" warnings. Harmless, not a change to fix.
-- `docs/prototype.html` is opened in a browser, not served.
+- `docs/brand/*.html` are opened in a browser, not served.

@@ -109,7 +109,7 @@
       "Soft, rounded, tactile: pill buttons, 24dp cards, 10dp chips.",
       "Money is tabular, signed, and split: pesos at full weight, centavos dimmed.",
       "Fraunces appears only as brand voice; it is never used for data.",
-      "Five palettes ship (Ube, Evergreen, Indigo, Slate, Clay). Ube is the identity; the others reuse the same roles."
+      "Four palettes ship (Ube, Evergreen, Slate, Clay). Ube is the identity and the only palette on brand surfaces; the others are user themes that reuse the same roles."
     ],
     "rules": [
       { "name": "The Ring-and-Tick Rule", "body": "Pending is always an outlined ring in the tertiary role; confirmed is always a filled circle in `accents.confirmed` with a check. Never express status by colour alone; the words \"Needs review\" accompany the ring.", "section": "colors" },

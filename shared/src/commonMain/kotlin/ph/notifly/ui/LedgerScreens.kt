@@ -1,13 +1,25 @@
 package ph.notifly.ui
 
+import org.jetbrains.compose.resources.painterResource
+import notifly.shared.generated.resources.Res
+import notifly.shared.generated.resources.symbol_clear
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewModelScope
@@ -15,6 +27,7 @@ import kotlinx.coroutines.flow.*
 import ph.notifly.domain.model.*
 import ph.notifly.domain.repository.*
 import kotlin.time.Clock
+import ph.notifly.ui.theme.Space
 
 class LedgerSettingsModel(private val ledger: LedgerRepository, apps: AllowListRepository) : ScreenModel() {
     data class State(val accounts: List<Account> = emptyList(), val categories: List<Category> = emptyList(),
@@ -41,29 +54,80 @@ class LedgerSettingsModel(private val ledger: LedgerRepository, apps: AllowListR
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun <T> ChoiceField(title: String, value: String, options: List<T>,
-    error: String? = null, label: (T) -> String, choose: (T) -> Unit) {
+    error: String? = null, searchable: Boolean = false, emptyLabel: String = "options",
+    searchText: (T) -> String = { it.toString() }, supporting: String? = null,
+    leading: (@Composable (T) -> Unit)? = null,
+    label: (T) -> String, choose: (T) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded, { expanded = !expanded }) {
-        OutlinedTextField(value, {}, readOnly = true, label = { Text(title) }, isError = error != null,
-            supportingText = error?.let { { Text(it) } },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth())
-        ExposedDropdownMenu(expanded, { expanded = false }) {
-            options.forEach { item -> DropdownMenuItem(text = { Text(label(item)) }, onClick = { choose(item); expanded = false }) }
+    var query by remember { mutableStateOf(TextFieldValue(value)) }
+    var searching by remember { mutableStateOf(false) }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(expanded, searchable) {
+        if (expanded && searchable) {
+            withFrameNanos { }
+            query = query.copy(selection = TextRange(0, query.text.length))
+        }
+    }
+    val search = query.text.trim()
+    val filtered = if (searchable && searching && search.isNotEmpty()) options.filter {
+        label(it).contains(search, ignoreCase = true) || searchText(it).contains(search, ignoreCase = true)
+    } else options
+    fun close() { expanded = false; query = TextFieldValue(value); keyboard?.hide() }
+    ExposedDropdownMenuBox(expanded, { shouldExpand ->
+        if (shouldExpand) {
+            query = TextFieldValue(value, selection = TextRange(0, value.length))
+            searching = false
+            expanded = true
+        } else close()
+    }) {
+        OutlinedTextField(
+            value = if (searchable && expanded) query else TextFieldValue(value),
+            onValueChange = { if (searchable) {
+                if (it.text != query.text) searching = true
+                query = it
+            } },
+            readOnly = !searchable,
+            singleLine = true,
+            label = { Text(title) }, isError = error != null,
+            leadingIcon = leading?.let { content -> options.find { label(it) == value }?.let { item -> { content(item) } } },
+            supportingText = (error ?: supporting)?.let { { Text(it) } },
+            trailingIcon = {
+                if (searchable && expanded && query.text.isNotEmpty()) IconButton(
+                    onClick = { query = TextFieldValue(""); searching = true; expanded = true },
+                    modifier = Modifier.semantics { contentDescription = "Clear search" }) {
+                    Icon(painterResource(Res.drawable.symbol_clear), contentDescription = null)
+                } else ExposedDropdownMenuDefaults.TrailingIcon(expanded)
+            },
+            keyboardOptions = KeyboardOptions(imeAction = if (searchable) ImeAction.Done else ImeAction.Default),
+            keyboardActions = KeyboardActions(onDone = { close() }),
+            modifier = Modifier.onFocusChanged { if (searchable && expanded && !it.isFocused) close() }
+                .menuAnchor(if (searchable) ExposedDropdownMenuAnchorType.PrimaryEditable
+                else ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+        ExposedDropdownMenu(expanded, { close() }) {
+            if (filtered.isEmpty()) DropdownMenuItem(
+                text = { Text(if (options.isEmpty()) "No $emptyLabel available" else "No matching $emptyLabel") },
+                enabled = false, onClick = {})
+            filtered.forEach { item -> DropdownMenuItem(
+                text = { Text(label(item)) }, modifier = Modifier.heightIn(min = 48.dp),
+                leadingIcon = leading?.let { content -> { content(item) } },
+                onClick = { choose(item); close() }) }
         }
     }
 }
 
 @Composable
-internal fun AccountPicker(title: String, selected: Long?, accounts: List<Account>, error: String? = null, choose: (Long) -> Unit) {
-    ChoiceField(title, accounts.find { it.id == selected }?.name ?: "Choose an account", accounts, error,
-        label = { it.name + if (it.type == AccountType.CARD) " · Card" else "" }) { choose(it.id) }
+internal fun AccountPicker(title: String, selected: Long?, accounts: List<Account>, error: String? = null, searchable: Boolean = true, choose: (Long) -> Unit) {
+    val account = accounts.find { it.id == selected }
+    ChoiceField(title, account?.pickerLabel() ?: "Choose an account", accounts, error, searchable = searchable, emptyLabel = "accounts",
+        supporting = account?.let { listOfNotNull(it.type.name.lowercase().replaceFirstChar { c -> c.uppercase() },
+            it.cardType, it.lastFour?.let { digits -> "Ending $digits" }).joinToString(" · ") },
+        leading = { AccountSymbol(it) }, label = { it.pickerLabel() }) { choose(it.id) }
 }
 
 @Composable
 fun AccountsScreen(model: LedgerSettingsModel) {
     val s by model.state.collectAsState()
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         item { Button(onClick = { model.navigate("account/0") }, Modifier.fillMaxWidth()) { Text("Add account") } }
         if (s.loaded && s.accounts.isEmpty()) item { Text("Add a bank, card or wallet account before creating transactions.") }
         items(s.accounts, key = { it.id }) { account ->
@@ -101,39 +165,8 @@ fun AccountEditorScreen(model: LedgerSettingsModel, id: Long) {
     var reconcile by remember(id) { mutableStateOf(original == null) }
     var error by remember(id) { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf(false) }
-    LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { OutlinedTextField(name, { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-        item { ChoiceField("Type", type.name.lowercase().replaceFirstChar { it.uppercase() }, AccountType.entries,
-            label = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }) { type = it } }
-        item { OutlinedTextField(lastFour, { lastFour = it }, label = { Text("Last four digits (optional)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true) }
-        if (type == AccountType.CARD) {
-            item { OutlinedTextField(cardType, { cardType = it }, label = { Text("Card network (optional)") },
-                placeholder = { Text("Visa, Mastercard…") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-            item { OutlinedTextField(due, { due = it }, label = { Text("Monthly due day (1–31, optional)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true) }
-            item { OutlinedTextField(statement, { statement = it }, label = { Text("Monthly statement day (1–31, optional)") },
-                supportingText = { Text("Days beyond the end of a month use its last day.") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true) }
-        }
-        item { OutlinedTextField(amount, { amount = it; reconcile = true },
-            label = { Text(if (type == AccountType.CARD) "Debt owed (PHP)" else "Balance (PHP)") },
-            supportingText = { Text(if (type == AccountType.CARD) "Negative debt represents credit." else "Enter the balance at your last reconciliation.") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true) }
-        item { SettingsRow("Reconcile balance now", "Only later confirmed transactions will change this balance",
-            checked = reconcile, onCheckedChange = { reconcile = it }) }
-        item { SettingsRow("Free transfers", "Account information; no fee is inferred", checked = free, onCheckedChange = { free = it }) }
-        item { Text("Linked finance apps", style = MaterialTheme.typography.titleMedium) }
-        if (s.apps.none { it.finance || it.packageName in links }) item {
-            TextButton(onClick = { model.navigate("finance-apps") }) { Text("Choose finance apps") }
-        }
-        items(s.apps.filter { it.finance || it.packageName in links }, key = { it.packageName }) { app ->
-            SettingsRow(app.label, "Linking does not enable notification access",
-                checked = app.packageName in links, onCheckedChange = { checked -> links = if (checked) links + app.packageName else links - app.packageName })
-        }
-        if (original != null) item { SettingsRow("Archived", "Keep history; hide from new transactions", checked = archived, onCheckedChange = { archived = it }) }
-        error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
-        item { Button(enabled = !busy, onClick = {
+    StickyActionScaffold(actions = {
+        Button(enabled = !busy, onClick = {
             val balance = balanceInput(amount)
             val dueDay = due.takeIf { it.isNotBlank() }?.toIntOrNull()
             val statementDay = statement.takeIf { it.isNotBlank() }?.toIntOrNull()
@@ -151,8 +184,42 @@ fun AccountEditorScreen(model: LedgerSettingsModel, id: Long) {
                     dueDay.takeIf { type == AccountType.CARD }, statementDay.takeIf { type == AccountType.CARD }, archived, links)
                 try { account.validate(); model.save(account) } catch (e: IllegalArgumentException) { error = e.message }
             }
-        }, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Saving…" else "Save account") } }
-        if (original != null) item { TextButton(onClick = { deleting = true }, enabled = !busy) { Text("Delete unused account") } }
+        }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text(if (busy) "Saving…" else "Save account") }
+    }) { contentModifier ->
+        LazyColumn(contentModifier, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            item { OutlinedTextField(name, { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
+            item { ChoiceField("Type", type.name.lowercase().replaceFirstChar { it.uppercase() }, AccountType.entries,
+                label = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }) { type = it } }
+            item { OutlinedTextField(lastFour, { lastFour = it }, label = { Text("Last four digits (optional)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true) }
+            if (type == AccountType.CARD) {
+                item { OutlinedTextField(cardType, { cardType = it }, label = { Text("Card network (optional)") },
+                    placeholder = { Text("Visa, Mastercard…") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
+                item { OutlinedTextField(due, { due = it }, label = { Text("Monthly due day (1–31, optional)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true) }
+                item { OutlinedTextField(statement, { statement = it }, label = { Text("Monthly statement day (1–31, optional)") },
+                    supportingText = { Text("Days beyond the end of a month use its last day.") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true) }
+            }
+            item { MoneyField(amount, { amount = it; reconcile = true },
+                label = { Text(if (type == AccountType.CARD) "Debt owed (PHP)" else "Balance (PHP)") },
+                supportingText = { Text(if (type == AccountType.CARD) "Negative debt represents credit." else "Enter the balance at your last reconciliation.") },
+                signed = true, modifier = Modifier.fillMaxWidth()) }
+            item { SettingsRow("Reconcile balance now", "Only later confirmed transactions will change this balance",
+                checked = reconcile, onCheckedChange = { reconcile = it }) }
+            item { SettingsRow("Free transfers", "Otherwise, a transfer fee is required when recording transfers", checked = free, onCheckedChange = { free = it }) }
+            item { Text("Linked finance apps", style = MaterialTheme.typography.titleMedium) }
+            if (s.apps.none { it.finance || it.packageName in links }) item {
+                TextButton(onClick = { model.navigate("finance-apps") }) { Text("Choose finance apps") }
+            }
+            items(s.apps.filter { it.finance || it.packageName in links }, key = { it.packageName }) { app ->
+                SettingsRow(app.label, "Linking does not enable notification access",
+                    checked = app.packageName in links, onCheckedChange = { checked -> links = if (checked) links + app.packageName else links - app.packageName })
+            }
+            if (original != null) item { SettingsRow("Archived", "Keep history; hide from new transactions", checked = archived, onCheckedChange = { archived = it }) }
+            error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
+            if (original != null) item { TextButton(onClick = { deleting = true }, enabled = !busy) { Text("Delete unused account") } }
+        }
     }
     if (deleting) AlertDialog(onDismissRequest = { deleting = false }, title = { Text("Delete account?") },
         text = { Text("Accounts with transactions or captured drafts must be archived instead.") },
@@ -164,8 +231,8 @@ fun AccountEditorScreen(model: LedgerSettingsModel, id: Long) {
 fun CategoriesScreen(model: LedgerSettingsModel) {
     val s by model.state.collectAsState()
     var type by remember { mutableStateOf(TransactionType.EXPENSE) }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.md)) {
+        item { Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             listOf(TransactionType.INCOME, TransactionType.EXPENSE).forEach { item ->
                 FilterChip(type == item, { type = item }, label = { Text(item.name.lowercase().replaceFirstChar { it.uppercase() }) })
             }
@@ -179,33 +246,41 @@ fun CategoriesScreen(model: LedgerSettingsModel) {
 }
 
 @Composable
-fun CategoryEditorScreen(model: LedgerSettingsModel, id: Long, type: TransactionType) {
+fun CategoryEditorScreen(model: LedgerSettingsModel, id: Long, type: TransactionType, monthlyBudget: Long?, monthlyBudgetLoaded: Boolean) {
     val s by model.state.collectAsState()
     val busy by model.busy.collectAsState()
-    if (!s.loaded) { CircularProgressIndicator(); return }
+    if (!s.loaded || !monthlyBudgetLoaded) { CircularProgressIndicator(); return }
     val original = s.categories.find { it.id == id }
     if (id != 0L && original == null) { Text("Category no longer exists."); return }
     var name by remember(id) { mutableStateOf(original?.name.orEmpty()) }
     var archived by remember(id) { mutableStateOf(original?.archived ?: false) }
     var budget by remember(id) { mutableStateOf(original?.budgetMinor?.let(::amountText).orEmpty()) }
+    val otherBudgets = s.categories.filter { it.id != id && it.type == TransactionType.EXPENSE }
+        .fold(0L) { sum, category -> category.budgetMinor?.let { if (sum > Long.MAX_VALUE - it) Long.MAX_VALUE else sum + it } ?: sum }
+    val remainingBudget = monthlyBudget?.let { (it - otherBudgets).coerceAtLeast(0L) }
     var error by remember(id) { mutableStateOf<String?>(null) }
-    LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { OutlinedTextField(name, { name = it }, enabled = original?.name != "Other", label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-        if (type == TransactionType.EXPENSE) item { OutlinedTextField(budget, { budget = it }, label = { Text("Monthly budget (PHP, optional)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true) }
-        if (original != null) item { SettingsRow("Archived", "Preserve history and budgets; hide from new entries",
-            checked = archived, onCheckedChange = if (original.name != "Other") { { archived = it } } else null) }
-        error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
-        item { Button(enabled = !busy, onClick = {
+    StickyActionScaffold(actions = {
+        Button(enabled = !busy, onClick = {
             val minor = budget.takeIf { it.isNotBlank() }?.let(::parseAmountMinor)
             error = when {
                 name.isBlank() -> "Enter a category name."
                 budget.isNotBlank() && minor == null -> "Enter a budget above zero."
+                remainingBudget != null && minor != null && minor > remainingBudget ->
+                    "Only ${money(remainingBudget)} of your ${money(monthlyBudget ?: 0L)} monthly budget is unallocated."
                 s.categories.any { it.id != id && it.type == type && it.name.equals(name.trim(), true) } -> "This category already exists."
                 else -> null
             }
             if (error == null) model.save(Category(id, name.trim(), type, archived, minor))
-        }, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Saving…" else "Save category") } }
+        }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text(if (busy) "Saving…" else "Save category") }
+    }) { contentModifier ->
+        LazyColumn(contentModifier, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            item { OutlinedTextField(name, { name = it }, enabled = original?.name != "Other", label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
+            if (type == TransactionType.EXPENSE) item { MoneyField(budget, { budget = it }, label = { Text("Monthly budget (PHP, optional)") },
+                modifier = Modifier.fillMaxWidth()) }
+            if (original != null) item { SettingsRow("Archived", "Preserve history and budgets; hide from new entries",
+                checked = archived, onCheckedChange = if (original.name != "Other") { { archived = it } } else null) }
+            error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
+        }
     }
 }
 
@@ -213,7 +288,7 @@ fun CategoryEditorScreen(model: LedgerSettingsModel, id: Long, type: Transaction
 fun AccountReviewScreen(model: LedgerSettingsModel) {
     val s by model.state.collectAsState()
     var discard by remember { mutableStateOf<CapturedDraft?>(null) }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         item { Text("Select an account and check the details before confirming. These drafts are not counted in your balance.") }
         if (s.loaded && s.drafts.isEmpty()) item { Text("No drafts need account assignment.") }
         items(s.drafts, key = { it.id }) { draft ->

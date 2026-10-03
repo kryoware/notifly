@@ -2,15 +2,16 @@ package ph.notifly.domain.model
 
 import kotlin.time.Instant
 
-enum class CaptureResult { PARSED, NEEDS_REVIEW, UNRECOGNIZED, IGNORED }
+enum class CaptureResult { PARSED, NEEDS_REVIEW, UNRECOGNIZED, IGNORED, BILL }
 
 /**
  * One notification as it arrived, plus what the parser made of it.
  * Backs the in-app notification log (Settings → Troubleshooting).
  *
  * PRIVACY: [body] is sensitive. It is written only when the user has
- * "Keep raw text on device" enabled, is purged after [RETENTION_HOURS],
- * and must never be attached to a sync payload or a log statement.
+ * "Keep raw text on device" enabled, is purged after [RETENTION_HOURS]
+ * ([DEBUG_RETENTION_HOURS] on debug builds), and must never be attached to
+ * a sync payload or a log statement. [extras] follows the same rules.
  */
 data class RawCapture(
     val id: Long = 0,
@@ -22,6 +23,10 @@ data class RawCapture(
     val matchedDirection: String? = null,
     val reason: String,             // plain language, shown to the user
     val fingerprint: String? = null,
+    val extras: Map<String, String> = emptyMap(), // debug builds only
 ) {
-    companion object { const val RETENTION_HOURS = 24 }
+    companion object {
+        const val RETENTION_HOURS = 24
+        const val DEBUG_RETENTION_HOURS = 24 * 7
+    }
 }
