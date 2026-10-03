@@ -169,8 +169,13 @@ data class EditorState(
     val accountId: Long? = null, val toAccountId: Long? = null, val categoryId: Long? = null,
     val accounts: List<Account> = emptyList(), val categories: List<Category> = emptyList(), val apps: List<AllowedApp> = emptyList(),
     val fromDraft: Boolean = false, val accountError: String? = null, val toAccountError: String? = null,
+    val fee: String = "", val feeError: String? = null,
 
-)
+) {
+    val feeRequired: Boolean get() = type == TransactionType.TRANSFER && accounts.find { it.id == accountId }?.let {
+        !it.freeTransfer || (original?.accountId == it.id && original.feeMinor > 0)
+    } == true
+}
 class EditorModel(private val repository: TransactionRepository, id: Long,
                   captures: CaptureRepository? = null, captureId: Long? = null,
                   private val ledger: LedgerRepository, apps: AllowListRepository, private val draftId: Long? = null) : ScreenModel() {
@@ -185,6 +190,7 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
             EditorState(t, t?.title.orEmpty(), t?.let { amountText(it.amountMinor) }.orEmpty(),
                 t?.category ?: "Other", t?.type ?: TransactionType.EXPENSE, ready = true,
                 accountId = t?.accountId, toAccountId = t?.toAccountId, categoryId = t?.categoryId, sourceApp = t?.sourceApp,
+                fee = t?.takeIf { it.type == TransactionType.TRANSFER }?.let { amountText(it.feeMinor) }.orEmpty(),
                 date = local.date.toString(),
                 time = if (t == null) "00:00" else local.hour.toString().padStart(2, '0') + ":" + local.minute.toString().padStart(2, '0'))
         }
@@ -216,7 +222,7 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
              category: String = state.value.category, type: TransactionType = state.value.type,
              date: String = state.value.date, time: String = state.value.time,
              accountId: Long? = state.value.accountId, toAccountId: Long? = state.value.toAccountId,
-             sourceApp: String? = state.value.sourceApp) {
+             sourceApp: String? = state.value.sourceApp, fee: String = state.value.fee) {
         val chosen = state.value.categories.find { it.name == category && it.type == type }
         val suggestion = if (sourceApp != state.value.sourceApp && accountId == null)
             state.value.accounts.filter { !it.archived && sourceApp in it.linkedApps }.singleOrNull()?.id else accountId
@@ -224,6 +230,8 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
             category = if (type == TransactionType.TRANSFER) "Transfer" else if (type != state.value.type && chosen == null) "Other" else category,
             categoryId = if (type == TransactionType.TRANSFER) null else chosen?.id, type = type, date = date, time = time,
             accountId = suggestion, toAccountId = toAccountId.takeIf { type == TransactionType.TRANSFER }, sourceApp = sourceApp,
+            fee = if (type != TransactionType.TRANSFER) "" else if (suggestion != state.value.accountId) "" else fee,
+            feeError = null,
             accountError = null, toAccountError = null, error = null, titleError = null, amountError = null, dateError = null, timeError = null)
     }
     /**
@@ -254,6 +262,13 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
                 toAccountError = if (s.type == TransactionType.TRANSFER) "Choose a different destination account." else null)
             return
         }
+        val fee = if (!s.feeRequired) 0L else parseFeeMinor(s.fee)
+        if (fee == null || amount > Long.MAX_VALUE - fee) {
+            mutableState.value = s.copy(feeError = if (fee == null)
+                "Enter the fee, or 0 if this transfer was free. Use at most two decimal places."
+                else "The transfer amount and fee are too large.")
+            return
+        }
         mutableState.value = s.copy(saving = true)
         val occurredAt = date.atTime(time).toInstant(TimeZone.currentSystemDefault())
         work {
@@ -261,11 +276,11 @@ class EditorModel(private val repository: TransactionRepository, id: Long,
                 val transaction = s.original?.copy(title = s.title.trim(), amountMinor = amount,
                     category = s.category, categoryId = s.categoryId, type = s.type, status = TransactionStatus.CONFIRMED,
                     occurredAt = occurredAt, accountId = account.id, toAccountId = s.toAccountId,
-                    sourceApp = s.sourceApp)
+                    sourceApp = s.sourceApp, feeMinor = fee)
                     ?: Transaction(title = s.title.trim(), amountMinor = amount, type = s.type,
                         status = TransactionStatus.CONFIRMED, category = s.category, categoryId = s.categoryId,
                         occurredAt = occurredAt, createdAt = Clock.System.now(), sourceApp = s.sourceApp,
-                        captureId = s.captureId, accountId = account.id, toAccountId = s.toAccountId)
+                        captureId = s.captureId, accountId = account.id, toAccountId = s.toAccountId, feeMinor = fee)
                 if (draftId != null) ledger.confirmDraft(draftId, transaction) else repository.upsert(transaction)
                 mutableEvents.emit(UiEvent.Navigate("transactions"))
             } catch (e: kotlinx.coroutines.CancellationException) {

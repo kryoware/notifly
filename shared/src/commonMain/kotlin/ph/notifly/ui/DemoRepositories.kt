@@ -79,6 +79,8 @@ class DemoTransactions(initial: List<Transaction> = listOf(
     override suspend fun upsert(transaction: Transaction): Long {
         require(transaction.accountId > 0 && transaction.amountMinor > 0 && transaction.title.isNotBlank() && transaction.currency == "PHP")
         require(transaction.type != TransactionType.TRANSFER || (transaction.toAccountId != null && transaction.toAccountId != transaction.accountId))
+        require(transaction.feeMinor >= 0 && transaction.amountMinor <= Long.MAX_VALUE - transaction.feeMinor)
+        require(transaction.type == TransactionType.TRANSFER || transaction.feeMinor == 0L)
         val id = transaction.id.takeIf { it != 0L } ?: nextId++
         rows.value = (rows.value.filterNot { it.id == id } + transaction.copy(id = id))
             .sortedWith(compareByDescending<Transaction> { it.occurredAt }.thenByDescending { it.createdAt })
@@ -87,7 +89,7 @@ class DemoTransactions(initial: List<Transaction> = listOf(
     override suspend fun delete(id: Long) { rows.value = rows.value.filterNot { it.id == id } }
     override fun observeConfirmedNetMinor() = rows.map { list ->
         list.filter { it.status == TransactionStatus.CONFIRMED }.sumOf {
-            when (it.type) { TransactionType.INCOME -> it.amountMinor; TransactionType.EXPENSE -> -it.amountMinor; TransactionType.TRANSFER -> 0L }
+            when (it.type) { TransactionType.INCOME -> it.amountMinor; TransactionType.EXPENSE -> -it.amountMinor; TransactionType.TRANSFER -> -it.feeMinor }
         }
     }
 }

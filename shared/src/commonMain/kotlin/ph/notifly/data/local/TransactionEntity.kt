@@ -27,4 +27,5 @@ data class TransactionEntity(
     val categoryId: Long? = null,
     val fromApp: String? = null,
     val toApp: String? = null,
+    @androidx.room.ColumnInfo(defaultValue = "0") val feeMinor: Long = 0,
 )

@@ -3,7 +3,7 @@ package ph.notifly.data.transfer
 import ph.notifly.domain.model.*
 import kotlin.time.Instant
 
-/** Ledger CSV v2 with portable account names/types; v1 imports remain supported. IDs and raw notification content are deliberately excluded. */
+/** Ledger CSV v3 includes transfer fees; v1/v2 imports remain supported. Raw notification content is excluded. */
 object TransactionCsv {
     const val MAX_CHARS = 5_000_000
     const val MAX_ROWS = 10_000
@@ -15,7 +15,7 @@ object TransactionCsv {
         val toAccountName: String? = null, val toAccountType: AccountType? = null)
 
     fun encode(rows: List<Transaction>, accounts: List<Account> = emptyList()): String = buildString {
-        appendLine((columns + accountColumns).joinToString(","))
+        appendLine((columns + accountColumns + "fee_minor").joinToString(","))
         rows.forEach { t ->
             val account = accounts.find { it.id == t.accountId }
             val to = accounts.find { it.id == t.toAccountId }
@@ -23,7 +23,7 @@ object TransactionCsv {
                 t.category, Instant.fromEpochMilliseconds(t.occurredAt.toEpochMilliseconds()).toString(),
                 Instant.fromEpochMilliseconds(t.createdAt.toEpochMilliseconds()).toString(), t.sourceApp.orEmpty(),
                 t.note, t.fromApp.orEmpty(), t.toApp.orEmpty(), account?.name.orEmpty(), account?.type?.name.orEmpty(),
-                to?.name.orEmpty(), to?.type?.name.orEmpty()).joinToString(",") { value ->
+                to?.name.orEmpty(), to?.type?.name.orEmpty(), t.feeMinor.toString()).joinToString(",") { value ->
                 // Prevent spreadsheet formulas; doubling an existing apostrophe keeps this reversible.
                 val safe = if (value.needsSpreadsheetEscape()) "'$value" else value
                 "\"${safe.replace("\"", "\"\"")}\""
@@ -38,7 +38,8 @@ object TransactionCsv {
         require(csv.length <= MAX_CHARS) { "CSV is too large. Use a file under 5 million characters." }
         val records = records(csv.removePrefix("\uFEFF"))
         val headers = records.firstOrNull()
-        require(headers == columns || headers == columns + accountColumns) { "Choose a Notifly transaction CSV with the original column headers." }
+        require(headers == columns || headers == columns + accountColumns || headers == columns + accountColumns + "fee_minor") {
+            "Choose a Notifly transaction CSV with the original column headers." }
         return records.drop(1).mapIndexed { index, fields ->
             val message = "Invalid transaction at CSV row ${index + 2}. Check its fields and try again."
             require(fields.size == headers?.size) { message }
@@ -47,7 +48,9 @@ object TransactionCsv {
             }
             try {
                 val amount = f[1].toLongOrNull()
+                val fee = if (f.size == 17) requireNotNull(f[16].toLongOrNull()) else 0L
                 require(f[0].isNotBlank() && amount != null && amount > 0 && f[2] == "PHP" && f[5].isNotBlank())
+                require(fee >= 0 && amount <= Long.MAX_VALUE - fee && (f[3] == "TRANSFER" || fee == 0L))
                 TransactionStatus.valueOf(f[4])
                 val occurred = Instant.parse(f[6])
                 val created = Instant.parse(f[7])
@@ -57,7 +60,7 @@ object TransactionCsv {
                 val transaction = Transaction(title = f[0], amountMinor = amount, currency = f[2], type = TransactionType.valueOf(f[3]),
                     status = TransactionStatus.NEEDS_REVIEW, category = f[5], occurredAt = occurred, createdAt = created,
                     sourceApp = f[8].ifEmpty { null }, captureId = null, note = f[9],
-                    fromApp = f[10].ifEmpty { null }, toApp = f[11].ifEmpty { null }, accountId = 0)
+                    fromApp = f[10].ifEmpty { null }, toApp = f[11].ifEmpty { null }, accountId = 0, feeMinor = fee)
                 if (f.size == columns.size) Entry(transaction) else {
                     val accountName = f[12].takeIf { it.isNotBlank() }
                     val accountType = f[13].takeIf { it.isNotBlank() }?.let(AccountType::valueOf)
@@ -102,7 +105,7 @@ object TransactionCsv {
                 '\r', '\n' -> { if (c == '\r' && csv.getOrNull(i) == '\n') i++; endRow() }
                 else -> { require(!closed) { "Invalid CSV quoting." }; field.append(c) }
             }
-            require(fields.size < columns.size + accountColumns.size) { "Too many CSV columns." }
+            require(fields.size < columns.size + accountColumns.size + 1) { "Too many CSV columns." }
         }
         require(!quoted) { "CSV has an unclosed quoted field." }
         if (field.isNotEmpty() || fields.isNotEmpty() || closed) endRow()

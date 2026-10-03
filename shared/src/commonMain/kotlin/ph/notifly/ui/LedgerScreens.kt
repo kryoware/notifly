@@ -8,6 +8,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewModelScope
@@ -41,23 +45,43 @@ class LedgerSettingsModel(private val ledger: LedgerRepository, apps: AllowListR
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun <T> ChoiceField(title: String, value: String, options: List<T>,
-    error: String? = null, label: (T) -> String, choose: (T) -> Unit) {
+    error: String? = null, searchable: Boolean = false,
+    searchText: (T) -> String = { it.toString() },
+    supporting: String? = null, leading: (@Composable (T) -> Unit)? = null,
+    label: (T) -> String, choose: (T) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
+    val focus = LocalFocusManager.current
+    var query by remember(value) { mutableStateOf(TextFieldValue(value)) }
+    val visible = if (!searchable || query.text == value) options else options.filter {
+        label(it).contains(query.text.trim(), ignoreCase = true) || searchText(it).contains(query.text.trim(), ignoreCase = true)
+    }
+    fun dismiss() { expanded = false; query = TextFieldValue(value) }
     ExposedDropdownMenuBox(expanded, { expanded = !expanded }) {
-        OutlinedTextField(value, {}, readOnly = true, label = { Text(title) }, isError = error != null,
-            supportingText = error?.let { { Text(it) } },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth())
-        ExposedDropdownMenu(expanded, { expanded = false }) {
-            options.forEach { item -> DropdownMenuItem(text = { Text(label(item)) }, onClick = { choose(item); expanded = false }) }
+        OutlinedTextField(query, { query = it; expanded = true }, readOnly = !searchable,
+            singleLine = true, label = { Text(title) }, isError = error != null,
+            supportingText = (error ?: supporting)?.let { { Text(it) } },
+            leadingIcon = leading?.let { content -> options.find { label(it) == value }?.let { item -> { content(item) } } },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded,
+                Modifier.menuAnchor(if (searchable) ExposedDropdownMenuAnchorType.SecondaryEditable else ExposedDropdownMenuAnchorType.PrimaryNotEditable)) },
+            modifier = Modifier.menuAnchor(if (searchable) ExposedDropdownMenuAnchorType.PrimaryEditable else ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                .onFocusChanged { if (it.isFocused && searchable) query = query.copy(selection = TextRange(0, query.text.length)) }
+                .fillMaxWidth())
+        ExposedDropdownMenu(expanded, { dismiss() }) {
+            if (visible.isEmpty()) DropdownMenuItem(text = { Text("No matching options") }, enabled = false, onClick = {})
+            visible.forEach { item -> DropdownMenuItem(text = { Text(label(item)) },
+                leadingIcon = leading?.let { content -> { content(item) } },
+                onClick = { dismiss(); if (searchable) focus.clearFocus(); choose(item) }) }
         }
     }
 }
 
 @Composable
 internal fun AccountPicker(title: String, selected: Long?, accounts: List<Account>, error: String? = null, choose: (Long) -> Unit) {
-    ChoiceField(title, accounts.find { it.id == selected }?.name ?: "Choose an account", accounts, error,
-        label = { it.name + if (it.type == AccountType.CARD) " · Card" else "" }) { choose(it.id) }
+    val account = accounts.find { it.id == selected }
+    ChoiceField(title, account?.pickerLabel() ?: "Choose an account", accounts, error, searchable = true,
+        supporting = account?.let { listOfNotNull(it.type.name.lowercase().replaceFirstChar { c -> c.uppercase() },
+            it.cardType, it.lastFour?.let { digits -> "Ending $digits" }).joinToString(" · ") },
+        leading = { AccountSymbol(it) }, label = { it.pickerLabel() }) { choose(it.id) }
 }
 
 @Composable
@@ -122,7 +146,7 @@ fun AccountEditorScreen(model: LedgerSettingsModel, id: Long) {
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), singleLine = true) }
         item { SettingsRow("Reconcile balance now", "Only later confirmed transactions will change this balance",
             checked = reconcile, onCheckedChange = { reconcile = it }) }
-        item { SettingsRow("Free transfers", "Account information; no fee is inferred", checked = free, onCheckedChange = { free = it }) }
+        item { SettingsRow("Free transfers", "Otherwise, a transfer fee is required when recording transfers", checked = free, onCheckedChange = { free = it }) }
         item { Text("Linked finance apps", style = MaterialTheme.typography.titleMedium) }
         if (s.apps.none { it.finance || it.packageName in links }) item {
             TextButton(onClick = { model.navigate("finance-apps") }) { Text("Choose finance apps") }

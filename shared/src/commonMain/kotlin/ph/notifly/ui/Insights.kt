@@ -52,11 +52,14 @@ private fun cashFlow(rows: List<Transaction>) = CashFlow(
 
 /** NEEDS_REVIEW rows never count: insights describe the same money as the headline balance. */
 private fun List<Transaction>.confirmedByDate(zone: TimeZone) = filter { it.status == TransactionStatus.CONFIRMED }
+    .map { if (it.type == TransactionType.TRANSFER) it.copy(type = TransactionType.EXPENSE,
+        amountMinor = it.feeMinor, category = "Transfer fees") else it }
+    .filter { it.amountMinor > 0 }
     .map { it.occurredAt.toLocalDateTime(zone).date to it }
 
 /**
  * Summarizes confirmed cash flow over [days] calendar days ending on [today], compared with the
- * preceding equally sized window. [zone] assigns occurrence dates; later dates and transfers are excluded.
+ * preceding equally sized window. [zone] assigns occurrence dates; later dates and transfer principal are excluded.
  * Amounts stay in minor units. Daily spending includes zero-spend days, oldest first; categories
  * include only current-window expenses in descending total order. [WindowInsights.largest] holds
  * up to three expenses, largest first. Use a positive [days] for a meaningful window and daily average.
@@ -86,7 +89,7 @@ fun windowInsights(rows: List<Transaction>, today: LocalDate, days: Int, zone: T
 
 /**
  * Summarizes confirmed income and expenses from the month's first day through [today], inclusive,
- * using occurrence dates in [zone]. Transfers and later dates are excluded; totals are in minor units.
+ * using occurrence dates in [zone]. Transfer principal and later dates are excluded; fees count as spending.
  */
 fun monthInsights(rows: List<Transaction>, today: LocalDate, zone: TimeZone): MonthInsights {
     val first = LocalDate(today.year, today.month, 1)

@@ -10,7 +10,7 @@ import kotlinx.coroutines.IO
 
 @Database(
     entities = [TransactionEntity::class, RawCaptureEntity::class, AllowedAppEntity::class, PendingChangeEntity::class, CaptureReceiptEntity::class, AccountEntity::class, AccountAppEntity::class, CategoryEntity::class, CapturedDraftEntity::class],
-    version = 9,
+    version = 10,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -27,6 +27,11 @@ expect object AppDatabaseConstructor : RoomDatabaseConstructor<AppDatabase> {
 }
 
 val databaseMigrations = arrayOf(
+    object : androidx.room.migration.Migration(9, 10) {
+        override fun migrate(connection: androidx.sqlite.SQLiteConnection) {
+            connection.prepare("ALTER TABLE transactions ADD COLUMN feeMinor INTEGER NOT NULL DEFAULT 0").use { it.step() }
+        }
+    },
     ledgerMigration,
     object : androidx.room.migration.Migration(7, 8) {
         override fun migrate(connection: androidx.sqlite.SQLiteConnection) {

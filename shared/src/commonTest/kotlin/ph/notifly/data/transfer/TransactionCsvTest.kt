@@ -5,6 +5,16 @@ import kotlin.test.*
 import kotlin.time.Instant
 
 class TransactionCsvTest {
+    @Test fun feesRoundTripAndOlderFilesDefaultToZero() {
+        val simple = row.copy(title = "Transfer", note = "", feeMinor = 1500)
+        val csv = TransactionCsv.encode(listOf(simple))
+        assertEquals(1500L, TransactionCsv.decode(csv).single().feeMinor)
+        val v2 = csv.trimEnd().lines().joinToString("\n") { it.substringBeforeLast(',') }
+        assertEquals(0L, TransactionCsv.decode(v2).single().feeMinor)
+        val v1 = v2.lines().joinToString("\n") { line -> line.split(',').take(12).joinToString(",") }
+        assertEquals(0L, TransactionCsv.decode(v1).single().feeMinor)
+        assertFailsWith<IllegalArgumentException> { TransactionCsv.decode(csv.replace("\"1500\"", "\"-1\"")) }
+    }
     private val row = Transaction(id = 42, title = "=Merchant, \"name\"\nsecond line", amountMinor = 12345,
         type = TransactionType.TRANSFER, status = TransactionStatus.CONFIRMED, category = "Transfer",
         occurredAt = Instant.parse("2026-10-01T12:00:00Z"), sourceApp = "wallet", captureId = 99,

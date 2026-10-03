@@ -151,7 +151,7 @@ private fun CashFlowCard(w: WindowInsights) {
                     Change(w.current.spent, w.previous.spent, null)
                 }
             }
-            Text("Compared with the previous ${w.days} days. Transfers between your accounts aren't counted.",
+            Text("Compared with the previous ${w.days} days. Transfer amounts aren't counted; fees count as spending.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp))
         }
@@ -376,7 +376,7 @@ private fun CategoryBudgetCard(m: MonthInsights, budgets: Map<String, Long>, man
 internal fun BudgetDialog(
     current: Long?, dismiss: () -> Unit,
     title: String = "Monthly budget",
-    message: String = "How much do you plan to spend each month? Transfers don't count toward it.",
+    message: String = "How much do you plan to spend each month? Transfer amounts don't count; fees do.",
     save: (Long?) -> Unit,
 ) {
     var text by remember { mutableStateOf(current?.let(::amountText).orEmpty()) }

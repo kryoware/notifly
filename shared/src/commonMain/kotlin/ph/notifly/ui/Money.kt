@@ -16,6 +16,10 @@ fun amountText(minor: Long): String {
     return (if (minor < 0) "-" else "") + digits.dropLast(2) + "." + digits.takeLast(2)
 }
 
+/** A zero fee is valid only when entered explicitly. Blank, negative and sub-cent inputs fail. */
+internal fun parseFeeMinor(text: String): Long? = parseAmountMinor(text)
+    ?: 0L.takeIf { Regex("0+(\\.0{1,2})?").matches(text.trim()) }
+
 /** Thousands-grouped display only; never fed back into [parseAmountMinor]. A true minus leads: −₱1,529.00. */
 fun money(minor: Long): String {
     val text = amountText(minor)

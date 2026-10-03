@@ -14,6 +14,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -32,6 +33,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -52,6 +54,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import kotlin.math.abs
 import kotlin.time.Instant
 import kotlinx.coroutines.delay
@@ -154,7 +157,7 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
                listeningApps: List<String> = emptyList(), accessOn: Boolean = true, requestAccess: () -> Unit = {}) {
     val s by model.state.collectAsState()
     val pendingRows = s.rows.filter { it.status == TransactionStatus.NEEDS_REVIEW }
-    val pendingTotal = pendingRows.sumOf { when (it.type) { TransactionType.INCOME -> it.amountMinor; TransactionType.EXPENSE -> -it.amountMinor; TransactionType.TRANSFER -> 0L } }
+    val pendingTotal = pendingRows.sumOf { when (it.type) { TransactionType.INCOME -> it.amountMinor; TransactionType.EXPENSE -> -it.amountMinor; TransactionType.TRANSFER -> -it.feeMinor } }
     val listState = rememberLazyListState()
     var editingAccount by remember { mutableStateOf<AccountBalance?>(null) }
     editingAccount?.let { account ->
@@ -243,7 +246,7 @@ private fun BalanceHero(net: Long, pending: Int, pendingTotal: Long, hidden: Boo
                 style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.035).em).tabular(),
                 maxLines = 1, autoSize = TextAutoSize.StepBased(minFontSize = 24.sp, maxFontSize = 44.sp),
                 modifier = Modifier.padding(top = 12.dp, bottom = 4.dp).then(hiddenMoneyModifier(hidden)))
-            Text("Transfers between your accounts aren't counted.", style = MaterialTheme.typography.bodySmall, color = muted)
+            Text("Transfer amounts aren't counted; fees count as spending.", style = MaterialTheme.typography.bodySmall, color = muted)
             if (pending > 0) Row(
                 Modifier.padding(top = 16.dp).fillMaxWidth().background(scheme.surface.copy(alpha = 0.35f), RoundedCornerShape(18.dp))
                     .padding(start = 14.dp, top = 8.dp, end = 8.dp, bottom = 8.dp),
@@ -479,22 +482,8 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
 
 @Composable
 private fun CategoryField(value: String, categories: List<String>, onValueChange: (String) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
     val options = if (value in categories) categories else categories + value
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {}, readOnly = true,
-            label = { Text("Category") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-        )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { option ->
-                DropdownMenuItem(text = { Text(option) }, onClick = { expanded = false; onValueChange(option) })
-            }
-        }
-    }
+    ChoiceField("Category", value, options, searchable = true, label = { it }, choose = onValueChange)
 }
 
 /**
@@ -514,14 +503,14 @@ internal fun DateTimeFields(date: String, time: String, onDate: (String) -> Unit
         if (focusDateError) dateFocus.requestFocus()
         else if (focusTimeError) timeFocus.requestFocus()
     }
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(
             value = date, onValueChange = {}, readOnly = true, label = { Text("Date") },
             isError = dateError != null, supportingText = dateError?.let { { Text(it) } },
             trailingIcon = { IconTooltip("Choose date") { IconButton(onClick = { showDate = true }) {
                 Icon(painterResource(Res.drawable.symbol_calendar_today), contentDescription = "Choose date")
             } } },
-            modifier = Modifier.fillMaxWidth().focusRequester(dateFocus),
+            singleLine = true, modifier = Modifier.weight(1.2f).focusRequester(dateFocus),
         )
         OutlinedTextField(
             value = formatTime(time, is24Hour), onValueChange = {}, readOnly = true, label = { Text("Time") },
@@ -529,7 +518,7 @@ internal fun DateTimeFields(date: String, time: String, onDate: (String) -> Unit
             trailingIcon = { IconTooltip("Choose time") { IconButton(onClick = { showTime = true }) {
                 Icon(painterResource(Res.drawable.symbol_schedule), contentDescription = "Choose time")
             } } },
-            modifier = Modifier.fillMaxWidth().focusRequester(timeFocus),
+            singleLine = true, modifier = Modifier.weight(1f).focusRequester(timeFocus),
         )
     }
     if (showDate) {
@@ -586,15 +575,18 @@ internal fun DateTimeFields(date: String, time: String, onDate: (String) -> Unit
 fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()) {
     val s by model.state.collectAsState()
     var delete by remember { mutableStateOf(false) }
+    var sourceExpanded by remember { mutableStateOf(false) }
     val titleFocus = remember { FocusRequester() }
     val amountFocus = remember { FocusRequester() }
     val listState = rememberLazyListState()
     LaunchedEffect(Unit) { if (s.original == null) titleFocus.requestFocus() }
-    LaunchedEffect(s.titleError, s.amountError, s.dateError, s.timeError) {
+    LaunchedEffect(s.titleError, s.amountError, s.dateError, s.timeError, s.feeError, s.accountError, s.toAccountError) {
         when {
             s.titleError != null -> { listState.animateScrollToItem(2); titleFocus.requestFocus() }
             s.amountError != null -> { listState.animateScrollToItem(3); amountFocus.requestFocus() }
-            s.dateError != null || s.timeError != null -> listState.animateScrollToItem(5)
+            s.accountError != null || s.toAccountError != null -> listState.animateScrollToItem(4)
+            s.feeError != null -> listState.animateScrollToItem(5)
+            s.dateError != null || s.timeError != null -> listState.animateScrollToItem(6)
         }
     }
     LazyColumn(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp), state = listState,
@@ -609,9 +601,6 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
                             Text("Parsed on your device. Check the details before confirming.",
                                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onTertiaryContainer)
                         }
-                        if (s.sourceText != null || s.original?.captureId != null)
-                            Text("Source notification (device only): ${s.sourceText ?: "Raw text not retained. Turn on \"Keep raw text on device\" in the notification log to keep it for future notifications."}",
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
                     }
                 }
             }
@@ -636,7 +625,7 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
                 keyboardActions = KeyboardActions(onNext = { amountFocus.requestFocus() }))
         }
         item {
-            OutlinedTextField(s.amount, { model.edit(amount = it) }, label = { Text("Amount (PHP)") },
+            OutlinedTextField(s.amount, { model.edit(amount = it) }, label = { Text(if (s.type == TransactionType.TRANSFER) "Amount to transfer (PHP)" else "Amount (PHP)") },
                 isError = s.amountError != null, supportingText = s.amountError?.let { { Text(it) } },
                 placeholder = { Text("0.00") },
                 modifier = Modifier.fillMaxWidth().focusRequester(amountFocus), singleLine = true,
@@ -644,15 +633,43 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
                 keyboardActions = KeyboardActions(onDone = { if (s.ready && !s.saving) model.save() }))
         }
         item {
-            AccountPicker(if (s.type == TransactionType.TRANSFER) "From account" else "Account",
-                s.accountId, s.accounts.filter { !it.archived || it.id == s.original?.accountId }, s.accountError) { model.edit(accountId = it) }
-        }
-        if (s.accounts.none { !it.archived }) item {
-            TextButton(onClick = { model.navigate("accounts") }) { Text("Create an account") }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (s.type == TransactionType.TRANSFER) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(painterResource(Res.drawable.symbol_swap_horiz), null, tint = MaterialTheme.colorScheme.primary)
+                        Text("Move money between your accounts", style = MaterialTheme.typography.titleMedium)
+                    }
+                    Text("The amount leaves From and arrives in To. Only the fee counts as spending.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                AccountPicker(if (s.type == TransactionType.TRANSFER) "From account" else "Account",
+                    s.accountId, s.accounts.filter { !it.archived || it.id == s.original?.accountId }, s.accountError) { model.edit(accountId = it) }
+                if (s.type == TransactionType.TRANSFER) {
+                    Icon(painterResource(Res.drawable.symbol_arrow_downward), null,
+                        Modifier.align(Alignment.CenterHorizontally), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    AccountPicker("To account", s.toAccountId,
+                        s.accounts.filter { (!it.archived || it.id == s.original?.toAccountId) && it.id != s.accountId }, s.toAccountError) { model.edit(toAccountId = it) }
+                }
+                if (s.accounts.none { !it.archived }) {
+                    TextButton(onClick = { model.navigate("accounts") }) { Text("Create an account") }
+                }
+            }
         }
         if (s.type == TransactionType.TRANSFER) item {
-            AccountPicker("To account", s.toAccountId,
-                s.accounts.filter { (!it.archived || it.id == s.original?.toAccountId) && it.id != s.accountId }, s.toAccountError) { model.edit(toAccountId = it) }
+            val origin = s.accounts.find { it.id == s.accountId }
+            if (s.feeRequired) {
+                OutlinedTextField(s.fee, { model.edit(fee = it) }, label = { Text("Transfer fee (PHP) · Required") },
+                    supportingText = { Text(s.feeError ?: "Charged to ${origin?.name}. Enter 0 if this transfer was free.") },
+                    isError = s.feeError != null, placeholder = { Text("0.00") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+            } else Text(if (origin?.freeTransfer == true) "Free transfer · No fee" else "Choose a From account to set the fee.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val amount = parseAmountMinor(s.amount)
+            val fee = if (!s.feeRequired) 0L else parseFeeMinor(s.fee)
+            if (origin != null && amount != null && fee != null && amount <= Long.MAX_VALUE - fee) {
+                Text("Total from ${origin.name}: ${money(amount + fee)}\nTo account receives: ${money(amount)}",
+                    style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+            }
         } else item {
             CategoryField(s.category, s.categories.filter { it.type == s.type && (!it.archived || it.id == s.original?.categoryId) }.map { it.name }) { model.edit(category = it) }
         }
@@ -662,12 +679,27 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
             focusTimeError = s.titleError == null && s.amountError == null && s.dateError == null && s.timeError != null) }
         item {
             val sourceLabel = s.sourceApp?.let { appLabels[it] ?: it } ?: "Manual"
-            if (s.original?.captureId != null || s.captureId != null) {
-                Text("Source: $sourceLabel", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            } else {
-                ChoiceField("Source app", sourceLabel,
-                    listOf<String?>(null) + s.apps.filter { it.listening }.map { it.packageName },
-                    label = { pkg -> pkg?.let { appLabels[it] ?: it } ?: "Manual" }) { model.edit(sourceApp = it) }
+            Column {
+                ListItem(headlineContent = { Text("Source details") }, supportingContent = { Text(sourceLabel) },
+                    trailingContent = { Icon(painterResource(Res.drawable.symbol_expand_more), null,
+                        Modifier.rotate(if (sourceExpanded) 180f else 0f)) },
+                    modifier = Modifier.clickable { sourceExpanded = !sourceExpanded }
+                        .semantics { stateDescription = if (sourceExpanded) "Expanded" else "Collapsed" })
+                AnimatedVisibility(sourceExpanded) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (s.original?.captureId != null || s.captureId != null) {
+                            Text("Source: $sourceLabel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        } else {
+                            ChoiceField("Source app", sourceLabel,
+                                listOf<String?>(null) + s.apps.filter { it.listening || it.packageName == s.sourceApp }.map { it.packageName },
+                                searchable = true, searchText = { it.orEmpty() },
+                                label = { pkg -> pkg?.let { appLabels[it] ?: it } ?: "Manual" }) { model.edit(sourceApp = it) }
+                        }
+                        if (s.sourceText != null || s.original?.captureId != null || s.captureId != null)
+                            Text("Source notification (device only): ${s.sourceText ?: "Raw text not retained. Turn on \"Keep raw text on device\" in the notification log to keep it for future notifications."}",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
         }
         item {
@@ -683,7 +715,9 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
                 colors = if (confirming) ButtonDefaults.buttonColors(containerColor = MaterialTheme.accents.confirmed,
                     contentColor = MaterialTheme.accents.onConfirmed) else ButtonDefaults.buttonColors()) {
                 if (confirming) Icon(painterResource(Res.drawable.symbol_check), null, Modifier.padding(end = 8.dp).size(18.dp))
-                Text(if (confirming || s.captureId != null) "Confirm transaction" else "Save transaction")
+                Text(if (s.type == TransactionType.TRANSFER) {
+                    if (confirming || s.captureId != null) "Confirm transfer" else "Save transfer"
+                } else if (confirming || s.captureId != null) "Confirm transaction" else "Save transaction")
             }
         }
         if (s.original != null) item {
