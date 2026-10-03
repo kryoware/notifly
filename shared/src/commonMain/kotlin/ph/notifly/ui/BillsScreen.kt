@@ -407,7 +407,8 @@ fun BillEditorScreen(model: BillEditorModel, appLabels: Map<String, String> = em
     var showDate by rememberSaveable { mutableStateOf(false) }
     var delete by rememberSaveable { mutableStateOf(false) }
     val reviewing = s.reviewing
-    LazyColumn(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
+    Column(Modifier.fillMaxSize().imePadding()) {
+    LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(vertical = 12.dp)) {
         if (s.error != null && !s.ready) item { Text(s.error!!, color = MaterialTheme.colorScheme.error) }
         if (reviewing) item {
@@ -445,7 +446,11 @@ fun BillEditorScreen(model: BillEditorModel, appLabels: Map<String, String> = em
             ChoiceField("Pay from account", s.accounts.find { it.id == s.accountId }?.name ?: "Any account", listOf<Account?>(null) + s.accounts,
                 label = { it?.name ?: "Any account" }) { model.edit(accountId = it?.id) }
         }
-        item {
+        if (reviewing) item { TextButton(onClick = model::dismiss) { Text("Dismiss") } }
+        else if (s.original != null) item { TextButton(onClick = { delete = true }) { Text("Delete bill", color = MaterialTheme.colorScheme.error) } }
+    }
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+        Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
             Button(onClick = { if (reviewing) model.confirm() else model.save() }, enabled = s.ready && !s.saving, modifier = WideButton,
                 colors = if (reviewing) ButtonDefaults.buttonColors(containerColor = MaterialTheme.accents.confirmed, contentColor = MaterialTheme.accents.onConfirmed)
                 else ButtonDefaults.buttonColors()) {
@@ -453,8 +458,7 @@ fun BillEditorScreen(model: BillEditorModel, appLabels: Map<String, String> = em
                 Text(if (reviewing) "Confirm bill" else "Save bill")
             }
         }
-        if (reviewing) item { TextButton(onClick = model::dismiss) { Text("Dismiss") } }
-        else if (s.original != null) item { TextButton(onClick = { delete = true }) { Text("Delete bill", color = MaterialTheme.colorScheme.error) } }
+    }
     }
     if (showDate) {
         val pickerState = rememberDatePickerState(initialSelectedDateMillis = s.due.atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds())
