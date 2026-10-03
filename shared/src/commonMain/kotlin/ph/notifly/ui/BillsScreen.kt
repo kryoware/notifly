@@ -12,6 +12,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -95,7 +97,12 @@ fun BillsScreen(model: BillsModel, appLabels: Map<String, String> = emptyMap(), 
             }
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
+          if (maxWidth >= WideWidth) Row(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f)) { UpcomingTab(model, s, appLabels, listState, notificationsAllowed, requestNotifications) { payingId = it.bill.id } }
+            VerticalDivider()
+            Box(Modifier.weight(1f)) { CalendarTab(model, s, appLabels, selectedDay, { selected = it.toString() }) { payingId = it.bill.id } }
+          } else Column(Modifier.fillMaxSize()) {
             PrimaryTabRow(selectedTabIndex = tab) {
                 listOf("Upcoming", "Calendar").forEachIndexed { i, title ->
                     Tab(selected = tab == i, onClick = { tab = i }, text = { Text(title) })
@@ -105,6 +112,7 @@ fun BillsScreen(model: BillsModel, appLabels: Map<String, String> = emptyMap(), 
                 if (current == 0) UpcomingTab(model, s, appLabels, listState, notificationsAllowed, requestNotifications) { payingId = it.bill.id }
                 else CalendarTab(model, s, appLabels, selectedDay, { selected = it.toString() }) { payingId = it.bill.id }
             }
+        }
         }
     }
     paying?.let { due -> PaySheet(model, s, due, onDismiss = { payingId = null }) }

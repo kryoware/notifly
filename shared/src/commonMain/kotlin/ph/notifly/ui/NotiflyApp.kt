@@ -263,7 +263,7 @@ fun NotiflyApp(
 }
 
 private val FormWidth = 600.dp
-private val WideWidth = 840.dp
+internal val WideWidth = 840.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
