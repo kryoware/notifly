@@ -480,8 +480,18 @@ class BillsModel(private val bills: BillRepository, private val transactions: Tr
     /** The user's tap is the confirmation, so a NEEDS_REVIEW expense is confirmed as it is linked. */
     fun link(bill: Bill, due: LocalDate, transaction: Transaction) = work {
         val review = transaction.status == TransactionStatus.NEEDS_REVIEW
-        if (review) transactions.upsert(transaction.copy(status = TransactionStatus.CONFIRMED))
-        settle(bill, due, transaction.id, "${bill.name} marked paid") { if (review) transactions.upsert(transaction) }
+        val paymentId = bills.settle(bill.id, due, transaction.id)
+        if (paymentId < 0) return@work
+        try {
+            if (review) transactions.upsert(transaction.copy(status = TransactionStatus.CONFIRMED))
+        } catch (e: Exception) {
+            withContext(NonCancellable) { bills.unsettle(paymentId) }
+            throw e
+        }
+        mutableEvents.emit(UiEvent.Message("${bill.name} marked paid", onUndo = {
+            bills.unsettle(paymentId)
+            if (review) transactions.upsert(transaction)
+        }))
     }
     /** Asynchronously records the occurrence as skipped and offers Undo; non-cancellation failures become UI messages. */
     fun skip(bill: Bill, due: LocalDate) = work { settle(bill, due, null, "${bill.name} skipped") {} }

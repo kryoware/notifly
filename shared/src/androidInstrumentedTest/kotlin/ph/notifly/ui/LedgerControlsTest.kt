@@ -283,6 +283,11 @@ class LedgerControlsTest {
             if (title == "Source app") screenshotPopup("search-source-filtered.png")
             androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
                 .sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+            compose.waitForIdle()
+            // Android can consume the first Back to hide the IME before dismissing the menu.
+            if (compose.onAllNodes(isPopup()).fetchSemanticsNodes().isNotEmpty())
+                androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+                    .sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
             compose.onNode(isPopup()).assertDoesNotExist()
             compose.onNodeWithText(selected).assertExists()
             unchanged()
