@@ -33,6 +33,24 @@ class InsightsTest {
         row("2026-09-27", 1_000),                                        // future-dated
     )
 
+    @Test fun chartSlicesFoldEverythingPastTheLimitIntoOneSlice() {
+        val shares = listOf("Food" to 500L, "Bills" to 300L, "Other" to 100L, "Gifts" to 60L, "Fees" to 40L)
+        assertEquals(shares.take(2) + ("3 more" to 200L), chartSlices(shares, 2))
+        assertEquals(shares, chartSlices(shares, 5))
+    }
+
+    @Test fun transferFeesGetTheirOwnShareSoCategoriesSumToSpent() {
+        val fee = row("2026-09-24", 50_000, TransactionType.TRANSFER, "Transfer").copy(feeMinor = 1_500)
+        val w = windowInsights(rows + fee, today, 7, zone)
+        assertEquals(CategorySpend(TRANSFER_FEES, 1_500, 0), w.categories.single { it.category == TRANSFER_FEES })
+        assertEquals(w.current.spent, w.categories.sumOf { it.spent })
+        val named = windowInsights(rows + fee + row("2026-09-25", 2_000, category = TRANSFER_FEES), today, 7, zone)
+        assertEquals(CategorySpend(TRANSFER_FEES, 3_500, 0), named.categories.single { it.category == TRANSFER_FEES })
+        val earlierFee = fee.copy(occurredAt = row("2026-09-16", 0).occurredAt)
+        val compared = windowInsights(rows + earlierFee + row("2026-09-25", 2_000, category = TRANSFER_FEES), today, 7, zone)
+        assertEquals(CategorySpend(TRANSFER_FEES, 2_000, 1_500), compared.categories.single { it.category == TRANSFER_FEES })
+    }
+
     @Test fun windowCountsConfirmedCashFlowAndComparesToPreviousWindow() {
         val w = windowInsights(rows, today, 7, zone)
         assertEquals(LocalDate(2026, 9, 20), w.start)

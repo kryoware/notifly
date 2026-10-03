@@ -33,6 +33,7 @@ kotlin {
             implementation(libs.compose.navigationevent)
             implementation(compose.components.resources)
             implementation(libs.aboutlibraries.compose.m3)
+            implementation(libs.koalaplot.core)
 
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.datetime)
