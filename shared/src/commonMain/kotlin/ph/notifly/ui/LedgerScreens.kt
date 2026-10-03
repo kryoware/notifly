@@ -165,39 +165,8 @@ fun AccountEditorScreen(model: LedgerSettingsModel, id: Long) {
     var reconcile by remember(id) { mutableStateOf(original == null) }
     var error by remember(id) { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf(false) }
-    LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.md)) {
-        item { OutlinedTextField(name, { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-        item { ChoiceField("Type", type.name.lowercase().replaceFirstChar { it.uppercase() }, AccountType.entries,
-            label = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }) { type = it } }
-        item { OutlinedTextField(lastFour, { lastFour = it }, label = { Text("Last four digits (optional)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true) }
-        if (type == AccountType.CARD) {
-            item { OutlinedTextField(cardType, { cardType = it }, label = { Text("Card network (optional)") },
-                placeholder = { Text("Visa, Mastercard…") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-            item { OutlinedTextField(due, { due = it }, label = { Text("Monthly due day (1–31, optional)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true) }
-            item { OutlinedTextField(statement, { statement = it }, label = { Text("Monthly statement day (1–31, optional)") },
-                supportingText = { Text("Days beyond the end of a month use its last day.") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true) }
-        }
-        item { MoneyField(amount, { amount = it; reconcile = true },
-            label = { Text(if (type == AccountType.CARD) "Debt owed (PHP)" else "Balance (PHP)") },
-            supportingText = { Text(if (type == AccountType.CARD) "Negative debt represents credit." else "Enter the balance at your last reconciliation.") },
-            signed = true, modifier = Modifier.fillMaxWidth()) }
-        item { SettingsRow("Reconcile balance now", "Only later confirmed transactions will change this balance",
-            checked = reconcile, onCheckedChange = { reconcile = it }) }
-        item { SettingsRow("Free transfers", "Otherwise, a transfer fee is required when recording transfers", checked = free, onCheckedChange = { free = it }) }
-        item { Text("Linked finance apps", style = MaterialTheme.typography.titleMedium) }
-        if (s.apps.none { it.finance || it.packageName in links }) item {
-            TextButton(onClick = { model.navigate("finance-apps") }) { Text("Choose finance apps") }
-        }
-        items(s.apps.filter { it.finance || it.packageName in links }, key = { it.packageName }) { app ->
-            SettingsRow(app.label, "Linking does not enable notification access",
-                checked = app.packageName in links, onCheckedChange = { checked -> links = if (checked) links + app.packageName else links - app.packageName })
-        }
-        if (original != null) item { SettingsRow("Archived", "Keep history; hide from new transactions", checked = archived, onCheckedChange = { archived = it }) }
-        error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
-        item { Button(enabled = !busy, onClick = {
+    StickyActionScaffold(actions = {
+        Button(enabled = !busy, onClick = {
             val balance = balanceInput(amount)
             val dueDay = due.takeIf { it.isNotBlank() }?.toIntOrNull()
             val statementDay = statement.takeIf { it.isNotBlank() }?.toIntOrNull()
@@ -215,8 +184,42 @@ fun AccountEditorScreen(model: LedgerSettingsModel, id: Long) {
                     dueDay.takeIf { type == AccountType.CARD }, statementDay.takeIf { type == AccountType.CARD }, archived, links)
                 try { account.validate(); model.save(account) } catch (e: IllegalArgumentException) { error = e.message }
             }
-        }, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Saving…" else "Save account") } }
-        if (original != null) item { TextButton(onClick = { deleting = true }, enabled = !busy) { Text("Delete unused account") } }
+        }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text(if (busy) "Saving…" else "Save account") }
+    }) { contentModifier ->
+        LazyColumn(contentModifier, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            item { OutlinedTextField(name, { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
+            item { ChoiceField("Type", type.name.lowercase().replaceFirstChar { it.uppercase() }, AccountType.entries,
+                label = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }) { type = it } }
+            item { OutlinedTextField(lastFour, { lastFour = it }, label = { Text("Last four digits (optional)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true) }
+            if (type == AccountType.CARD) {
+                item { OutlinedTextField(cardType, { cardType = it }, label = { Text("Card network (optional)") },
+                    placeholder = { Text("Visa, Mastercard…") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
+                item { OutlinedTextField(due, { due = it }, label = { Text("Monthly due day (1–31, optional)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true) }
+                item { OutlinedTextField(statement, { statement = it }, label = { Text("Monthly statement day (1–31, optional)") },
+                    supportingText = { Text("Days beyond the end of a month use its last day.") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true) }
+            }
+            item { MoneyField(amount, { amount = it; reconcile = true },
+                label = { Text(if (type == AccountType.CARD) "Debt owed (PHP)" else "Balance (PHP)") },
+                supportingText = { Text(if (type == AccountType.CARD) "Negative debt represents credit." else "Enter the balance at your last reconciliation.") },
+                signed = true, modifier = Modifier.fillMaxWidth()) }
+            item { SettingsRow("Reconcile balance now", "Only later confirmed transactions will change this balance",
+                checked = reconcile, onCheckedChange = { reconcile = it }) }
+            item { SettingsRow("Free transfers", "Otherwise, a transfer fee is required when recording transfers", checked = free, onCheckedChange = { free = it }) }
+            item { Text("Linked finance apps", style = MaterialTheme.typography.titleMedium) }
+            if (s.apps.none { it.finance || it.packageName in links }) item {
+                TextButton(onClick = { model.navigate("finance-apps") }) { Text("Choose finance apps") }
+            }
+            items(s.apps.filter { it.finance || it.packageName in links }, key = { it.packageName }) { app ->
+                SettingsRow(app.label, "Linking does not enable notification access",
+                    checked = app.packageName in links, onCheckedChange = { checked -> links = if (checked) links + app.packageName else links - app.packageName })
+            }
+            if (original != null) item { SettingsRow("Archived", "Keep history; hide from new transactions", checked = archived, onCheckedChange = { archived = it }) }
+            error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
+            if (original != null) item { TextButton(onClick = { deleting = true }, enabled = !busy) { Text("Delete unused account") } }
+        }
     }
     if (deleting) AlertDialog(onDismissRequest = { deleting = false }, title = { Text("Delete account?") },
         text = { Text("Accounts with transactions or captured drafts must be archived instead.") },
@@ -256,14 +259,8 @@ fun CategoryEditorScreen(model: LedgerSettingsModel, id: Long, type: Transaction
         .fold(0L) { sum, category -> category.budgetMinor?.let { if (sum > Long.MAX_VALUE - it) Long.MAX_VALUE else sum + it } ?: sum }
     val remainingBudget = monthlyBudget?.let { (it - otherBudgets).coerceAtLeast(0L) }
     var error by remember(id) { mutableStateOf<String?>(null) }
-    LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.md)) {
-        item { OutlinedTextField(name, { name = it }, enabled = original?.name != "Other", label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
-        if (type == TransactionType.EXPENSE) item { MoneyField(budget, { budget = it }, label = { Text("Monthly budget (PHP, optional)") },
-            modifier = Modifier.fillMaxWidth()) }
-        if (original != null) item { SettingsRow("Archived", "Preserve history and budgets; hide from new entries",
-            checked = archived, onCheckedChange = if (original.name != "Other") { { archived = it } } else null) }
-        error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
-        item { Button(enabled = !busy, onClick = {
+    StickyActionScaffold(actions = {
+        Button(enabled = !busy, onClick = {
             val minor = budget.takeIf { it.isNotBlank() }?.let(::parseAmountMinor)
             error = when {
                 name.isBlank() -> "Enter a category name."
@@ -274,7 +271,16 @@ fun CategoryEditorScreen(model: LedgerSettingsModel, id: Long, type: Transaction
                 else -> null
             }
             if (error == null) model.save(Category(id, name.trim(), type, archived, minor))
-        }, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Saving…" else "Save category") } }
+        }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text(if (busy) "Saving…" else "Save category") }
+    }) { contentModifier ->
+        LazyColumn(contentModifier, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            item { OutlinedTextField(name, { name = it }, enabled = original?.name != "Other", label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }
+            if (type == TransactionType.EXPENSE) item { MoneyField(budget, { budget = it }, label = { Text("Monthly budget (PHP, optional)") },
+                modifier = Modifier.fillMaxWidth()) }
+            if (original != null) item { SettingsRow("Archived", "Preserve history and budgets; hide from new entries",
+                checked = archived, onCheckedChange = if (original.name != "Other") { { archived = it } } else null) }
+            error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
+        }
     }
 }
 

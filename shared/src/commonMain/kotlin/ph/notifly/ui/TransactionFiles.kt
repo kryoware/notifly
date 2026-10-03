@@ -41,12 +41,6 @@ internal fun TransactionDataControls(repository: TransactionRepository, demo: Bo
         val identity = if (name != null) listOfNotNull(name, type?.name).joinToString(" · ") else pkg ?: "Manual / unassigned"
         return "$role: $identity"
     }
-    fun suggested(entry: TransactionCsv.Entry, destination: Boolean): Long? {
-        val name = if (destination) entry.toAccountName else entry.accountName
-        val type = if (destination) entry.toAccountType else entry.accountType
-        val pkg = if (destination) entry.transaction.toApp else entry.transaction.fromApp ?: entry.transaction.sourceApp
-        return accounts.filter { !it.archived && if (name != null) it.name.equals(name, true) && (type == null || it.type == type) else pkg != null && pkg in it.linkedApps }.singleOrNull()?.id
-    }
     var saving by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val files = rememberTransactionFiles(
@@ -72,7 +66,7 @@ internal fun TransactionDataControls(repository: TransactionRepository, demo: Bo
         onClick = if (enabled) files.export else null)
     preview?.let { entries ->
         val endpoints = entries.flatMap { entry -> listOf(entry to false) + if (entry.transaction.type == TransactionType.TRANSFER) listOf(entry to true) else emptyList() }.distinctBy { (entry, destination) -> key(entry, destination) }
-        val assignments = endpoints.associate { (entry, destination) -> key(entry, destination) to (mapping[key(entry, destination)] ?: suggested(entry, destination)) }
+        val assignments = endpoints.associate { (entry, destination) -> key(entry, destination) to (mapping[key(entry, destination)] ?: suggestedImportAccount(entry, destination, accounts)) }
         val valid = entries.all { entry ->
             val from = assignments[key(entry, false)]
             val to = assignments[key(entry, true)]
@@ -107,4 +101,13 @@ internal fun TransactionDataControls(repository: TransactionRepository, demo: Bo
             dismissButton = { TextButton(enabled = !saving, onClick = { preview = null }) { Text("Cancel") } },
         )
     }
+}
+
+internal fun suggestedImportAccount(entry: TransactionCsv.Entry, destination: Boolean, accounts: List<Account>): Long? {
+    val name = if (destination) entry.toAccountName else entry.accountName
+    val type = if (destination) entry.toAccountType else entry.accountType
+    val pkg = if (destination) entry.transaction.toApp else entry.transaction.fromApp ?: entry.transaction.sourceApp
+    // Budge exports have names without account types; require an explicit choice.
+    if (name != null && type == null) return null
+    return accounts.filter { !it.archived && if (name != null) it.name.equals(name, true) && it.type == type else pkg != null && pkg in it.linkedApps }.singleOrNull()?.id
 }

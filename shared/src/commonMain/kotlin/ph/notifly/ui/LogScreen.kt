@@ -75,12 +75,12 @@ private fun CaptureResult?.icon() = when (this) {
 }
 
 @Composable
-fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDebugBuild: Boolean = false) {
+fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDebugBuild: Boolean = false, onMessage: (String) -> Unit = {}) {
     val s by model.state.collectAsState()
     var expanded by remember { mutableStateOf<Long?>(null) }
     var clear by remember { mutableStateOf(false) }
     val parser = remember { NotificationParser() }
-    val saveCsv = rememberCsvSaver { s.captures.toCsv() }
+    val saveCsv = rememberCsvSaver(csv = { s.captures.toCsv() }, onMessage = onMessage)
     Column(Modifier.fillMaxSize()) {
         val filters = listOf(null) + CaptureResult.entries.filter { it != CaptureResult.IGNORED }
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = Space.lg, vertical = Space.sm),
@@ -96,11 +96,11 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDe
         }
         Column(Modifier.padding(horizontal = Space.lg)) {
             SettingsGroup { SettingsRow("Keep raw text on device", checked = s.keepRaw, onCheckedChange = model::retain) }
-            Text(if (isDebugBuild) "Debug build: raw text stays on this device for 7 days; CSV exports contain metadata only."
+            Text(if (isDebugBuild) "Raw text stays on device and is removed after 7 days. Exports contain metadata only."
                 else "Raw text is never uploaded and is removed after 24 hours.", style = MaterialTheme.typography.bodySmall)
         }
-        Row(Modifier.padding(horizontal = Space.lg), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-            IconTooltip("Export CSV") { IconButton(onClick = {
+        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (isDebugBuild) IconTooltip("Export CSV") { IconButton(onClick = {
                 val tab = s.filter?.exportName() ?: "all"
                 saveCsv("${tab}_${Clock.System.now().epochSeconds}.csv")
             }, enabled = s.captures.isNotEmpty()) {

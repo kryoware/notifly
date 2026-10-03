@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*.*.*'
 
+env:
+  NOTIFLY_SOURCE_REF: ${{ github.head_ref || github.ref_name }}
+
 permissions:
   contents: write
 

@@ -20,6 +20,8 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -52,6 +54,7 @@ fun NotiflyApp(
     batteryExempt: Boolean = false,
     requestBatteryExemption: () -> Unit = {},
     versionName: String = "",
+    buildLabel: String = "unknown",
     isDebugBuild: Boolean = false,
     biometricAvailable: Boolean = false,
     authenticateBiometric: (onSuccess: () -> Unit) -> Unit = {},
@@ -125,10 +128,11 @@ fun NotiflyApp(
         }; Unit }
     } }
     val topLevel = listOf("home", "transactions", "bills", "insights", "settings")
-    val railSecondary = listOf("accounts", "categories", "budgets", "allow-list", "finance-apps", "themes", "licenses", "log")
+    val railSecondary = listOf("accounts", "categories", "budgets", "allow-list", "finance-apps", "licenses", "log")
     // No default-palette frame while the persisted theme or security state is still loading.
     val loadedAppearance = appearance ?: return
     if (onboarded == null || pinSet == null) return
+    CompositionLocalProvider(LocalAppSnackbar provides snackbar) {
     NotiflyTheme(loadedAppearance.palette, loadedAppearance.themeMode, onDarkChanged) {
         SideEffect { onReady() }
         val adaptiveType = NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo())
@@ -165,7 +169,7 @@ fun NotiflyApp(
                     val due = it.arguments?.read { if (contains("due")) getStringOrNull("due") else null }?.let { d -> runCatching { kotlinx.datetime.LocalDate.parse(d) }.getOrNull() }
                     val m = viewModel { BillEditorModel(bills, ledger, id, due) }; Events(m, handle)
                     val detected = m.state.collectAsState().value.reviewing
-                    AppDestination(if (detected) "Review bill" else if (id == 0L) "Add bill" else "Edit bill", snackbar, maxWidth = FormWidth,
+                    AppDestination(if (detected) "Review bill" else if (id == 0L) "Add bill" else "Edit bill", snackbar, maxWidth = FormWidth, sticky = true,
                         onBack = { if (!nav.popBackStack()) navigate("bills") }) { BillEditorScreen(m, appLabels) } }
                 composable("pay-bill/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val id = it.arguments?.read { getLong("id") } ?: 0L
@@ -174,7 +178,7 @@ fun NotiflyApp(
                 composable("transactions") { val m = viewModel { TransactionsModel(transactions, ledger) }; Events(m, handle)
                     if (!wide) TransactionsScreen(m, appLabels, snackbar, demo)
                     else Row(Modifier.fillMaxSize()) {
-                        Box(Modifier.weight(0.45f)) { TransactionsScreen(m, appLabels, snackbar, demo) }
+                        Box(Modifier.weight(0.45f)) { TransactionsScreen(m, appLabels, if (paneId == null) snackbar else null, demo) }
                         VerticalDivider()
                         Box(Modifier.weight(0.55f)) {
                             val id = paneId
@@ -182,7 +186,7 @@ fun NotiflyApp(
                                 Text("Select a transaction", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             } else key(id) {
                                 val em = viewModel(key = "pane-$id") { EditorModel(transactions, id, captures, ledger = ledger, apps = apps) }; Events(em, handle)
-                                EditorDestination(if (id == 0L) "Add transaction" else "Edit transaction", remember { SnackbarHostState() }, em, appLabels, paneBack = true) { paneId = null }
+                                EditorDestination(if (id == 0L) "Add transaction" else "Edit transaction", snackbar, em, appLabels, paneBack = true) { paneId = null }
                             }
                         }
                     }
@@ -190,15 +194,15 @@ fun NotiflyApp(
                 composable("settings") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle)
                     AppDestination(if (demo) "Settings · Demo" else "Settings", snackbar, maxWidth = FormWidth) {
                         SettingsScreen(m, permissionAvailable, requestPermission, versionName, isDebugBuild, biometricAvailable, authenticateBiometric,
-                            ledger = ledger, demo = demo, onDemo = { demo = it }, transactions = transactions, allowDataTransfer = !demo, notificationsAllowed = notificationsAllowed, requestNotifications = requestNotifications,
+                            buildLabel = buildLabel, ledger = ledger, demo = demo, onDemo = { demo = it }, transactions = transactions, allowDataTransfer = !demo, notificationsAllowed = notificationsAllowed, requestNotifications = requestNotifications,
                             onDataMessage = { snackbar.showSnackbar(it) }) } }
                 composable("budgets") { val m = viewModel { BudgetsModel(preferences, ledger) }; Events(m, handle)
-                    AppDestination("Budgets", snackbar, maxWidth = FormWidth, onBack = { if (!nav.popBackStack()) navigate("home") }) { BudgetsScreen(m) } }
+                    AppDestination("Budgets", snackbar, maxWidth = FormWidth, sticky = true, onBack = { if (!nav.popBackStack()) navigate("home") }) { BudgetsScreen(m) } }
                 composable("allow-list") { val m = viewModel { AllowListModel(apps) }; Events(m, handle)
                     AppDestination("Allowed apps", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { AllowListScreen(m) } }
                 composable("choose-apps") { val m = viewModel { AllowListModel(apps) }; Events(m, handle)
                     val finish = viewModel { OnboardingModel(preferences) }; Events(finish, handle)
-                    AppDestination("Choose apps", snackbar, maxWidth = FormWidth, onBack = { if (!nav.popBackStack()) navigate("home") }) { AllowListScreen(m, onFinish = finish::finish) } }
+                    AppDestination("Choose apps", snackbar, maxWidth = FormWidth, sticky = true, onBack = { if (!nav.popBackStack()) navigate("home") }) { AllowListScreen(m, onFinish = finish::finish) } }
                 composable("finance-apps") { val m = viewModel { AllowListModel(apps, finance = true) }; Events(m, handle)
                     AppDestination("Finance apps", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { AllowListScreen(m) } }
                 composable("edit/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
@@ -210,7 +214,7 @@ fun NotiflyApp(
                     AppDestination("Accounts", snackbar, onBack = { nav.popBackStack() }) { AccountsScreen(m) } }
                 composable("account/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val m = viewModel { LedgerSettingsModel(ledger, apps) }; Events(m, handle)
-                    AppDestination("Account details", snackbar, maxWidth = FormWidth, onBack = { nav.popBackStack() }) { AccountEditorScreen(m, it.arguments?.read { getLong("id") } ?: 0L) } }
+                    AppDestination("Account details", snackbar, maxWidth = FormWidth, sticky = true, onBack = { nav.popBackStack() }) { AccountEditorScreen(m, it.arguments?.read { getLong("id") } ?: 0L) } }
                 composable("categories") { val m = viewModel { LedgerSettingsModel(ledger, apps) }; Events(m, handle)
                     AppDestination("Categories", snackbar, onBack = { nav.popBackStack() }) { CategoriesScreen(m) } }
                 composable("category/{id}/{type}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
@@ -218,7 +222,7 @@ fun NotiflyApp(
                     val monthlyBudget by remember(preferences) {
                         preferences.monthlyBudget.map { it to true }
                     }.collectAsState(null to false)
-                    AppDestination("Category details", snackbar, maxWidth = FormWidth, onBack = { nav.popBackStack() }) {
+                    AppDestination("Category details", snackbar, maxWidth = FormWidth, sticky = true, onBack = { nav.popBackStack() }) {
                         CategoryEditorScreen(m, it.arguments?.read { getLong("id") } ?: 0L,
                             ph.notifly.domain.model.TransactionType.valueOf(it.arguments?.read { getString("type") } ?: "EXPENSE"),
                             monthlyBudget.first, monthlyBudgetLoaded = monthlyBudget.second) } }
@@ -227,10 +231,8 @@ fun NotiflyApp(
                 composable("draft/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val m = viewModel { EditorModel(transactions, 0L, captures, ledger = ledger, apps = apps, draftId = it.arguments?.read { getLong("id") }) }; Events(m, handle)
                     EditorDestination("Review transaction", snackbar, m, appLabels) { nav.popBackStack() } }
-                composable("themes") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle)
-                    AppDestination("Theme palettes", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { ThemeGallery(m) } }
                 composable("log") { val m = viewModel { LogModel(captures, preferences) }; Events(m, handle)
-                    AppDestination("Notification log", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { LogScreen(m, appLabels, isDebugBuild) } }
+                    AppDestination("Notification log", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { LogScreen(m, appLabels, isDebugBuild, onMessage = { handle(UiEvent.Message(it)) }) } }
                 composable("licenses") { AppDestination("Open source licenses", snackbar, onBack = { nav.popBackStack() }) { LicensesScreen() } }
                 composable("from-log/{captureId}", arguments = listOf(navArgument("captureId") { type = NavType.LongType })) {
                     val m = viewModel { EditorModel(transactions, 0L, captures, it.arguments?.read { getLong("captureId") }, ledger, apps) }; Events(m, handle)
@@ -240,32 +242,37 @@ fun NotiflyApp(
         }
         LaunchedEffect(launchRoute, launchRouteKey) { if (launchRoute != null && onboarded == true) navigate(launchRoute) }
         val locked = pinSet == true && !session.unlocked
+        val navItems = listOf(
+            Triple("home", "Home", Res.drawable.symbol_home),
+            Triple("transactions", "Transactions", Res.drawable.symbol_receipt_long),
+            Triple("bills", "Bills", Res.drawable.symbol_event_upcoming),
+            Triple("insights", "Insights", Res.drawable.symbol_pie_chart),
+            Triple("settings", "Settings", Res.drawable.symbol_settings),
+        )
+        val compact = navigationSuiteType == NavigationSuiteType.NavigationBar
         Box(Modifier.fillMaxSize()) {
             NavigationSuiteScaffold(
                 modifier = if (locked || launchAnimation?.complete == false) Modifier.clearAndSetSemantics {} else Modifier,
                 navigationSuiteItems = {
-                    listOf(
-                        Triple("home", "Home", Res.drawable.symbol_home),
-                        Triple("transactions", "Transactions", Res.drawable.symbol_receipt_long),
-                        Triple("bills", "Bills", Res.drawable.symbol_event_upcoming),
-                        Triple("insights", "Insights", Res.drawable.symbol_pie_chart),
-                        Triple("settings", "Settings", Res.drawable.symbol_settings),
-                    ).forEach { (target, label, icon) ->
-                        item(
-                            selected = route == target,
-                            onClick = { navigate(target) },
-                            icon = { Icon(painterResource(icon), null) },
-                            // Hidden when it can't fit on one line, so a narrow bar or large font never wraps a word mid-label.
-                            label = {
-                                var fits by remember(label, LocalDensity.current.fontScale) { mutableStateOf(true) }
-                                if (fits) Text(label, maxLines = 1, softWrap = false, onTextLayout = { if (it.didOverflowWidth) fits = false })
-                            },
-                        )
+                    navItems.forEach { (target, label, icon) ->
+                        item(selected = route == target, onClick = { navigate(target) },
+                            icon = { Icon(painterResource(icon), label) }, label = { Text(label) })
                     }
                 },
-                layoutType = navigationSuiteType,
+                layoutType = if (compact) NavigationSuiteType.None else navigationSuiteType,
             ) {
-                destinations(Modifier.fillMaxSize())
+                Scaffold(contentWindowInsets = WindowInsets(0), bottomBar = {
+                    if (compact) Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
+                        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceContainer) {
+                            NavigationBar(windowInsets = WindowInsets(0), containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+                                navItems.forEach { (target, label, icon) ->
+                                    NavigationBarItem(selected = route == target, onClick = { navigate(target) },
+                                        icon = { Icon(painterResource(icon), label) }, alwaysShowLabel = false)
+                                }
+                            }
+                        }
+                    }
+                }) { padding -> destinations(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) }
             }
             // Overlay rather than replace, so the NavHost and its back stack survive a lock.
             if (locked) LockScreen({ preferences.verifyPin(it) }, { preferences.lockoutSeconds() }, onUnlock = { session.unlocked = true },
@@ -274,6 +281,7 @@ fun NotiflyApp(
                 LaunchSplash(launchAnimation, startLaunchAnimation, animationsEnabled, onLaunchComplete)
             }
         }
+    }
     }
 }
 
@@ -286,6 +294,7 @@ private fun AppDestination(
     title: String,
     snackbar: SnackbarHostState,
     onBack: (() -> Unit)? = null,
+    sticky: Boolean = false,
     maxWidth: Dp = WideWidth,
     content: @Composable () -> Unit,
 ) {
@@ -295,7 +304,7 @@ private fun AppDestination(
                 Icon(painterResource(Res.drawable.symbol_arrow_back), "Back", modifier = mirroredIconModifier())
             } }
         }) },
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { if (!sticky) SnackbarHost(snackbar) },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding), contentAlignment = Alignment.TopCenter) {
             Box(Modifier.widthIn(max = maxWidth).fillMaxSize()) { content() }
@@ -310,7 +319,7 @@ private fun EditorDestination(title: String, snackbar: SnackbarHostState, model:
     val s by model.state.collectAsState()
     var discard by rememberSaveable { mutableStateOf(false) }
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = s.dirty || paneBack, onBackCompleted = { if (s.dirty) discard = true else exit() })
-    AppDestination(title, snackbar, maxWidth = FormWidth, onBack = { if (s.dirty) discard = true else exit() }) { EditorScreen(model, appLabels) }
+    AppDestination(title, snackbar, maxWidth = FormWidth, sticky = true, onBack = { if (s.dirty) discard = true else exit() }) { EditorScreen(model, appLabels) }
     if (discard) AlertDialog(onDismissRequest = { discard = false }, title = { Text("Discard changes?") },
         text = { Text("Your edits to this transaction will be lost.") },
         confirmButton = { TextButton(onClick = { discard = false; exit() }) { Text("Discard") } },

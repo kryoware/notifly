@@ -126,7 +126,7 @@ class NotificationParser {
     /**
      * Converts the first recognized amount starting at or after character offset [from] to minor units.
      * Returns null if no amount matches or conversion fails, including overflow; does not try later matches.
-     * Does not filter currency or transaction context. Shared with [BillReminderParser].
+     * Filters unsupported currencies, but not transaction context. Shared with [BillReminderParser].
      */
     internal fun firstAmountMinor(text: String, from: Int = 0): Long? =
         AmountContexts.find(text).firstOrNull { it.match.range.first >= from && supportedCurrency(text, it.match) }?.match?.let { match ->
