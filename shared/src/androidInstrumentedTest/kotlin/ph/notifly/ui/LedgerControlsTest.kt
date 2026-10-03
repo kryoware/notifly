@@ -136,7 +136,8 @@ class LedgerControlsTest {
 
         fun open(title: String) {
             if (title == "Source app" && compose.onAllNodesWithText("Source app").fetchSemanticsNodes().isEmpty())
-                compose.onNodeWithText("Source details").performScrollTo().performClick() compose.onNodeWithText(title).performScrollTo().performClick() }
+                compose.onNodeWithText("Source details").performScrollTo().performClick()
+            compose.onNodeWithText(title).performScrollTo().performClick() }
         fun type(query: String) { compose.onNode(isFocused()).performTextInput(query) }
         fun unchanged(account: Long?, destination: Long?, category: String, source: String?) {
             compose.runOnIdle {
