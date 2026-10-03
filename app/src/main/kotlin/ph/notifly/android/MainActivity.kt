@@ -71,14 +71,26 @@ class MainActivity : ComponentActivity() {
         // task otherwise makes Android finish that task even with DONT_KILL_APP.
         val activity = ComponentName(this, MainActivity::class.java)
         if (intent.component != activity) {
-            startActivity(Intent(intent).setComponent(activity).addFlags(
-                if (isTaskRoot) Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                else Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP,
-            ))
-            finish()
+            if (isTaskRoot) {
+                val existing = getSystemService(android.app.ActivityManager::class.java).appTasks.firstOrNull {
+                    it.taskInfo?.baseIntent?.component == activity
+                }
+                if (existing != null) existing.moveToFront()
+                else startActivity(Intent(intent).setComponent(activity).setFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK,
+                ))
+                // A separate task is necessary: CLEAR_TASK retains the old alias's task identity.
+                finishAndRemoveTask()
+            } else {
+                startActivity(Intent(intent).setComponent(activity).addFlags(
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                ))
+                finish()
+            }
             return
         }
         val launch = ViewModelProvider(this)[LaunchViewModel::class.java].animation
+        (application as NotiflyApplication).reconcileLauncherIcon()
         nativeSplashReleased.value = lastNonConfigurationInstance != null
         // Process restoration is a fresh launch; only an in-process configuration change retains completion.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -111,6 +123,7 @@ class MainActivity : ComponentActivity() {
                 startLaunchAnimation = nativeSplashReleased.value,
                 animationsEnabled = animationsEnabled.value,
                 onReady = { ready = true },
+                shouldLockOnStop = { !isChangingConfigurations },
             )
         }
     }

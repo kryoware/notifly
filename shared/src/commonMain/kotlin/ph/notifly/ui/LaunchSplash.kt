@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 class LaunchAnimationState {
     internal val trace = Animatable(0f)
     internal val opacity = Animatable(1f)
+    val progress: Float get() = trace.value
     var complete by mutableStateOf(false)
         private set
 

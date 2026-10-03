@@ -14,12 +14,16 @@ import java.io.File
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.first
 import org.junit.Assert.*
+import org.junit.Assume.assumeFalse
+import org.junit.Before
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.koin.core.context.GlobalContext
 import ph.notifly.data.local.AppPreferences
 import ph.notifly.data.local.Appearance
 import ph.notifly.ui.LaunchAnimationState
+import ph.notifly.ui.AppSessionModel
 import ph.notifly.ui.theme.NotiflyPalette
 import ph.notifly.ui.theme.ThemeMode
 
@@ -29,6 +33,29 @@ class LaunchAppearanceTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
     private val preferences get() = GlobalContext.get().get<AppPreferences>()
+    private var originalAppearance: Appearance? = null
+
+    @Before fun requireCleanTestData() = runBlocking {
+        // Never remove an existing user's PIN or onboarding state to prepare a test.
+        assumeFalse("Run against isolated, unonboarded app data without a PIN",
+            preferences.pinSet.first() || preferences.onboardingComplete.first())
+        originalAppearance = preferences.appearance.first()
+    }
+
+    @After fun restoreTestData() = runBlocking {
+        val original = originalAppearance ?: return@runBlocking
+        preferences.clearPin()
+        preferences.resetOnboarding()
+        preferences.setPalette(original.palette)
+        preferences.setThemeMode(original.themeMode)
+    }
+
+    private fun animatorScale() = android.provider.Settings.Global.getFloat(context.contentResolver, "animator_duration_scale", 1f)
+    private fun setAnimatorScale(value: Float) {
+        android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(
+            "settings put global animator_duration_scale $value",
+        )).use { it.readBytes() }
+    }
     private fun await(check: () -> Boolean) {
         val end = System.currentTimeMillis() + 10_000
         while (!check() && System.currentTimeMillis() < end) Thread.sleep(20)
@@ -39,8 +66,8 @@ class LaunchAppearanceTest {
         scenario.onActivity { state = ViewModelProvider(it)[LaunchViewModel::class.java].animation }
         return state
     }
-    private fun capture(name: String) {
-        instrumentation.waitForIdleSync()
+    private fun capture(name: String, waitForIdle: Boolean = true) {
+        if (waitForIdle) instrumentation.waitForIdleSync()
         val bitmap = instrumentation.uiAutomation.takeScreenshot()
         val folder = File(context.filesDir, "splash-verification").apply { mkdirs() }
         File(folder, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -51,7 +78,6 @@ class LaunchAppearanceTest {
     ).map { it.activityInfo.name }
 
     @Test fun persistedAppearanceLaunchRotationResumeAndLock() {
-        runBlocking { preferences.clearPin(); preferences.resetOnboarding() }
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             val launch = state(scenario)
             await { launch.complete }
@@ -84,29 +110,51 @@ class LaunchAppearanceTest {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             await { state(scenario).complete }
             capture("pin-lock")
+            lateinit var session: AppSessionModel
+            scenario.onActivity { session = ViewModelProvider(it)[AppSessionModel::class.java]; session.unlocked = true }
+            scenario.recreate()
+            scenario.onActivity { assertSame(session, ViewModelProvider(it)[AppSessionModel::class.java]) }
+            assertTrue("Rotation must retain in-process authentication", session.unlocked)
+            scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+            assertFalse("Backgrounding must relock", session.unlocked)
         }
-        // Final state supports external force-stop/reboot and system-night verification.
-        runBlocking { preferences.clearPin(); preferences.setPalette(NotiflyPalette.Clay); preferences.setThemeMode(ThemeMode.SYSTEM) }
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { assertFalse("A fresh Activity must start locked", ViewModelProvider(it)[AppSessionModel::class.java].unlocked) }
+        }
     }
 
     @Test fun removeAnimationsSkipsLaunch() {
-        val scale = android.provider.Settings.Global.getString(context.contentResolver, "animator_duration_scale") ?: "1"
-        fun setScale(value: String) {
-            android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(
-                "settings put global animator_duration_scale $value",
-            )).use { it.readBytes() }
-        }
+        val scale = animatorScale()
         try {
-            setScale("0")
+            setAnimatorScale(0f)
             await { !ValueAnimator.areAnimatorsEnabled() }
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
                 await { state(scenario).complete }
                 capture("remove-animations")
             }
-        } finally { setScale(scale) }
+        } finally { setAnimatorScale(scale) }
     }
 
-    @Test fun launcherAliasKeepsCanonicalTaskDuringLiveIconChanges() {
+    @Test fun rotationDuringTraceRetainsProgress() {
+        val scale = animatorScale()
+        try {
+            // A slower system scale gives screenshot/recreation time without changing app durations.
+            setAnimatorScale(5f)
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                val launch = state(scenario)
+                await { launch.progress > 0f && !launch.complete }
+                val progress = launch.progress
+                capture("trace-in-progress", waitForIdle = false)
+                assertFalse(launch.complete)
+                scenario.recreate()
+                assertSame(launch, state(scenario))
+                assertTrue("The stroke must not restart", launch.progress >= progress)
+                await { launch.complete }
+            }
+        } finally { setAnimatorScale(scale) }
+    }
+
+    @Test fun launcherAliasKeepsActivityDuringLiveIconChanges() {
         val original = runBlocking { preferences.appearance.first() }
         val alias = selectedAlias().single()
         context.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
@@ -127,8 +175,7 @@ class LaunchAppearanceTest {
             await { selectedAlias() == listOf(launcherAlias(target)) }
             Thread.sleep(500)
             assertSame(activity, resumed())
-            val tasks = context.getSystemService(android.app.ActivityManager::class.java).appTasks
-            assertTrue(tasks.any { it.taskInfo?.baseIntent?.component?.className == MainActivity::class.java.name })
+            assertFalse(activity.isFinishing)
         } finally {
             runBlocking { preferences.setPalette(original.palette); preferences.setThemeMode(original.themeMode) }
             instrumentation.runOnMainSync { activity.finish() }

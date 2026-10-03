@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -28,6 +29,11 @@ import org.koin.compose.koinInject
 import ph.notifly.data.local.AppPreferences
 import ph.notifly.domain.repository.*
 import ph.notifly.ui.theme.*
+
+/** Authentication lives only in this process and survives Activity configuration changes. */
+class AppSessionModel : ViewModel() {
+    var unlocked by mutableStateOf(false)
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveNavigationSuiteApi::class)
 @Composable
@@ -46,6 +52,7 @@ fun NotiflyApp(
     animationsEnabled: Boolean = true,
     onReady: () -> Unit = {},
     onLaunchComplete: () -> Unit = {},
+    shouldLockOnStop: () -> Boolean = { true },
 ) {
     val preferences = koinInject<AppPreferences>()
     val database = koinInject<ph.notifly.data.local.AppDatabase>()
@@ -64,9 +71,8 @@ fun NotiflyApp(
     val onboarded by preferences.onboardingComplete.collectAsState(null)
     val pinSet by preferences.pinSet.collectAsState(null)
     val biometricUnlock by preferences.biometricUnlock.collectAsState(false)
-    // Authentication must never be restored from saved state after process death.
-    var unlocked by remember { mutableStateOf(false) }
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { unlocked = false }
+    val session = viewModel { AppSessionModel() }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { if (shouldLockOnStop()) session.unlocked = false }
     // A new controller per mode, so no screen keeps a ViewModel bound to the other mode's repositories.
     val nav = key(demo) { rememberNavController() }
     val entry by nav.currentBackStackEntryAsState()
@@ -169,7 +175,7 @@ fun NotiflyApp(
                 }
             }
         }
-        val locked = pinSet == true && !unlocked
+        val locked = pinSet == true && !session.unlocked
         Box(Modifier.fillMaxSize()) {
             NavigationSuiteScaffold(
                 modifier = if (locked || launchAnimation?.complete == false) Modifier.clearAndSetSemantics {} else Modifier,
@@ -193,7 +199,7 @@ fun NotiflyApp(
                 destinations(Modifier.fillMaxSize())
             }
             // Overlay rather than replace, so the NavHost and its back stack survive a lock.
-            if (locked) LockScreen({ preferences.verifyPin(it) }, { preferences.lockoutSeconds() }, onUnlock = { unlocked = true },
+            if (locked) LockScreen({ preferences.verifyPin(it) }, { preferences.lockoutSeconds() }, onUnlock = { session.unlocked = true },
                 biometric = biometricAvailable && biometricUnlock, authenticateBiometric = authenticateBiometric)
             if (launchAnimation != null && !launchAnimation.complete) {
                 LaunchSplash(launchAnimation, startLaunchAnimation, animationsEnabled, onLaunchComplete)
