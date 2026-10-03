@@ -24,7 +24,6 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -45,6 +44,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.TextRange
@@ -61,7 +67,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.input.ImeAction
@@ -334,14 +339,13 @@ private fun BalanceHero(net: Long, pending: Int, pendingTotal: Long, hidden: Boo
     val scheme = MaterialTheme.colorScheme
     Surface(Modifier.fillMaxWidth().animateContentSize(), shape = MaterialTheme.shapes.extraLarge,
         color = scheme.primaryContainer, contentColor = scheme.onPrimaryContainer) {
-        Column(Modifier.padding(start = 22.dp, end = 22.dp, top = 22.dp, bottom = if (pending > 0) 14.dp else 22.dp)) {
+        Column(Modifier.padding(20.dp)) {
             val muted = LocalContentColor.current.copy(alpha = 0.7f)
             Text("Confirmed balance", style = MaterialTheme.typography.labelLarge)
             Text(splitMoney(net, LocalContentColor.current.copy(alpha = 0.55f)),
                 style = MaterialTheme.typography.balance,
                 maxLines = 1, autoSize = TextAutoSize.StepBased(minFontSize = 24.sp, maxFontSize = 44.sp),
-                modifier = Modifier.padding(top = Space.md, bottom = Space.xs).then(hiddenMoneyModifier(hidden)))
-            Text("Transfers between your accounts aren't counted.", style = MaterialTheme.typography.bodySmall, color = muted)
+                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp).then(hiddenMoneyModifier(hidden)))
             if (pending > 0) Row(
                 Modifier.padding(top = Space.lg).fillMaxWidth().background(scheme.surface.copy(alpha = 0.35f), MaterialTheme.shapes.tray)
                     .padding(start = 14.dp, top = Space.sm, end = Space.sm, bottom = Space.sm),
@@ -539,9 +543,7 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                 FilledTonalButton(onClick = { model.search("") }) { Text("Clear search") }
             }
         } else if (s.rows.isEmpty()) {
-            EmptyState("Nothing here yet", "Transactions parsed from your allowed apps will show up here.", Modifier.fillMaxSize()) {
-                FilledTonalButton(onClick = { model.navigate("edit/0") }) { Text("Add one manually") }
-            }
+            EmptyState("Nothing here yet", "Transactions parsed from your allowed apps will show up here.", Modifier.fillMaxSize())
         } else {
             LazyColumn(Modifier.weight(1f).padding(horizontal = Space.lg), state = listState,
                 contentPadding = PaddingValues(bottom = FAB_CLEARANCE)) {
@@ -648,7 +650,7 @@ internal fun DateTimeFields(date: String, time: String, onDate: (String) -> Unit
         if (focusDateError) dateFocus.requestFocus()
         else if (focusTimeError) timeFocus.requestFocus()
     }
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         OutlinedTextField(
             value = date, onValueChange = {}, readOnly = true, label = { Text("Date") },
             isError = dateError != null, supportingText = dateError?.let { { Text(it) } },
@@ -736,13 +738,21 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
                 (if (s.feeApplies) 1 else 0) + (if (s.accounts.none { !it.archived }) 1 else 0))
         }
     }
-    Column(Modifier.fillMaxSize().imePadding()) {
-    LazyColumn(Modifier.weight(1f).padding(horizontal = Space.lg), state = listState,
-        contentPadding = PaddingValues(bottom = Space.lg), verticalArrangement = Arrangement.spacedBy(Space.md)) {
+    StickyActionScaffold(actions = {
+            val confirming = (s.original?.status == TransactionStatus.NEEDS_REVIEW || s.fromDraft)
+            // Confirming is the one moment money starts to count, so it takes the confirmed tick's colour.
+            Button(onClick = model::save, enabled = s.ready && !s.saving, modifier = WideButton,
+                colors = if (confirming) ButtonDefaults.buttonColors(containerColor = MaterialTheme.accents.confirmed,
+                    contentColor = MaterialTheme.accents.onConfirmed) else ButtonDefaults.buttonColors()) {
+                if (confirming) Icon(painterResource(Res.drawable.symbol_check), null, Modifier.padding(end = 8.dp).size(18.dp))
+                Text(if (confirming || s.captureId != null) "Confirm transaction" else "Save transaction")
+            }
+    }) { contentModifier ->
+        LazyColumn(contentModifier.padding(horizontal = Space.lg), state = listState, contentPadding = PaddingValues(bottom = Space.lg), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             AnimatedVisibility(reviewing) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                    Row(Modifier.padding(Space.lg), verticalAlignment = Alignment.CenterVertically,
+                    Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         StatusMark(confirmed = false, size = 16.dp)
                         Text("Parsed on your device. Check the details before confirming.",
@@ -837,20 +847,6 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
             }
         }
     }
-    // Pinned so saving never needs a scroll past the form.
-    // With the keyboard up the bar shrinks so landscape keeps more than one field in view.
-    val typing = WindowInsets.isImeVisible
-    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-        Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = if (typing) 4.dp else 12.dp)) {
-            // Confirming is the one moment money starts to count, so it takes the confirmed tick's colour.
-            Button(onClick = model::save, enabled = s.ready && !s.saving, modifier = if (typing) Modifier.fillMaxWidth() else WideButton,
-                colors = if (reviewing) ButtonDefaults.buttonColors(containerColor = MaterialTheme.accents.confirmed,
-                    contentColor = MaterialTheme.accents.onConfirmed) else ButtonDefaults.buttonColors()) {
-                if (reviewing) Icon(painterResource(Res.drawable.symbol_check), null, Modifier.padding(end = 8.dp).size(18.dp))
-                Text(if (reviewing || s.captureId != null) "Confirm transaction" else "Save transaction")
-            }
-        }
-    }
     }
     if (delete) AlertDialog(onDismissRequest = { delete = false }, title = { Text("Delete transaction?") },
         text = { Text("You can undo this immediately after deleting.") },
@@ -868,7 +864,7 @@ private fun SettingsSection(title: String) {
         title.uppercase(),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = Space.xs, end = Space.xs, top = Space.xxl, bottom = 10.dp).semantics { heading() },
+        modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 20.dp, bottom = 12.dp).semantics { heading() },
     )
 }
 
@@ -949,6 +945,7 @@ fun SettingsScreen(
     ledger: ph.notifly.domain.repository.LedgerRepository? = null,
     notificationsAllowed: Boolean = true,
     requestNotifications: () -> Unit = {},
+    buildLabel: String = "unknown",
 ) {
     val s by model.state.collectAsState()
     val source = org.koin.compose.koinInject<ph.notifly.domain.source.TransactionSource>()
@@ -1009,25 +1006,16 @@ fun SettingsScreen(
         item { SettingsSection("Appearance") }
         item {
             SettingsGroup {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = Space.lg, vertical = Space.md)) {
+                    Column(Modifier.fillMaxWidth().padding(20.dp)) {
                         Text("Theme mode", style = MaterialTheme.typography.titleMedium)
-                        SingleChoiceSegmentedButtonRow(Modifier.horizontalScroll(rememberScrollState()).padding(top = Space.sm)) {
-                            ThemeMode.entries.forEachIndexed { index, mode ->
-                                SegmentedButton(
-                                    selected = s.themeMode == mode,
-                                    onClick = { model.themeMode(mode) },
-                                    shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
-                                    label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) },
-                                )
-                            }
-                        }
+                        ThemeModeChoices(s.themeMode, model::themeMode)
                     }
                 run {
                     var expanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = expanded,
                         onExpandedChange = { expanded = !expanded },
-                        modifier = Modifier.padding(Space.lg),
+                        modifier = Modifier.padding(20.dp),
                     ) {
                         OutlinedTextField(
                             value = "${s.palette.name} · ${s.palette.hint}",
@@ -1055,11 +1043,12 @@ fun SettingsScreen(
             SettingsGroup {
                 val listening = permissionAvailable && connection == "Connected"
                 SettingsRow(
-                    "Notification access",
+                    "Permissions",
                     if (permissionAvailable) "On · Listener ${connection.lowercase()}" else "Off · Manual entry still works",
-                    subtitleColor = if (listening) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+                    subtitleColor = if (listening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     onClick = requestPermission,
                 )
+                SettingsRow("Notification log", "See what was captured and what couldn't be read", onClick = { model.navigate("log") })
                 SettingsRow("Allowed apps", "Choose which notifications Notifly reads", onClick = { model.navigate("allow-list") })
                 SettingsRow("Finance apps", "Detect transfers between your bank and wallet apps", onClick = { model.navigate("finance-apps") })
             }
@@ -1083,6 +1072,7 @@ fun SettingsScreen(
         item {
             SettingsGroup {
                 SettingsRow("Version", versionName)
+                SettingsRow("Build", buildLabel)
                 SettingsRow("Release notes", "What changed in each version", onClick = { uriHandler.openUri(RELEASE_NOTES_URL) }, external = true)
                 SettingsRow("Open source licenses", "Libraries Notifly is built with", onClick = { model.navigate("licenses") })
             }
@@ -1092,10 +1082,7 @@ fun SettingsScreen(
             item { SettingsSection("Developer") }
             item {
                 SettingsGroup {
-                    SettingsRow("Notification log", "See what was captured and what couldn't be read", onClick = { model.navigate("log") })
-                    SettingsRow("Replay onboarding", "Restart the first-run flow", onClick = model::restartOnboarding)
-                    SettingsRow("Theme palettes", "Render every palette side by side", onClick = { model.navigate("themes") })
-                    SettingsRow("Build", "debug")
+                        SettingsRow("Replay onboarding", "Restart the first-run flow", onClick = model::restartOnboarding)
                 }
             }
         }
@@ -1110,13 +1097,27 @@ private const val AMOUNT_ERROR = "Enter an amount above zero, with at most two d
  * Enabling reminders requests notification permission when needed, then calls [choose] without waiting for permission.
  */
 @Composable
-private fun BillReminderRow(days: Int?, notificationsAllowed: Boolean, requestNotifications: () -> Unit, choose: (Int?) -> Unit) {
+internal fun BillReminderRow(days: Int?, notificationsAllowed: Boolean, requestNotifications: () -> Unit, choose: (Int?) -> Unit) {
     val options = listOf<Int?>(null, 0, 1, 3)
     fun label(d: Int?) = when (d) { null -> "Off"; 0 -> "On the day"; 1 -> "1 day before"; else -> "$d days before" }
-    ChoiceField("Bill reminders", label(days), options, label = ::label) {
-        if (it != null && !notificationsAllowed) requestNotifications()
-        choose(it)
-    }
+    var open by remember { mutableStateOf(false) }
+    SettingsRow("Bill reminders", label(days) + if (!notificationsAllowed && days != null) " · Notifications blocked" else "",
+        onClick = { open = true })
+    if (open) AlertDialog(onDismissRequest = { open = false }, title = { Text("Bill reminders") },
+        text = { Column(Modifier.selectableGroup()) {
+            options.forEach { option ->
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(
+                    selected = days == option, role = androidx.compose.ui.semantics.Role.RadioButton,
+                    onClick = {
+                        open = false
+                        if (option != null && !notificationsAllowed) requestNotifications()
+                        choose(option)
+                    }), verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = days == option, onClick = null)
+                    Text(label(option), Modifier.padding(start = 16.dp))
+                }
+            }
+        } }, confirmButton = {}, dismissButton = { TextButton(onClick = { open = false }) { Text("Cancel") } })
 }
 
 @Composable
@@ -1136,42 +1137,44 @@ fun BudgetsScreen(model: BudgetsModel) {
     val over = cap != null && amounts.fold(cap) { remaining, minor ->
         if (remaining < 0L || minor > remaining) -1L else remaining - minor
     } < 0L
-    Column(Modifier.fillMaxSize().imePadding()) {
-        LazyColumn(
-            Modifier.weight(1f).padding(horizontal = Space.lg),
-            contentPadding = PaddingValues(bottom = Space.lg),
-            verticalArrangement = Arrangement.spacedBy(Space.sm),
-        ) {
-            item {
-                Text("Limits reset on the 1st of each month. Only confirmed expenses count toward them.",
-                    Modifier.padding(vertical = Space.sm))
-            }
-            item {
-                MoneyField(monthly, { monthly = it; attempted = false }, label = { Text("Monthly budget") }, Modifier.fillMaxWidth(),
-                    prefix = { Text("₱") }, isError = attempted && (invalid(monthly) || over),
-                    supportingText = when {
-                        attempted && invalid(monthly) -> { { Text(AMOUNT_ERROR) } }
-                        attempted && over -> { { Text("Category budgets add up to more than this. Raise it or lower a category.") } }
-                        else -> null
-                    })
-            }
-            item { Allocation(allocated, cap) }
-            item { SectionHeader("Categories", Modifier.padding(top = Space.lg)) }
-            if (categories.isEmpty()) item { Text("Add a spending category to give it a budget.") }
-            items(categories, key = { it.id }) { category ->
-                val value = text(category)
-                MoneyField(value, { edits[category.id] = it; attempted = false },
-                    label = { Text(category.name + if (category.archived) " · Archived" else "") }, Modifier.fillMaxWidth(),
-                    prefix = { Text("₱") }, isError = attempted && invalid(value),
-                    supportingText = if (attempted && invalid(value)) { { Text(AMOUNT_ERROR) } } else null)
-            }
-        }
+    StickyActionScaffold(actions = {
         Button(onClick = {
             attempted = true
             if (!invalid(monthly) && !over && categories.none { invalid(text(it)) })
                 model.save(cap, categories.associate { it.id to parseAmountMinor(text(it)) })
-        }, enabled = !busy, modifier = Modifier.fillMaxWidth().padding(16.dp)) { Text(if (busy) "Saving…" else "Save budgets") }
-    }
+        }, enabled = !busy, modifier = WideButton) { Text(if (busy) "Saving…" else "Save budgets") }
+    }) { contentModifier ->
+            LazyColumn(
+                contentModifier.padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                item {
+                    Text("Limits reset on the 1st of each month. Only confirmed expenses count toward them.",
+                        Modifier.padding(vertical = 8.dp))
+                }
+                item {
+                    MoneyField(monthly, { monthly = it; attempted = false }, label = { Text("Monthly budget") }, Modifier.fillMaxWidth(),
+                        prefix = { Text("₱") }, isError = attempted && (invalid(monthly) || over),
+                        supportingText = when {
+                            attempted && invalid(monthly) -> { { Text(AMOUNT_ERROR) } }
+                            attempted && over -> { { Text("Category budgets add up to more than this. Raise it or lower a category.") } }
+                            else -> null
+                        })
+                }
+                item { Allocation(allocated, cap) }
+                item { SectionHeader("Categories", topPadding = 8.dp) }
+                if (categories.isEmpty()) item { Text("Add a spending category to give it a budget.") }
+                items(categories, key = { it.id }) { category ->
+                    val value = text(category)
+                    MoneyField(value, { edits[category.id] = it; attempted = false },
+                        label = { Text(category.name + if (category.archived) " · Archived" else "") }, Modifier.fillMaxWidth(),
+                        prefix = { Text("₱") }, isError = attempted && invalid(value),
+                        supportingText = if (attempted && invalid(value)) { { Text(AMOUNT_ERROR) } } else null)
+                }
+            }
+
+        }
 }
 
 /** Live share of the monthly [cap] taken by category budgets; without a cap only the total shows. */
@@ -1202,15 +1205,18 @@ fun LicensesScreen() {
 fun AllowListScreen(model: AllowListModel, onFinish: (() -> Unit)? = null) {
     val s by model.state.collectAsState()
     var searchText by remember { mutableStateOf("") }
-    Column(Modifier.fillMaxSize().padding(horizontal = if (onFinish != null) 24.dp else 16.dp)) {
-        if (onFinish != null) Box(Modifier.padding(top = Space.sm, bottom = Space.xs)) { StepTrail(3) }
+    var focused by remember { mutableStateOf(false) }
+    val focus = LocalFocusManager.current
+    val picker: @Composable (Modifier) -> Unit = { contentModifier ->
+    Column(contentModifier.padding(horizontal = 16.dp)) {
+        if (onFinish != null) Box(Modifier.padding(top = 8.dp, bottom = 4.dp)) { StepTrail(3) }
         Text(if (onFinish != null) "Only apps you select are read. Pick the bank and e-wallet apps that send you payment alerts."
             else if (s.finance) "Pick the bank and wallet apps you move money between. Matching in and out alerts become one transfer."
             else "Only apps you explicitly enable can create captures.", Modifier.padding(vertical = Space.sm))
         OutlinedTextField(
             value = searchText,
             onValueChange = { searchText = it; model.search(it) },
-            modifier = Modifier.fillMaxWidth().padding(bottom = Space.sm),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp).onFocusChanged { focused = it.isFocused },
             placeholder = { Text("Search apps") },
             singleLine = true,
             leadingIcon = { Icon(painterResource(Res.drawable.symbol_search), contentDescription = null) },
@@ -1224,6 +1230,13 @@ fun AllowListScreen(model: AllowListModel, onFinish: (() -> Unit)? = null) {
         ListItemDefaults.colors(selectedContainerColor = it.containerColor, selectedContentColor = it.contentColor)
     }
     LazyColumn(Modifier.weight(1f)) {
+        if (focused && searchText == s.query && searchText.isNotBlank()) {
+            items(s.suggestions, key = { "suggestion:${it.packageName}" }) { app ->
+                ListItem(onClick = { model.selectSuggestion(app.packageName); focus.clearFocus() },
+                    content = { Text(app.label) }, supportingContent = { Text(app.packageName) },
+                    leadingContent = { Icon(painterResource(Res.drawable.symbol_search), null) })
+            }
+        }
         items(s.apps, key = { it.packageName }, contentType = { "app" }) { app ->
             val checked = with(model) { app.isChecked() }
             ListItem(
@@ -1243,15 +1256,16 @@ fun AllowListScreen(model: AllowListModel, onFinish: (() -> Unit)? = null) {
             )
         }
     }
-    if (onFinish != null) Column(Modifier.fillMaxWidth().padding(vertical = Space.md),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+    }
+
+    }
+    if (onFinish != null) StickyActionScaffold(actions = {
         Text(when (s.checked) { 0 -> "No apps selected yet"; 1 -> "1 app selected"; else -> "${s.checked} apps selected" },
             style = MaterialTheme.typography.labelLarge, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
         Button(onClick = onFinish, modifier = WideButton) { Text("Finish setup") }
-        Text("Change your choices in Settings anytime.", style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-    }
+    }, content = picker)
+    else picker(Modifier.fillMaxSize().imePadding())
+
 }
 
 /** Steps 1–3 of first run; step 4 is the app picker on `choose-apps`. Actions stay pinned below the scrolling copy. */
@@ -1266,39 +1280,8 @@ fun OnboardingScreen(
 ) {
     val next: () -> Unit = { model.navigate(if (page < 2) "onboarding/${page + 1}" else "choose-apps") }
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Space.xxl, vertical = Space.lg),
-            verticalArrangement = Arrangement.spacedBy(Space.xl)) {
-            StepTrail(page)
-            Text(listOf("Stop typing your expenses", "One permission to grant", "Keep it running")[page],
-                style = MaterialTheme.typography.displaySmall, modifier = Modifier.padding(top = Space.md).semantics { heading() })
-            Text(listOf(
-                "Choose your apps. We parse payment alerts on-device. You review and confirm every transaction.",
-                "Notification access lets Notifly read alerts only from allowed apps. Raw notification text is never uploaded.",
-                "Android can pause background apps to save power, and some phones do it aggressively. Turning that off for Notifly keeps captures arriving promptly.",
-            )[page], style = MaterialTheme.typography.bodyLarge, color = muted)
-            when (page) {
-                0 -> {
-                    SampleSlip()
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Icon(painterResource(Res.drawable.symbol_lock), null, Modifier.size(20.dp), tint = muted)
-                        Text("Your notifications stay on your device.", style = MaterialTheme.typography.bodyMedium, color = muted)
-                    }
-                }
-                1 -> SetupStatus(Res.drawable.symbol_notifications, "Notification access", permissionAvailable,
-                    if (permissionAvailable) "On. Alerts from the apps you choose can become drafts."
-                    else "Off. Notifly can't read alerts yet; you can still add transactions manually.")
-                else -> {
-                    SetupStatus(Res.drawable.symbol_battery_android_full, "Background capture", batteryExempt,
-                        if (batteryExempt) "Unrestricted. Captures arrive promptly."
-                        else "Battery-optimised. Capture still works, but may be delayed on some phones.")
-                    if (!batteryExempt) Text("In the list that opens, switch the filter to All apps, then pick Notifly.",
-                        style = MaterialTheme.typography.bodyMedium, color = muted)
-                }
-            }
-        }
-        Column(Modifier.fillMaxWidth().padding(horizontal = Space.xxl, vertical = Space.lg),
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+    Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+    StickyActionScaffold(actions = {
             when {
                 page == 0 -> {
                     Button(onClick = next, modifier = WideButton) { Text("Get started") }
@@ -1314,6 +1297,38 @@ fun OnboardingScreen(
                 }
                 else -> Button(onClick = next, modifier = WideButton) { Text("Continue") }
             }
+    }) { contentModifier ->
+            Column(contentModifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                StepTrail(page)
+                Text(listOf("Stop typing your expenses", "One permission to grant", "Keep it running")[page],
+                    style = MaterialTheme.typography.displaySmall, modifier = Modifier.padding(top = 12.dp).semantics { heading() })
+                Text(listOf(
+                    "Choose your apps. We parse payment alerts on-device. You review and confirm every transaction.",
+                    "Notification access lets Notifly read alerts only from allowed apps. Raw notification text is never uploaded.",
+                    "Android can pause background apps to save power, and some phones do it aggressively. Turning that off for Notifly keeps captures arriving promptly.",
+                )[page], style = MaterialTheme.typography.bodyLarge, color = muted)
+                when (page) {
+                    0 -> {
+                        SampleSlip()
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Icon(painterResource(Res.drawable.symbol_lock), null, Modifier.size(20.dp), tint = muted)
+                            Text("Your notifications stay on your device.", style = MaterialTheme.typography.bodyMedium, color = muted)
+                        }
+                    }
+                    1 -> SetupStatus(Res.drawable.symbol_notifications, "Notification access", permissionAvailable,
+                        if (permissionAvailable) "On. Alerts from the apps you choose can become drafts."
+                        else "Off. Notifly can't read alerts yet; you can still add transactions manually.")
+                    else -> {
+                        SetupStatus(Res.drawable.symbol_battery_android_full, "Background capture", batteryExempt,
+                            if (batteryExempt) "Unrestricted. Captures arrive promptly."
+                            else "Battery-optimised. Capture still works, but may be delayed on some phones.")
+                        if (!batteryExempt) Text("In the list that opens, switch the filter to All apps, then pick Notifly.",
+                            style = MaterialTheme.typography.bodyMedium, color = muted)
+                    }
+                }
+            }
+
         }
     }
 }
@@ -1353,8 +1368,8 @@ private fun SampleSlip() {
         modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
             contentDescription = "Example: a GCash alert for $amount becomes a Puregold draft that counts once you confirm it."
         }) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.md)) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(painterResource(Res.drawable.symbol_notifications), null, Modifier.size(20.dp), tint = scheme.onSurfaceVariant)
                 Column {
                     Text("GCash · Example", style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
@@ -1381,7 +1396,7 @@ private fun SetupStatus(icon: DrawableResource, title: String, done: Boolean, de
     val scheme = MaterialTheme.colorScheme
     Surface(shape = MaterialTheme.shapes.medium, color = if (done) scheme.primaryContainer else scheme.surfaceContainerHigh,
         modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
-        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Icon(painterResource(if (done) Res.drawable.symbol_check_circle else icon), null, Modifier.size(24.dp),
                 tint = if (done) scheme.primary else scheme.onSurfaceVariant)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -1431,4 +1446,30 @@ fun AuthScreen(model: AuthModel, demo: Boolean) {
     }
 }
 
+@Composable
+internal fun ThemeModeChoices(selected: ThemeMode, choose: (ThemeMode) -> Unit) {
+    val density = LocalDensity.current
+    val measurer = rememberTextMeasurer()
+    val style = MaterialTheme.typography.labelLarge
+    val labels = ThemeMode.entries.map { it.name.lowercase().replaceFirstChar(Char::uppercase) }
+    // Material's 18dp icon, 8dp gap and 12dp padding on each side.
+    val required = labels.maxOf { with(density) { measurer.measure(AnnotatedString(it), style).size.width.toDp() } } + 50.dp
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        if (maxWidth / labels.size < required) Column(Modifier.selectableGroup()) {
+            ThemeMode.entries.forEachIndexed { index, mode ->
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(selected == mode,
+                    role = androidx.compose.ui.semantics.Role.RadioButton, onClick = { choose(mode) }),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected == mode, onClick = null)
+                    Text(labels[index], Modifier.padding(start = 16.dp))
+                }
+            }
+        } else SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            ThemeMode.entries.forEachIndexed { index, mode ->
+                SegmentedButton(selected == mode, onClick = { choose(mode) }, modifier = Modifier.weight(1f),
+                    shape = SegmentedButtonDefaults.itemShape(index, labels.size), label = { Text(labels[index], maxLines = 1) })
+            }
+        }
+    }
+}
 private val IdSetSaver = Saver<Set<Long>, Any>(save = { it.toLongArray() }, restore = { (it as LongArray).toSet() })

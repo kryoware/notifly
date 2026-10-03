@@ -80,17 +80,17 @@ fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyM
                 supportingContent = { Text("Confirm them to include them here", color = MaterialTheme.colorScheme.onTertiaryContainer) },
             )
         }
-        item { CashFlowCard(w) }
-        item { DailySpendingCard(w) }
-        item { PaceCard(s.windows, s.days, model::days) }
-        item { CategoryCard(w) }
-        if (s.accounts.isNotEmpty()) item { AccountsCard(s.accounts) }
+        item { Box(Modifier.padding(top = 12.dp)) { CashFlowCard(w) } }
+        item { Box(Modifier.padding(top = 12.dp)) { DailySpendingCard(w) } }
+        item { Box(Modifier.padding(top = 12.dp)) { PaceCard(s.windows, s.days, model::days) } }
+        item { Box(Modifier.padding(top = 12.dp)) { CategoryCard(w) } }
+        if (s.accounts.isNotEmpty()) item { Box(Modifier.padding(top = 12.dp)) { AccountsCard(s.accounts) } }
         if (w.largest.isNotEmpty()) {
-            item(span = full) { SectionHeader("Largest expenses · last ${w.days} days") }
+            item(span = full) { SectionHeader("Largest expenses · last ${w.days} days", topPadding = 12.dp) }
             items(w.largest, key = { it.id }, span = { full }) { t -> TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") }) }
         }
         s.month?.let { month ->
-            item(span = full) { SectionHeader("This month") }
+            item(span = full) { SectionHeader("This month", topPadding = 12.dp) }
             item { BudgetCard(month, s.budget) { model.navigate("budgets") } }
             if (s.categoryBudgets.isNotEmpty()) item { CategoryBudgetCard(month, s.categoryBudgets) { model.navigate("budgets") } }
         }

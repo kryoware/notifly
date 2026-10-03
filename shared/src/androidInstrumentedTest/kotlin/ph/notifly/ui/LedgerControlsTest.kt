@@ -42,7 +42,7 @@ class LedgerControlsTest {
         compose.runOnIdle { cap = 1_000; loaded = true }
         compose.onNodeWithText("Name").performTextInput("Coffee")
         compose.onNodeWithText("Monthly budget (PHP, optional)").performTextInput("20")
-        compose.onNodeWithText("Save category").performScrollTo().performClick()
+        compose.onNodeWithText("Save category").assertIsDisplayed().performClick()
         compose.onNodeWithText("Only ₱10.00 of your ₱10.00 monthly budget is unallocated.").assertExists()
         Assert.assertFalse(runBlocking { ledger.observeCategories().first().any { it.name == "Coffee" } })
         compose.runOnIdle { cap = null }
@@ -110,8 +110,7 @@ class LedgerControlsTest {
         compose.waitUntil { model.state.value.loaded }
         compose.onNodeWithText("Name").assertExists()
         screenshot("ledger-account-light-large.png")
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Save account"))
-        compose.onNodeWithText("Save account").assertIsEnabled()
+        compose.onNodeWithText("Save account").assertIsDisplayed().assertIsEnabled()
         compose.runOnIdle { categories = true; dark = true }
         compose.onNodeWithText("Food").assertExists()
         screenshot("ledger-categories-dark-large.png")
@@ -215,7 +214,7 @@ class LedgerControlsTest {
         unchanged(2, null, "Other", null)
     }
 
-    @Test fun capturedTransactionSourceStaysReadOnly() {
+    @Test fun capturedTransactionSourceStaysAvailableInPicker() {
         val transactions = DemoTransactions(listOf(Transaction(
             id = 1, title = "Captured", amountMinor = 500, type = TransactionType.EXPENSE,
             status = TransactionStatus.NEEDS_REVIEW, category = "Shopping", occurredAt = kotlin.time.Clock.System.now(),
@@ -224,8 +223,8 @@ class LedgerControlsTest {
         val editor = EditorModel(transactions, 1, ledger = DemoLedger(transactions), apps = DemoAllowList())
         compose.setContent { NotiflyTheme { Surface(Modifier.fillMaxSize()) { EditorScreen(editor) } } }
         compose.waitUntil { editor.state.value.accounts.isNotEmpty() }
-        compose.onNodeWithText("Source: com.paymaya").performScrollTo().assertExists()
-        compose.onNodeWithText("Source app").assertDoesNotExist()
+        compose.onNodeWithText("Source app").performScrollTo().performClick()
+        compose.onAllNodesWithText("com.paymaya").assertCountEquals(2)
         Assert.assertEquals("com.paymaya", editor.state.value.sourceApp)
     }
 

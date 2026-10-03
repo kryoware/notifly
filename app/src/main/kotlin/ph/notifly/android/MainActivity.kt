@@ -17,9 +17,9 @@ import android.service.notification.NotificationListenerService
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.core.view.WindowCompat
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -52,8 +52,9 @@ class MainActivity : ComponentActivity() {
         notificationsAllowed.value = it
     }
     private fun refreshNotificationsAllowed() {
-        notificationsAllowed.value = Build.VERSION.SDK_INT < 33 ||
-            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        notificationsAllowed.value = getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled() &&
+            (Build.VERSION.SDK_INT < 33 ||
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED)
     }
     // ponytail: framework BiometricPrompt needs API 30 for BIOMETRIC_STRONG; API 26–29 get PIN only. androidx.biometric if older devices matter.
     /**
@@ -132,6 +133,7 @@ class MainActivity : ComponentActivity() {
                 batteryExempt = batteryExempt.value,
                 requestBatteryExemption = { openSystemSettings(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS) },
                 versionName = BuildConfig.VERSION_NAME,
+                buildLabel = "${BuildConfig.BUILD_TYPE}-${BuildConfig.SOURCE_REF}-${BuildConfig.SOURCE_SHA}",
                 isDebugBuild = BuildConfig.DEBUG,
                 biometricAvailable = biometricAvailable.value,
                 authenticateBiometric = ::authenticate,
@@ -141,7 +143,11 @@ class MainActivity : ComponentActivity() {
                 onReady = { ready = true },
                 shouldLockOnStop = { !isChangingConfigurations },
                 notificationsAllowed = notificationsAllowed.value,
-                requestNotifications = { if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS) },
+                requestNotifications = {
+                    if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                        notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    else startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+                },
                 launchRoute = launchRoute.value,
                 launchRouteKey = launchRouteKey.intValue,
                 onDarkChanged = { dark -> WindowCompat.getInsetsController(window, window.decorView).apply { isAppearanceLightStatusBars = !dark; isAppearanceLightNavigationBars = !dark } },
