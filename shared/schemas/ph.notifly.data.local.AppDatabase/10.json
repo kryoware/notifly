@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 10,
-    "identityHash": "0ab59a68d8fc563cb9ddcb31e4955406",
+    "identityHash": "9f7f2cdf9fd79daa9eac659c06df87c9",
     "entities": [
       {
         "tableName": "transactions",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `title` TEXT NOT NULL, `amountMinor` INTEGER NOT NULL, `currency` TEXT NOT NULL, `type` TEXT NOT NULL, `status` TEXT NOT NULL, `category` TEXT NOT NULL, `occurredAtMillis` INTEGER NOT NULL, `createdAtMillis` INTEGER NOT NULL, `sourceApp` TEXT, `captureId` INTEGER, `note` TEXT NOT NULL, `accountId` INTEGER NOT NULL DEFAULT 0, `toAccountId` INTEGER, `categoryId` INTEGER, `fromApp` TEXT, `toApp` TEXT, `feeMinor` INTEGER NOT NULL DEFAULT 0, FOREIGN KEY(`accountId`) REFERENCES `accounts`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`toAccountId`) REFERENCES `accounts`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `title` TEXT NOT NULL, `amountMinor` INTEGER NOT NULL, `currency` TEXT NOT NULL, `type` TEXT NOT NULL, `status` TEXT NOT NULL, `category` TEXT NOT NULL, `occurredAtMillis` INTEGER NOT NULL, `createdAtMillis` INTEGER NOT NULL, `sourceApp` TEXT, `captureId` INTEGER, `note` TEXT NOT NULL, `accountId` INTEGER NOT NULL DEFAULT 0, `toAccountId` INTEGER, `categoryId` INTEGER, `fromApp` TEXT, `toApp` TEXT, FOREIGN KEY(`accountId`) REFERENCES `accounts`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`toAccountId`) REFERENCES `accounts`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
         "fields": [
           {
             "fieldPath": "id",
@@ -104,13 +104,6 @@
             "fieldPath": "toApp",
             "columnName": "toApp",
             "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "feeMinor",
-            "columnName": "feeMinor",
-            "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "0"
           }
         ],
         "primaryKey": {
@@ -197,7 +190,7 @@
       },
       {
         "tableName": "raw_captures",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sourceApp` TEXT NOT NULL, `capturedAtMillis` INTEGER NOT NULL, `body` TEXT, `result` TEXT NOT NULL, `matchedAmount` TEXT, `matchedDirection` TEXT, `reason` TEXT NOT NULL, `fingerprint` TEXT)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sourceApp` TEXT NOT NULL, `capturedAtMillis` INTEGER NOT NULL, `body` TEXT, `result` TEXT NOT NULL, `matchedAmount` TEXT, `matchedDirection` TEXT, `reason` TEXT NOT NULL, `fingerprint` TEXT, `extras` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -247,6 +240,11 @@
           {
             "fieldPath": "fingerprint",
             "columnName": "fingerprint",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "extras",
+            "columnName": "extras",
             "affinity": "TEXT"
           }
         ],
@@ -657,7 +655,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '0ab59a68d8fc563cb9ddcb31e4955406')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9f7f2cdf9fd79daa9eac659c06df87c9')"
     ]
   }
 }

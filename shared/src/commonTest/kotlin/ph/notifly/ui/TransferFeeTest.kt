@@ -38,6 +38,7 @@ class TransferFeeTest {
         assertEquals(1500L, monthInsights(listOf(confirmed), today, TimeZone.UTC).flow.spent)
         assertEquals(listOf(CategorySpend("Transfer fees", 1500, 0)),
             windowInsights(listOf(confirmed), today, 7, TimeZone.UTC).categories)
+        assertEquals("Transfer fee · Move savings", windowInsights(listOf(confirmed), today, 7, TimeZone.UTC).largest.single().title)
         assertEquals(1500L, TransactionCsv.decode(TransactionCsv.encode(listOf(row))).single().feeMinor)
         assertEquals(1500L, confirmed.toSyncTransaction().feeMinor)
         val repository = DemoTransactions()

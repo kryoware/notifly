@@ -53,7 +53,7 @@ private fun cashFlow(rows: List<Transaction>) = CashFlow(
 /** NEEDS_REVIEW rows never count: insights describe the same money as the headline balance. */
 private fun List<Transaction>.confirmedByDate(zone: TimeZone) = filter { it.status == TransactionStatus.CONFIRMED }
     .map { if (it.type == TransactionType.TRANSFER) it.copy(type = TransactionType.EXPENSE,
-        amountMinor = it.feeMinor, category = "Transfer fees") else it }
+        amountMinor = it.feeMinor, feeMinor = 0, title = "Transfer fee · ${it.title}", category = "Transfer fees") else it }
     .filter { it.amountMinor > 0 }
     .map { it.occurredAt.toLocalDateTime(zone).date to it }
 

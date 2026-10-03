@@ -15,15 +15,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 import ph.notifly.ui.theme.accents
+import ph.notifly.ui.theme.voice
+import ph.notifly.ui.theme.Space
 
 /** The n whose last stroke is a tick. */
 @Composable
@@ -33,7 +33,7 @@ fun NotiflyMark(modifier: Modifier = Modifier, size: Dp = 24.dp, tint: Color = M
 
 @Composable
 internal fun Wordmark(suffix: String? = null) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
         NotiflyMark(size = 26.dp)
         Text("notifly", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.045).em))
         suffix?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -53,22 +53,18 @@ internal fun StatusMark(confirmed: Boolean, size: Dp = 22.dp) {
 
 @Composable
 internal fun SectionHeader(title: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
-    Row(modifier.fillMaxWidth().padding(start = 4.dp, top = 8.dp).heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth().padding(start = Space.xs, top = Space.sm).heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
         action?.invoke()
     }
 }
 
-/** Fraunces italic, the brand's spoken line. */
-@Composable
-internal fun voiceStyle() = MaterialTheme.typography.displaySmall.copy(fontSize = 26.sp, lineHeight = 32.sp, fontStyle = FontStyle.Italic)
-
 @Composable
 internal fun EmptyState(title: String, body: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
-    Column(modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)) {
+    Column(modifier.fillMaxWidth().padding(Space.xxl), horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Space.md, Alignment.CenterVertically)) {
         NotiflyMark(size = 40.dp, tint = MaterialTheme.colorScheme.outline)
-        Text(title, style = voiceStyle(), textAlign = TextAlign.Center)
+        Text(title, style = MaterialTheme.typography.voice, textAlign = TextAlign.Center)
         Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         action?.invoke()
     }
@@ -77,8 +73,8 @@ internal fun EmptyState(title: String, body: String, modifier: Modifier = Modifi
 /** Mono stamp under the mark, as on the brand sheet. */
 @Composable
 internal fun BrandFooter(modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.fillMaxWidth().padding(vertical = Space.xxl), horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         NotiflyMark(size = 28.dp)
         Text("READ ON-DEVICE · COUNTED BY YOU", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }

@@ -19,10 +19,24 @@ import org.junit.runner.RunWith
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ph.notifly.data.local.AppPreferences
 import ph.notifly.ui.theme.NotiflyTheme
+import notifly.shared.generated.resources.Res
+import notifly.shared.generated.resources.allDrawableResources
+import org.jetbrains.compose.resources.painterResource
 
 @RunWith(AndroidJUnit4::class)
 class ExpressiveControlsTest {
     @get:Rule val compose = createComposeRule()
+
+    @Test fun everyMaterialSymbolLoadsInCompose() {
+        val symbols = Res.allDrawableResources.filterKeys { it.startsWith("symbol_") }
+        org.junit.Assert.assertTrue(symbols.isNotEmpty())
+        compose.setContent {
+            NotiflyTheme {
+                symbols.values.forEach { androidx.compose.material3.Icon(painterResource(it), null) }
+            }
+        }
+        compose.waitForIdle()
+    }
 
     @Test fun selectedTransactionTogglesOncePerRowClick() {
         val transaction = runBlocking { DemoTransactions().byId(2)!! }
@@ -63,6 +77,7 @@ class ExpressiveControlsTest {
         compose.setContent { NotiflyTheme { HomeScreen(model) } }
         val full = "SM Supermarket, ₱2,450.50, needs review"
         compose.waitUntil { model.state.value.rows.isNotEmpty() }
+        compose.onNode(hasScrollAction()).performScrollToNode(hasContentDescription(full))
         compose.onNodeWithContentDescription(full).assertExists()
         compose.onNodeWithContentDescription("Hide amounts").performClick()
         compose.waitUntil { model.state.value.hideAmounts }

@@ -9,8 +9,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 
 @Database(
-    entities = [TransactionEntity::class, RawCaptureEntity::class, AllowedAppEntity::class, PendingChangeEntity::class, CaptureReceiptEntity::class, AccountEntity::class, AccountAppEntity::class, CategoryEntity::class, CapturedDraftEntity::class],
-    version = 10,
+    entities = [TransactionEntity::class, RawCaptureEntity::class, AllowedAppEntity::class, PendingChangeEntity::class, CaptureReceiptEntity::class, AccountEntity::class, AccountAppEntity::class, CategoryEntity::class, CapturedDraftEntity::class, BillEntity::class, BillPaymentEntity::class],
+    version = 12,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -18,6 +18,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun rawCaptureDao(): RawCaptureDao
     abstract fun allowedAppDao(): AllowedAppDao
+    abstract fun billDao(): BillDao
 }
 
 // The Room compiler generates the `actual` implementation for each platform target.
@@ -27,9 +28,21 @@ expect object AppDatabaseConstructor : RoomDatabaseConstructor<AppDatabase> {
 }
 
 val databaseMigrations = arrayOf(
-    object : androidx.room.migration.Migration(9, 10) {
+    object : androidx.room.migration.Migration(11, 12) {
         override fun migrate(connection: androidx.sqlite.SQLiteConnection) {
             connection.prepare("ALTER TABLE transactions ADD COLUMN feeMinor INTEGER NOT NULL DEFAULT 0").use { it.step() }
+        }
+    },
+    object : androidx.room.migration.Migration(10, 11) {
+        override fun migrate(connection: androidx.sqlite.SQLiteConnection) {
+            connection.prepare("CREATE TABLE IF NOT EXISTS bills (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, amountMinor INTEGER NOT NULL, category TEXT NOT NULL, accountId INTEGER, startsOnDay INTEGER NOT NULL, repeats TEXT NOT NULL, settled INTEGER NOT NULL, status TEXT NOT NULL, detected INTEGER NOT NULL, sourceApp TEXT, captureId INTEGER, remindedForDay INTEGER, createdAtMillis INTEGER NOT NULL)").use { it.step() }
+            connection.prepare("CREATE TABLE IF NOT EXISTS bill_payments (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, billId INTEGER NOT NULL, dueOnDay INTEGER NOT NULL, transactionId INTEGER, settledAtMillis INTEGER NOT NULL, FOREIGN KEY(billId) REFERENCES bills(id) ON UPDATE NO ACTION ON DELETE CASCADE)").use { it.step() }
+            connection.prepare("CREATE INDEX IF NOT EXISTS index_bill_payments_billId ON bill_payments(billId)").use { it.step() }
+        }
+    },
+    object : androidx.room.migration.Migration(9, 10) {
+        override fun migrate(connection: androidx.sqlite.SQLiteConnection) {
+            connection.prepare("ALTER TABLE raw_captures ADD COLUMN extras TEXT").use { it.step() }
         }
     },
     ledgerMigration,

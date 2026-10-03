@@ -32,6 +32,7 @@ import notifly.shared.generated.resources.symbol_backspace
 import org.jetbrains.compose.resources.painterResource
 import ph.notifly.data.local.PIN_LENGTH
 import ph.notifly.data.local.PinResult
+import ph.notifly.ui.theme.Space
 
 private val digitsOnly = InputTransformation {
     if (length > PIN_LENGTH || !asCharSequence().all(Char::isDigit)) revertAllChanges()
@@ -68,8 +69,8 @@ private fun PinKey(digit: Char, onType: (Char) -> Unit) = Box(keyCell, contentAl
 
 @Composable
 private fun PinDots(entered: Int) {
-    Row(Modifier.padding(vertical = 16.dp).clearAndSetSemantics { contentDescription = "$entered of $PIN_LENGTH digits entered" },
-        horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+    Row(Modifier.padding(vertical = Space.lg).clearAndSetSemantics { contentDescription = "$entered of $PIN_LENGTH digits entered" },
+        horizontalArrangement = Arrangement.spacedBy(Space.xl)) {
         repeat(PIN_LENGTH) { i ->
             Box(Modifier.size(16.dp).background(
                 if (i < entered) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape))
@@ -111,7 +112,7 @@ internal fun PinSetupScreen(onDismiss: () -> Unit, onDone: (String) -> Unit) {
     val type: (Char) -> Unit = { if (entry.length < PIN_LENGTH) { entry += it; error = null } }
     Dialog(onDismiss, DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.fillMaxSize().safeDrawingPadding().padding(Space.xxl), horizontalAlignment = Alignment.CenterHorizontally) {
                 Spacer(Modifier.weight(1f))
                 Text(if (first == null) "Create your PIN" else "Confirm your PIN",
                     textAlign = TextAlign.Center, style = MaterialTheme.typography.headlineSmall)
@@ -168,7 +169,7 @@ fun LockScreen(
     }
     val type: (Char) -> Unit = { if (entry.length < PIN_LENGTH) { entry += it; error = null } }
     Surface(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(Space.xxl), horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(Modifier.weight(1f))
             Text("Unlock Notifly", textAlign = TextAlign.Center, style = MaterialTheme.typography.headlineSmall)
             PinDots(entry.length)

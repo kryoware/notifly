@@ -1,6 +1,10 @@
 package ph.notifly.ui
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -40,6 +44,22 @@ class TransactionEditorControlsTest {
         compose.onNodeWithText("Bank savings · Ending 1234").assertDoesNotExist()
         compose.onNodeWithText("Visa card · Ending 5678").performClick()
         compose.runOnIdle { assertEquals(2L, selected) }
+    }
+
+    @Test fun largeTextDateAndTimeRemainInOneScrollableRow() {
+        compose.setContent {
+            NotiflyTheme {
+                val density = LocalDensity.current
+                CompositionLocalProvider(LocalDensity provides Density(density.density, 1.5f)) {
+                    Column(Modifier.width(280.dp)) { DateTimeFields("2026-10-03", "14:30", {}, {}) }
+                }
+            }
+        }
+        compose.onNodeWithText("2026-10-03").assertIsDisplayed()
+        compose.onNodeWithText("Time").performScrollTo().assertIsDisplayed()
+        val date = compose.onNodeWithText("Date").fetchSemanticsNode().boundsInRoot
+        val time = compose.onNodeWithText("Time").fetchSemanticsNode().boundsInRoot
+        assertEquals(date.top, time.top)
     }
 
     @Test fun categoryAndSourceFilterCaseInsensitivelyAndEmptySearchRecovers() {
