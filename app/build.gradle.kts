@@ -18,6 +18,7 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         val sentryDsn = providers.gradleProperty("sentryDsn")
             .orElse(providers.environmentVariable("SENTRY_DSN"))
             .getOrElse("")
@@ -59,6 +60,7 @@ android {
     }
 
     sourceSets["main"].java.srcDirs("src/main/kotlin")
+    testOptions { unitTests.isIncludeAndroidResources = true }
 }
 
 dependencies {
@@ -68,6 +70,12 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.kotlinx.datetime)
     implementation(libs.koin.android)
+    testImplementation(kotlin("test"))
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test:runner:1.7.0")
 }
 
 

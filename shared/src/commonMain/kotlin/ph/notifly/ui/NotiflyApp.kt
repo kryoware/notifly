@@ -41,6 +41,11 @@ fun NotiflyApp(
     isDebugBuild: Boolean = false,
     biometricAvailable: Boolean = false,
     authenticateBiometric: (onSuccess: () -> Unit) -> Unit = {},
+    launchAnimation: LaunchAnimationState? = null,
+    startLaunchAnimation: Boolean = true,
+    animationsEnabled: Boolean = true,
+    onReady: () -> Unit = {},
+    onLaunchComplete: () -> Unit = {},
 ) {
     val preferences = koinInject<AppPreferences>()
     val database = koinInject<ph.notifly.data.local.AppDatabase>()
@@ -55,12 +60,12 @@ fun NotiflyApp(
     val apps = remember(demo) { if (demo) DemoAllowList() else realApps }
     val allowed by apps.observeAll().collectAsState(emptyList())
     val appLabels = remember(allowed) { allowed.associate { it.packageName to it.label } }
-    val palette by preferences.palette.collectAsState(NotiflyPalette.Ube)
-    val themeMode by preferences.themeMode.collectAsState(ThemeMode.SYSTEM)
+    val appearance by preferences.appearance.collectAsState(null)
     val onboarded by preferences.onboardingComplete.collectAsState(null)
     val pinSet by preferences.pinSet.collectAsState(null)
     val biometricUnlock by preferences.biometricUnlock.collectAsState(false)
-    var unlocked by rememberSaveable { mutableStateOf(false) }
+    // Authentication must never be restored from saved state after process death.
+    var unlocked by remember { mutableStateOf(false) }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { unlocked = false }
     // A new controller per mode, so no screen keeps a ViewModel bound to the other mode's repositories.
     val nav = key(demo) { rememberNavController() }
@@ -90,11 +95,11 @@ fun NotiflyApp(
         }; Unit }
     } }
     val topLevel = listOf("home", "transactions", "insights", "settings")
-    NotiflyTheme(palette, themeMode) {
-        if (onboarded == null || pinSet == null) {
-            Surface(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
-            return@NotiflyTheme
-        }
+    // No default-palette frame while the persisted theme or security state is still loading.
+    val loadedAppearance = appearance ?: return
+    if (onboarded == null || pinSet == null) return
+    NotiflyTheme(loadedAppearance.palette, loadedAppearance.themeMode) {
+        SideEffect { onReady() }
         val navigationSuiteType = if (route in topLevel) {
             NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo())
         } else {
@@ -167,7 +172,7 @@ fun NotiflyApp(
         val locked = pinSet == true && !unlocked
         Box(Modifier.fillMaxSize()) {
             NavigationSuiteScaffold(
-                modifier = if (locked) Modifier.clearAndSetSemantics {} else Modifier,
+                modifier = if (locked || launchAnimation?.complete == false) Modifier.clearAndSetSemantics {} else Modifier,
                 navigationSuiteItems = {
                     listOf(
                         Triple("home", "Home", Res.drawable.symbol_home),
@@ -190,6 +195,9 @@ fun NotiflyApp(
             // Overlay rather than replace, so the NavHost and its back stack survive a lock.
             if (locked) LockScreen({ preferences.verifyPin(it) }, { preferences.lockoutSeconds() }, onUnlock = { unlocked = true },
                 biometric = biometricAvailable && biometricUnlock, authenticateBiometric = authenticateBiometric)
+            if (launchAnimation != null && !launchAnimation.complete) {
+                LaunchSplash(launchAnimation, startLaunchAnimation, animationsEnabled, onLaunchComplete)
+            }
         }
     }
 }

@@ -36,5 +36,9 @@ class NotiflyApplication : Application(), KoinComponent {
                 CrashReporting.setEnabled(enabled, this@NotiflyApplication, BuildConfig.SENTRY_DSN)
             }
         }
+        scope.launch {
+            val launcher = LauncherIcons(packageManager, packageName)
+            preferences.appearance.collect { launcher.apply(it) }
+        }
     }
 }
