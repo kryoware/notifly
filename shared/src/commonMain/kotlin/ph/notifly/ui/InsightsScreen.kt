@@ -10,8 +10,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -47,8 +49,10 @@ import ph.notifly.ui.theme.tabular
 fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyMap()) {
     val s by model.state.collectAsState()
     val w = s.selected ?: return
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
+    val full = StaggeredGridItemSpan.FullLine
+    LazyVerticalStaggeredGrid(StaggeredGridCells.Adaptive(360.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp),
+        verticalItemSpacing = 12.dp, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        item(span = full) {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 INSIGHT_WINDOWS.forEachIndexed { index, days ->
                     SegmentedButton(
@@ -60,7 +64,7 @@ fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyM
                 }
             }
         }
-        if (s.pending > 0) item {
+        if (s.pending > 0) item(span = full) {
             ListItem(
                 onClick = { model.navigate("transactions") },
                 modifier = Modifier.clip(MaterialTheme.shapes.large),
@@ -75,11 +79,11 @@ fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyM
         item { PaceCard(s.windows, s.days, model::days) }
         item { CategoryCard(w) }
         if (w.largest.isNotEmpty()) {
-            item { SectionHeader("Largest expenses · last ${w.days} days") }
-            items(w.largest, key = { it.id }) { t -> TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") }) }
+            item(span = full) { SectionHeader("Largest expenses · last ${w.days} days") }
+            items(w.largest, key = { it.id }, span = { full }) { t -> TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") }) }
         }
         s.month?.let { month ->
-            item { SectionHeader("This month") }
+            item(span = full) { SectionHeader("This month") }
             item { BudgetCard(month, s.budget) { model.navigate("budgets") } }
             if (s.categoryBudgets.isNotEmpty()) item { CategoryBudgetCard(month, s.categoryBudgets) { model.navigate("budgets") } }
         }

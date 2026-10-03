@@ -8,6 +8,7 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -75,6 +76,7 @@ private fun notiflyTypography(): Typography {
 fun NotiflyTheme(
     palette: NotiflyPalette = NotiflyPalette.Ube,
     themeMode: ThemeMode = ThemeMode.SYSTEM,
+    onDarkChanged: (Boolean) -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     val dark = when (themeMode) {
@@ -82,6 +84,7 @@ fun NotiflyTheme(
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
+    SideEffect { onDarkChanged(dark) }
     CompositionLocalProvider(LocalNotiflyAccents provides accentsFor(palette, dark)) {
         MaterialExpressiveTheme(
             colorScheme = schemeFor(palette, dark),

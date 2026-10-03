@@ -12,6 +12,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -82,10 +84,10 @@ fun BillsScreen(model: BillsModel, appLabels: Map<String, String> = emptyMap(), 
     val s by model.state.collectAsState()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
-    var paying by remember { mutableStateOf<BillDue?>(null) }
+    var payingId by rememberSaveable { mutableStateOf<Long?>(null) }
     val selectedDay = selected?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: s.today
     val listState = rememberLazyListState()
-    paying = paying?.let { p -> s.bills.find { it.id == p.bill.id }?.nextDue?.let { BillDue(s.bills.first { b -> b.id == p.bill.id }, it) } }
+    val paying = payingId?.let { id -> s.bills.find { it.id == id }?.let { b -> b.nextDue?.let { BillDue(b, it) } } }
     Scaffold(
         topBar = { TopAppBar(title = { Text(if (demo) "Bills · Demo" else "Bills") }) },
         snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) },
@@ -95,19 +97,25 @@ fun BillsScreen(model: BillsModel, appLabels: Map<String, String> = emptyMap(), 
             }
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
+          if (maxWidth >= WideWidth) Row(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f)) { UpcomingTab(model, s, appLabels, listState, notificationsAllowed, requestNotifications) { payingId = it.bill.id } }
+            VerticalDivider()
+            Box(Modifier.weight(1f)) { CalendarTab(model, s, appLabels, selectedDay, { selected = it.toString() }) { payingId = it.bill.id } }
+          } else Column(Modifier.fillMaxSize()) {
             PrimaryTabRow(selectedTabIndex = tab) {
                 listOf("Upcoming", "Calendar").forEachIndexed { i, title ->
                     Tab(selected = tab == i, onClick = { tab = i }, text = { Text(title) })
                 }
             }
             Crossfade(tab, label = "bills-tab") { current ->
-                if (current == 0) UpcomingTab(model, s, appLabels, listState, notificationsAllowed, requestNotifications) { paying = it }
-                else CalendarTab(model, s, appLabels, selectedDay, { selected = it.toString() }) { paying = it }
+                if (current == 0) UpcomingTab(model, s, appLabels, listState, notificationsAllowed, requestNotifications) { payingId = it.bill.id }
+                else CalendarTab(model, s, appLabels, selectedDay, { selected = it.toString() }) { payingId = it.bill.id }
             }
         }
+        }
     }
-    paying?.let { due -> PaySheet(model, s, due, onDismiss = { paying = null }) }
+    paying?.let { due -> PaySheet(model, s, due, onDismiss = { payingId = null }) }
 }
 
 @Composable
@@ -396,10 +404,11 @@ private fun PaySheet(model: BillsModel, s: BillsState, due: BillDue, onDismiss: 
 @Composable
 fun BillEditorScreen(model: BillEditorModel, appLabels: Map<String, String> = emptyMap()) {
     val s by model.state.collectAsState()
-    var showDate by remember { mutableStateOf(false) }
-    var delete by remember { mutableStateOf(false) }
+    var showDate by rememberSaveable { mutableStateOf(false) }
+    var delete by rememberSaveable { mutableStateOf(false) }
     val reviewing = s.reviewing
-    LazyColumn(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
+    Column(Modifier.fillMaxSize().imePadding()) {
+    LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(vertical = 12.dp)) {
         if (s.error != null && !s.ready) item { Text(s.error!!, color = MaterialTheme.colorScheme.error) }
         if (reviewing) item {
@@ -437,7 +446,11 @@ fun BillEditorScreen(model: BillEditorModel, appLabels: Map<String, String> = em
             ChoiceField("Pay from account", s.accounts.find { it.id == s.accountId }?.name ?: "Any account", listOf<Account?>(null) + s.accounts,
                 label = { it?.name ?: "Any account" }) { model.edit(accountId = it?.id) }
         }
-        item {
+        if (reviewing) item { TextButton(onClick = model::dismiss) { Text("Dismiss") } }
+        else if (s.original != null) item { TextButton(onClick = { delete = true }) { Text("Delete bill", color = MaterialTheme.colorScheme.error) } }
+    }
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+        Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
             Button(onClick = { if (reviewing) model.confirm() else model.save() }, enabled = s.ready && !s.saving, modifier = WideButton,
                 colors = if (reviewing) ButtonDefaults.buttonColors(containerColor = MaterialTheme.accents.confirmed, contentColor = MaterialTheme.accents.onConfirmed)
                 else ButtonDefaults.buttonColors()) {
@@ -445,8 +458,7 @@ fun BillEditorScreen(model: BillEditorModel, appLabels: Map<String, String> = em
                 Text(if (reviewing) "Confirm bill" else "Save bill")
             }
         }
-        if (reviewing) item { TextButton(onClick = model::dismiss) { Text("Dismiss") } }
-        else if (s.original != null) item { TextButton(onClick = { delete = true }) { Text("Delete bill", color = MaterialTheme.colorScheme.error) } }
+    }
     }
     if (showDate) {
         val pickerState = rememberDatePickerState(initialSelectedDateMillis = s.due.atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds())

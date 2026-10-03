@@ -12,6 +12,8 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffo
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.*
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.navigationevent.NavigationEventInfo
@@ -19,6 +21,7 @@ import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
@@ -62,6 +65,7 @@ fun NotiflyApp(
     requestNotifications: () -> Unit = {},
     launchRoute: String? = null,
     launchRouteKey: Int = 0,
+    onDarkChanged: (Boolean) -> Unit = {},
 ) {
     val preferences = koinInject<AppPreferences>()
     val database = koinInject<ph.notifly.data.local.AppDatabase>()
@@ -72,9 +76,10 @@ fun NotiflyApp(
     val realBills = koinInject<BillRepository>()
     var demo by rememberSaveable { mutableStateOf(demo) }
     val captures = remember(demo) { if (demo) DemoCaptures() else realCaptures }
-    val transactions = remember(demo) { if (demo) DemoTransactions(demoRows()) else realTransactions }
+    val demoSeed = rememberSaveable { kotlin.random.Random.nextInt() }
+    val transactions = remember(demo) { if (demo) DemoTransactions(demoRows(kotlin.random.Random(demoSeed))) else realTransactions }
     val ledger = remember(demo) { if (demo) DemoLedger(transactions) else realLedger }
-    val bills = remember(demo) { if (demo) DemoBills(demoRows()) else realBills }
+    val bills = remember(demo) { if (demo) DemoBills(demoRows(kotlin.random.Random(demoSeed))) else realBills }
     val apps = remember(demo) { if (demo) DemoAllowList() else realApps }
     val allowed by apps.observeAll().collectAsState(emptyList())
     val appLabels = remember(allowed) { allowed.associate { it.packageName to it.label } }
@@ -88,6 +93,9 @@ fun NotiflyApp(
     val nav = key(demo) { rememberNavController() }
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
+    val wide = LocalWindowInfo.current.containerSize.width >= with(LocalDensity.current) { WideWidth.toPx() }
+    // Transaction shown beside the list on wide windows; 0 is a new one.
+    var paneId by rememberSaveable { mutableStateOf<Long?>(null) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     fun navigate(target: String) {
@@ -102,8 +110,12 @@ fun NotiflyApp(
         }
     }
     val handle: (UiEvent) -> Unit = { event -> when (event) {
-        is UiEvent.Navigate -> navigate(event.route)
-        is UiEvent.Message -> { if (event.undo != null) navigate("transactions"); scope.launch {
+        is UiEvent.Navigate -> when {
+            wide && route == "transactions" && event.route.startsWith("edit/") -> paneId = event.route.removePrefix("edit/").toLongOrNull()
+            route == "transactions" && event.route == "transactions" -> paneId = null
+            else -> navigate(event.route)
+        }
+        is UiEvent.Message -> { if (event.undo != null) { paneId = null; navigate("transactions") }; scope.launch {
             val undoable = event.undo != null || event.onUndo != null
             if (snackbar.showSnackbar(event.text, actionLabel = if (undoable) "Undo" else null, duration = SnackbarDuration.Short) == SnackbarResult.ActionPerformed) {
                 try { event.undo?.let { transactions.upsert(it) }; event.onUndo?.invoke() }
@@ -113,15 +125,19 @@ fun NotiflyApp(
         }; Unit }
     } }
     val topLevel = listOf("home", "transactions", "bills", "insights", "settings")
+    val railSecondary = listOf("accounts", "categories", "budgets", "allow-list", "finance-apps", "themes", "licenses", "log")
     // No default-palette frame while the persisted theme or security state is still loading.
     val loadedAppearance = appearance ?: return
     if (onboarded == null || pinSet == null) return
-    NotiflyTheme(loadedAppearance.palette, loadedAppearance.themeMode) {
+    NotiflyTheme(loadedAppearance.palette, loadedAppearance.themeMode, onDarkChanged) {
         SideEffect { onReady() }
-        val navigationSuiteType = if (route in topLevel) {
-            NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo())
-        } else {
-            NavigationSuiteType.None
+        val adaptiveType = NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo())
+        val navigationSuiteType = when {
+            route in topLevel -> adaptiveType
+            route == "auth" || route?.startsWith("onboarding") == true || route == "choose-apps" -> NavigationSuiteType.None
+            // A rail stays put on read-only secondary screens so it can't skip an editor's discard prompt.
+            adaptiveType != NavigationSuiteType.NavigationBar && route in railSecondary -> adaptiveType
+            else -> NavigationSuiteType.None
         }
         val destinations: @Composable (Modifier) -> Unit = { navModifier ->
             NavHost(
@@ -131,9 +147,12 @@ fun NotiflyApp(
                 // One route per page, so system and predictive Back step back through the flow.
                 composable("onboarding/{page}", arguments = listOf(navArgument("page") { type = NavType.IntType })) {
                     val m = viewModel { OnboardingModel(preferences) }; Events(m, handle)
-                    OnboardingScreen(m, it.arguments?.read { getInt("page") } ?: 0, requestPermission, permissionAvailable, batteryExempt, requestBatteryExemption)
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) { Box(Modifier.widthIn(max = FormWidth).fillMaxSize()) {
+                        OnboardingScreen(m, it.arguments?.read { getInt("page") } ?: 0, requestPermission, permissionAvailable, batteryExempt, requestBatteryExemption)
+                    } }
                 }
-                composable("auth") { val m = viewModel { AuthModel(preferences, demo) }; Events(m, handle); AuthScreen(m, demo) }
+                composable("auth") { val m = viewModel { AuthModel(preferences, demo) }; Events(m, handle)
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) { Box(Modifier.widthIn(max = FormWidth).fillMaxSize()) { AuthScreen(m, demo) } } }
                 composable("home") { val m = viewModel { HomeModel(transactions, apps, preferences, ledger, bills) }; Events(m, handle); HomeScreen(m, appLabels, snackbar, demo,
                     allowed.filter { it.listening }.map { it.label }, permissionAvailable, requestPermission) }
                 composable("insights") { val m = viewModel { InsightsModel(transactions, preferences, ledger) }; Events(m, handle)
@@ -146,25 +165,40 @@ fun NotiflyApp(
                     val due = it.arguments?.read { if (contains("due")) getStringOrNull("due") else null }?.let { d -> runCatching { kotlinx.datetime.LocalDate.parse(d) }.getOrNull() }
                     val m = viewModel { BillEditorModel(bills, ledger, id, due) }; Events(m, handle)
                     val detected = m.state.collectAsState().value.reviewing
-                    AppDestination(if (detected) "Review bill" else if (id == 0L) "Add bill" else "Edit bill", snackbar,
+                    AppDestination(if (detected) "Review bill" else if (id == 0L) "Add bill" else "Edit bill", snackbar, maxWidth = FormWidth,
                         onBack = { if (!nav.popBackStack()) navigate("bills") }) { BillEditorScreen(m, appLabels) } }
                 composable("pay-bill/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val id = it.arguments?.read { getLong("id") } ?: 0L
                     val m = viewModel { EditorModel(transactions, 0L, captures, ledger = ledger, apps = apps, bills = bills, billId = id) }; Events(m, handle)
                     EditorDestination("Record payment", snackbar, m, appLabels) { if (!nav.popBackStack()) navigate("bills") } }
-                composable("transactions") { val m = viewModel { TransactionsModel(transactions, ledger) }; Events(m, handle); TransactionsScreen(m, appLabels, snackbar, demo) }
+                composable("transactions") { val m = viewModel { TransactionsModel(transactions, ledger) }; Events(m, handle)
+                    if (!wide) TransactionsScreen(m, appLabels, snackbar, demo)
+                    else Row(Modifier.fillMaxSize()) {
+                        Box(Modifier.weight(0.45f)) { TransactionsScreen(m, appLabels, snackbar, demo) }
+                        VerticalDivider()
+                        Box(Modifier.weight(0.55f)) {
+                            val id = paneId
+                            if (id == null) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("Select a transaction", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else key(id) {
+                                val em = viewModel(key = "pane-$id") { EditorModel(transactions, id, captures, ledger = ledger, apps = apps) }; Events(em, handle)
+                                EditorDestination(if (id == 0L) "Add transaction" else "Edit transaction", remember { SnackbarHostState() }, em, appLabels, paneBack = true) { paneId = null }
+                            }
+                        }
+                    }
+                }
                 composable("settings") { val m = viewModel { SettingsModel(preferences, database.transactionDao().observePendingCount()) }; Events(m, handle)
-                    AppDestination(if (demo) "Settings · Demo" else "Settings", snackbar) {
+                    AppDestination(if (demo) "Settings · Demo" else "Settings", snackbar, maxWidth = FormWidth) {
                         SettingsScreen(m, permissionAvailable, requestPermission, versionName, isDebugBuild, biometricAvailable, authenticateBiometric,
                             ledger = ledger, demo = demo, onDemo = { demo = it }, transactions = transactions, allowDataTransfer = !demo, notificationsAllowed = notificationsAllowed, requestNotifications = requestNotifications,
                             onDataMessage = { snackbar.showSnackbar(it) }) } }
                 composable("budgets") { val m = viewModel { BudgetsModel(preferences, ledger) }; Events(m, handle)
-                    AppDestination("Budgets", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { BudgetsScreen(m) } }
+                    AppDestination("Budgets", snackbar, maxWidth = FormWidth, onBack = { if (!nav.popBackStack()) navigate("home") }) { BudgetsScreen(m) } }
                 composable("allow-list") { val m = viewModel { AllowListModel(apps) }; Events(m, handle)
                     AppDestination("Allowed apps", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { AllowListScreen(m) } }
                 composable("choose-apps") { val m = viewModel { AllowListModel(apps) }; Events(m, handle)
                     val finish = viewModel { OnboardingModel(preferences) }; Events(finish, handle)
-                    AppDestination("Choose apps", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { AllowListScreen(m, onFinish = finish::finish) } }
+                    AppDestination("Choose apps", snackbar, maxWidth = FormWidth, onBack = { if (!nav.popBackStack()) navigate("home") }) { AllowListScreen(m, onFinish = finish::finish) } }
                 composable("finance-apps") { val m = viewModel { AllowListModel(apps, finance = true) }; Events(m, handle)
                     AppDestination("Finance apps", snackbar, onBack = { if (!nav.popBackStack()) navigate("home") }) { AllowListScreen(m) } }
                 composable("edit/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
@@ -176,7 +210,7 @@ fun NotiflyApp(
                     AppDestination("Accounts", snackbar, onBack = { nav.popBackStack() }) { AccountsScreen(m) } }
                 composable("account/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     val m = viewModel { LedgerSettingsModel(ledger, apps) }; Events(m, handle)
-                    AppDestination("Account details", snackbar, onBack = { nav.popBackStack() }) { AccountEditorScreen(m, it.arguments?.read { getLong("id") } ?: 0L) } }
+                    AppDestination("Account details", snackbar, maxWidth = FormWidth, onBack = { nav.popBackStack() }) { AccountEditorScreen(m, it.arguments?.read { getLong("id") } ?: 0L) } }
                 composable("categories") { val m = viewModel { LedgerSettingsModel(ledger, apps) }; Events(m, handle)
                     AppDestination("Categories", snackbar, onBack = { nav.popBackStack() }) { CategoriesScreen(m) } }
                 composable("category/{id}/{type}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
@@ -184,7 +218,7 @@ fun NotiflyApp(
                     val monthlyBudget by remember(preferences) {
                         preferences.monthlyBudget.map { it to true }
                     }.collectAsState(null to false)
-                    AppDestination("Category details", snackbar, onBack = { nav.popBackStack() }) {
+                    AppDestination("Category details", snackbar, maxWidth = FormWidth, onBack = { nav.popBackStack() }) {
                         CategoryEditorScreen(m, it.arguments?.read { getLong("id") } ?: 0L,
                             ph.notifly.domain.model.TransactionType.valueOf(it.arguments?.read { getString("type") } ?: "EXPENSE"),
                             monthlyBudget.first, monthlyBudgetLoaded = monthlyBudget.second) } }
@@ -243,12 +277,16 @@ fun NotiflyApp(
     }
 }
 
+private val FormWidth = 600.dp
+internal val WideWidth = 840.dp
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppDestination(
     title: String,
     snackbar: SnackbarHostState,
     onBack: (() -> Unit)? = null,
+    maxWidth: Dp = WideWidth,
     content: @Composable () -> Unit,
 ) {
     Scaffold(
@@ -259,18 +297,20 @@ private fun AppDestination(
         }) },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) { content() }
+        Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding), contentAlignment = Alignment.TopCenter) {
+            Box(Modifier.widthIn(max = maxWidth).fillMaxSize()) { content() }
+        }
     }
 }
 
 /** Both the top-bar arrow and system Back ask before throwing away edits. */
 @Composable
 private fun EditorDestination(title: String, snackbar: SnackbarHostState, model: EditorModel,
-                              appLabels: Map<String, String>, exit: () -> Unit) {
+                              appLabels: Map<String, String>, paneBack: Boolean = false, exit: () -> Unit) {
     val s by model.state.collectAsState()
-    var discard by remember { mutableStateOf(false) }
-    NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = s.dirty, onBackCompleted = { discard = true })
-    AppDestination(title, snackbar, onBack = { if (s.dirty) discard = true else exit() }) { EditorScreen(model, appLabels) }
+    var discard by rememberSaveable { mutableStateOf(false) }
+    NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = s.dirty || paneBack, onBackCompleted = { if (s.dirty) discard = true else exit() })
+    AppDestination(title, snackbar, maxWidth = FormWidth, onBack = { if (s.dirty) discard = true else exit() }) { EditorScreen(model, appLabels) }
     if (discard) AlertDialog(onDismissRequest = { discard = false }, title = { Text("Discard changes?") },
         text = { Text("Your edits to this transaction will be lost.") },
         confirmButton = { TextButton(onClick = { discard = false; exit() }) { Text("Discard") } },

@@ -3,6 +3,7 @@ package ph.notifly.android
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
 import android.os.Build
@@ -16,6 +17,7 @@ import android.service.notification.NotificationListenerService
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.WindowCompat
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.lifecycle.lifecycleScope
@@ -76,6 +78,7 @@ class MainActivity : ComponentActivity() {
         }
     }
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (resources.configuration.smallestScreenWidthDp < 600) requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         // Keep the task rooted in the enabled activity. Disabling the alias used to launch a
@@ -119,7 +122,7 @@ class MainActivity : ComponentActivity() {
             }
             ready
         }.also { content.viewTreeObserver.addOnPreDrawListener(it) }
-        launchRoute.value = intent.getStringExtra(EXTRA_ROUTE)
+        if (savedInstanceState == null) launchRoute.value = intent.getStringExtra(EXTRA_ROUTE)
         refreshNotificationsAllowed()
 
         setContent {
@@ -141,6 +144,7 @@ class MainActivity : ComponentActivity() {
                 requestNotifications = { if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS) },
                 launchRoute = launchRoute.value,
                 launchRouteKey = launchRouteKey.intValue,
+                onDarkChanged = { dark -> WindowCompat.getInsetsController(window, window.decorView).apply { isAppearanceLightStatusBars = !dark; isAppearanceLightNavigationBars = !dark } },
             )
         }
     }

@@ -23,6 +23,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -43,6 +45,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -183,7 +189,8 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
     val gridState = rememberLazyGridState()
     val drag = remember(gridState) { HomeAccountDrag(gridState) }
     var reordering by remember { mutableStateOf(false) }
-    var editingAccount by remember { mutableStateOf<AccountBalance?>(null) }
+    var editingAccountId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val editingAccount = editingAccountId?.let { id -> s.accounts.find { it.account.id == id } }
     val accounts = drag.order?.let { preview ->
         homeAccountOrder(s.accounts, preview.map { it.account.id })
     } ?: s.accounts
@@ -203,7 +210,7 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
     fun finishReordering() { drag.cancel(); reordering = false }
     ReorderBackHandler(reordering, ::finishReordering)
     editingAccount?.let { account ->
-        BalanceDialog(account, hidden = s.hideAmounts, dismiss = { editingAccount = null }) { model.setBalance(account.account.id, it); editingAccount = null }
+        BalanceDialog(account, hidden = s.hideAmounts, dismiss = { editingAccountId = null }) { model.setBalance(account.account.id, it); editingAccountId = null }
     }
     Scaffold(
         topBar = {
@@ -219,8 +226,9 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
         snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) },
         floatingActionButton = { AddTransactionFab(expanded = !gridState.canScrollBackward) { model.navigate("edit/0") } }
     ) { padding ->
+      Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding), contentAlignment = Alignment.TopCenter) {
         LazyVerticalGrid(columns = GridCells.Fixed(2),
-            modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).padding(horizontal = 16.dp)
+            modifier = Modifier.widthIn(max = WideWidth).fillMaxSize().padding(horizontal = 16.dp)
                 .onGloballyPositioned { drag.coordinates = it }
                 .accountDragGestures(drag, reordering && !saving, { currentAccounts }, model::reorderAccounts),
             state = gridState, horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -239,7 +247,7 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
             if (accounts.isNotEmpty()) {
                 item(key = "accounts-heading", span = { GridItemSpan(maxLineSpan) }) {
                     AccountsHeader(accounts.sumOf { it.netValue }, s.hideAmounts, accounts.size >= 2, reordering) {
-                        if (reordering) finishReordering() else { editingAccount = null; reordering = true }
+                        if (reordering) finishReordering() else { editingAccountId = null; reordering = true }
                     }
                 }
                 items(accounts, key = { "account:" + it.account.id }) { account ->
@@ -269,7 +277,7 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
                         }
                     AccountTile(account, s.hideAmounts, reordering, tileModifier,
                         handleModifier = Modifier.onGloballyPositioned { drag.handles[id] = it },
-                        edit = { editingAccount = account })
+                        edit = { editingAccountId = account.account.id })
                     DisposableEffect(id) { onDispose { drag.handles.remove(id) } }
                 }
             }
@@ -299,6 +307,7 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
                 }
             }
         }
+      }
     }
 }
 
@@ -453,14 +462,17 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                        snackbar: SnackbarHostState? = null, demo: Boolean = false) {
     val s by model.state.collectAsState()
     val listState = rememberLazyListState()
-    var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
-    var confirmBulkDelete by remember { mutableStateOf(false) }
+    var selectedIds by rememberSaveable(stateSaver = IdSetSaver) { mutableStateOf<Set<Long>>(emptySet()) }
+    var confirmBulkDelete by rememberSaveable { mutableStateOf(false) }
     val selectionMode = selectedIds.isNotEmpty()
     val selectedRows = s.rows.filter { it.id in selectedIds }
     LaunchedEffect(s.rows) { selectedIds = selectedIds.intersect(s.rows.map { it.id }.toSet()) }
     LaunchedEffect(appLabels) { model.appLabels(appLabels) }
     var searching by remember { mutableStateOf(s.query.isNotEmpty()) }
     val searchFocus = remember { FocusRequester() }
+    var queryField by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue(s.query, TextRange(s.query.length))) }
+    // Only an external clear needs syncing; echoing every query back would race with fast typing.
+    LaunchedEffect(s.query) { if (s.query.isEmpty() && queryField.text.isNotEmpty()) queryField = TextFieldValue() }
     fun closeSearch() { searching = false; model.search("") }
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = searching && !selectionMode, onBackCompleted = ::closeSearch)
     // Selected rows separate into individual slips so the tint reads per row, not as one block.
@@ -485,7 +497,8 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             ) else if (searching) TopAppBar(
                 title = {
-                    TextField(s.query, model::search, Modifier.fillMaxWidth().focusRequester(searchFocus),
+                    TextField(queryField,
+                        { queryField = it; model.search(it.text) }, Modifier.fillMaxWidth().focusRequester(searchFocus),
                         placeholder = { Text("Search transactions") }, singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         colors = MaterialTheme.colorScheme.surface.let { bar -> TextFieldDefaults.colors(focusedContainerColor = bar,
@@ -505,7 +518,7 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
             })
         } },
         snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) },
-        floatingActionButton = { AddTransactionFab(expanded = !listState.canScrollBackward) { model.navigate("edit/0") } }
+        floatingActionButton = { if (!selectionMode) AddTransactionFab(expanded = !listState.canScrollBackward) { model.navigate("edit/0") } }
     ) { padding ->
     Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -624,8 +637,8 @@ internal fun CategoryField(value: String, categories: List<String>, onValueChang
 internal fun DateTimeFields(date: String, time: String, onDate: (String) -> Unit, onTime: (String) -> Unit,
                            dateError: String? = null, timeError: String? = null,
                            focusDateError: Boolean = false, focusTimeError: Boolean = false) {
-    var showDate by remember { mutableStateOf(false) }
-    var showTime by remember { mutableStateOf(false) }
+    var showDate by rememberSaveable { mutableStateOf(false) }
+    var showTime by rememberSaveable { mutableStateOf(false) }
     val is24Hour = is24HourClock()
     val dateFocus = remember { FocusRequester() }
     val timeFocus = remember { FocusRequester() }
@@ -701,10 +714,11 @@ internal fun DateTimeFields(date: String, time: String, onDate: (String) -> Unit
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()) {
     val s by model.state.collectAsState()
-    var delete by remember { mutableStateOf(false) }
+    var delete by rememberSaveable { mutableStateOf(false) }
     val titleFocus = remember { FocusRequester() }
     val amountFocus = remember { FocusRequester() }
     val feeFocus = remember { FocusRequester() }
@@ -822,10 +836,12 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
         }
     }
     // Pinned so saving never needs a scroll past the form.
+    // With the keyboard up the bar shrinks so landscape keeps more than one field in view.
+    val typing = WindowInsets.isImeVisible
     Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-        Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = if (typing) 4.dp else 12.dp)) {
             // Confirming is the one moment money starts to count, so it takes the confirmed tick's colour.
-            Button(onClick = model::save, enabled = s.ready && !s.saving, modifier = WideButton,
+            Button(onClick = model::save, enabled = s.ready && !s.saving, modifier = if (typing) Modifier.fillMaxWidth() else WideButton,
                 colors = if (reviewing) ButtonDefaults.buttonColors(containerColor = MaterialTheme.accents.confirmed,
                     contentColor = MaterialTheme.accents.onConfirmed) else ButtonDefaults.buttonColors()) {
                 if (reviewing) Icon(painterResource(Res.drawable.symbol_check), null, Modifier.padding(end = 8.dp).size(18.dp))
@@ -1184,7 +1200,7 @@ fun LicensesScreen() {
 fun AllowListScreen(model: AllowListModel, onFinish: (() -> Unit)? = null) {
     val s by model.state.collectAsState()
     var searchText by remember { mutableStateOf("") }
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = if (onFinish != null) 24.dp else 16.dp)) {
         if (onFinish != null) Box(Modifier.padding(top = 8.dp, bottom = 4.dp)) { StepTrail(3) }
         Text(if (onFinish != null) "Only apps you select are read. Pick the bank and e-wallet apps that send you payment alerts."
             else if (s.finance) "Pick the bank and wallet apps you move money between. Matching in and out alerts become one transfer."
@@ -1412,3 +1428,5 @@ fun AuthScreen(model: AuthModel, demo: Boolean) {
         OutlinedButton(onClick = { model.startOffline() }, modifier = WideButton) { Text("Continue offline") }
     }
 }
+
+private val IdSetSaver = Saver<Set<Long>, Any>(save = { it.toLongArray() }, restore = { (it as LongArray).toSet() })
