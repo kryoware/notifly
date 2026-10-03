@@ -84,33 +84,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
-        <activity-alias android:name=".LauncherIndigoSystem"
-            android:targetActivity=".MainActivity" android:exported="true" android:enabled="false"
-            android:icon="@mipmap/ic_launcher_indigo_system"
-            android:roundIcon="@mipmap/ic_launcher_indigo_system">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-        <activity-alias android:name=".LauncherIndigoLight"
-            android:targetActivity=".MainActivity" android:exported="true" android:enabled="false"
-            android:icon="@mipmap/ic_launcher_indigo_light"
-            android:roundIcon="@mipmap/ic_launcher_indigo_light">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-        <activity-alias android:name=".LauncherIndigoDark"
-            android:targetActivity=".MainActivity" android:exported="true" android:enabled="false"
-            android:icon="@mipmap/ic_launcher_indigo_dark"
-            android:roundIcon="@mipmap/ic_launcher_indigo_dark">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
         <activity-alias android:name=".LauncherSlateSystem"
             android:targetActivity=".MainActivity" android:exported="true" android:enabled="false"
             android:icon="@mipmap/ic_launcher_slate_system"
