@@ -533,7 +533,7 @@ fun TransactionsScreen(model: TransactionsModel, appLabels: Map<String, String> 
             }
         }
         if (s.rows.isEmpty() && s.query.isNotBlank()) {
-            EmptyState("No matches for “${s.query.trim()}”", "Try a description, category, account or app name.", Modifier.fillMaxSize()) {
+            EmptyState("No matches for “${s.query.trim()}”", "Try a description, amount, category, account or app name.", Modifier.fillMaxSize()) {
                 FilledTonalButton(onClick = { model.search("") }) { Text("Clear search") }
             }
         } else if (s.rows.isEmpty()) {
