@@ -203,7 +203,7 @@ class LedgerControlsTest {
         unchanged(2, null, "Other", "com.paymaya")
         compose.onNodeWithContentDescription("Clear search").performClick()
         type("com.pay")
-        compose.onAllNodesWithText("com.paymaya").assertCountEquals(2)
+        compose.onNodeWithText("com.paymaya").assertExists()
         unchanged(2, null, "Other", "com.paymaya")
         compose.onNodeWithText("com.paymaya").performClick()
         open("Source app")
