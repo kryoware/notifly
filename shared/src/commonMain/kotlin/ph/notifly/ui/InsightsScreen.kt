@@ -363,7 +363,7 @@ private fun AccountsCard(balances: List<AccountBalance>) {
                         Text(money(a.netValue), style = MaterialTheme.typography.titleSmall.tabular())
                     }
                     Meter(ratio(a.netValue, total), sliceColor(i))
-                    Text("${a.netValue * 100 / total}% of balances", style = MaterialTheme.typography.bodySmall.tabular(),
+                    Text("${a.netValue * 100 / total}% of balances${if (a.account.archived) " · Archived" else ""}", style = MaterialTheme.typography.bodySmall.tabular(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -392,7 +392,7 @@ private fun ShareDonut(shares: List<Pair<String, Long>>, caption: String, chart:
     val colors = slices.indices.map { sliceColor(it) }
     val (label, amount) = picked?.let { slices[it] } ?: (caption to total)
     PieChart(
-        values = slices.map { it.second.toFloat() }, // Drawing input only; amounts and percentages stay Long.
+        values = slices.map { ratio(it.second, total) },
         modifier = Modifier.fillMaxWidth().semantics {
             contentDescription = "$chart chart. " + slices.joinToString { (name, value) -> "$name ${value * 100 / total}%" }
         },

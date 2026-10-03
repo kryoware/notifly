@@ -39,6 +39,13 @@ class InsightsTest {
         assertEquals(shares, chartSlices(shares, 5))
     }
 
+    @Test fun transferFeesGetTheirOwnShareSoCategoriesSumToSpent() {
+        val fee = row("2026-09-24", 50_000, TransactionType.TRANSFER, "Transfer").copy(feeMinor = 1_500)
+        val w = windowInsights(rows + fee, today, 7, zone)
+        assertEquals(CategorySpend(TRANSFER_FEES, 1_500, 0), w.categories.single { it.category == TRANSFER_FEES })
+        assertEquals(w.current.spent, w.categories.sumOf { it.spent })
+    }
+
     @Test fun windowCountsConfirmedCashFlowAndComparesToPreviousWindow() {
         val w = windowInsights(rows, today, 7, zone)
         assertEquals(LocalDate(2026, 9, 20), w.start)

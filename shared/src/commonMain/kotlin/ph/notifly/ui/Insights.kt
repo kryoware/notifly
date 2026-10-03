@@ -17,6 +17,9 @@ data class CashFlow(val income: Long = 0L, val spent: Long = 0L) {
     val net get() = income - spent
 }
 
+/** Transfer fees count as spending but have no category; they get their own share so categories sum to [CashFlow.spent]. */
+const val TRANSFER_FEES = "Transfer fees"
+
 data class CategorySpend(val category: String, val spent: Long, val previous: Long)
 
 /** The last [days] calendar days including today, set against the [days] days before them. */
@@ -66,7 +69,7 @@ private fun List<Transaction>.confirmedByDate(zone: TimeZone) = filter { it.stat
  * Summarizes confirmed cash flow over [days] calendar days ending on [today], compared with the
  * preceding equally sized window. [zone] assigns occurrence dates; later dates and transfers are excluded.
  * Amounts stay in minor units. Daily spending includes zero-spend days, oldest first; categories
- * include only current-window expenses in descending total order. [WindowInsights.largest] holds
+ * hold current-window expenses plus a [TRANSFER_FEES] share, in descending total order. [WindowInsights.largest] holds
  * up to three expenses, largest first. Use a positive [days] for a meaningful window and daily average.
  */
 fun windowInsights(rows: List<Transaction>, today: LocalDate, days: Int, zone: TimeZone): WindowInsights {
@@ -85,8 +88,9 @@ fun windowInsights(rows: List<Transaction>, today: LocalDate, days: Int, zone: T
         current = cashFlow(current.map { it.second }),
         previous = cashFlow(previous),
         daily = (0 until days).map { byDay[start.plus(it, DateTimeUnit.DAY)] ?: 0L },
-        categories = expenses.groupBy { it.second.category }
-            .map { (category, rows) -> CategorySpend(category, rows.sumOf { it.second.amountMinor }, previousByCategory[category] ?: 0L) }
+        categories = (expenses.groupBy { it.second.category }
+            .map { (category, rows) -> CategorySpend(category, rows.sumOf { it.second.amountMinor }, previousByCategory[category] ?: 0L) } +
+            listOfNotNull(CategorySpend(TRANSFER_FEES, current.sumOf { it.second.feeMinor }, previous.sumOf { it.feeMinor }).takeIf { it.spent > 0 }))
             .sortedByDescending { it.spent },
         largest = expenses.map { it.second }.sortedByDescending { it.amountMinor }.take(3),
     )
