@@ -1,9 +1,13 @@
 package ph.notifly.data.transfer
 
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 import ph.notifly.domain.model.*
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
-/** Ledger CSV v2 with portable account names/types; v1 imports remain supported. IDs and raw notification content are deliberately excluded. */
+/** Ledger CSV v2 with portable account names/types; v1 imports remain supported. Budge exports are also accepted. IDs and raw notification content are deliberately excluded. */
 object TransactionCsv {
     const val MAX_CHARS = 5_000_000
     const val MAX_ROWS = 10_000
@@ -34,11 +38,12 @@ object TransactionCsv {
     /** Validates the entire file before returning drafts; file status never confirms an import. */
     fun decode(csv: String): List<Transaction> = decodeEntries(csv).map { it.transaction }
 
-    fun decodeEntries(csv: String): List<Entry> {
+    fun decodeEntries(csv: String, zone: TimeZone = TimeZone.currentSystemDefault()): List<Entry> {
         require(csv.length <= MAX_CHARS) { "CSV is too large. Use a file under 5 million characters." }
         val records = records(csv.removePrefix("\uFEFF"))
         val headers = records.firstOrNull()
-        require(headers == columns || headers == columns + accountColumns) { "Choose a Notifly transaction CSV with the original column headers." }
+        if (headers == budgeMeta) return decodeBudge(records, zone)
+        require(headers == columns || headers == columns + accountColumns) { HEADER_ERROR }
         return records.drop(1).mapIndexed { index, fields ->
             val message = "Invalid transaction at CSV row ${index + 2}. Check its fields and try again."
             require(fields.size == headers?.size) { message }
@@ -67,6 +72,54 @@ object TransactionCsv {
                     require((toName == null) == (toType == null))
                     Entry(transaction, accountName, accountType, toName, toType)
                 }
+            } catch (_: IllegalArgumentException) { throw IllegalArgumentException(message) }
+        }
+    }
+
+    private const val HEADER_ERROR = "Choose a Notifly or Budge transaction CSV with the original column headers."
+    private val budgeMeta = listOf("Format version", "Period", "User ID")
+    private val budgeColumns = listOf("Date", "Payment", "Is paid", "Amount", "Currency", "Account", "Category",
+        "Subcategory", "Goal", "Description")
+    private val budgeAccountColumns = listOf("Account", "Account Balance", "Available Balance", "Credit Limit",
+        "Currency", "Is savings", "Description")
+    private val budgeAmount = Regex("""(-?)(\d{1,15})(?:\.(\d{1,2}))?""")
+
+    /** Budge exports are `###`-separated sections: metadata, transactions, accounts, goals. Goals are ignored. */
+    private fun decodeBudge(records: List<List<String>>, zone: TimeZone): List<Entry> {
+        val sections = mutableListOf(mutableListOf<List<String>>())
+        records.forEach { if (it == listOf("###")) sections.add(mutableListOf()) else sections.last().add(it) }
+        require(sections[0].getOrNull(1)?.firstOrNull() == "1" && sections[0].size == 2) { "Unsupported Budge export version." }
+        var rows: List<List<String>>? = null
+        sections.drop(1).forEach { section ->
+            when (section.firstOrNull()?.firstOrNull()) {
+                null, "Goal" -> Unit
+                "Date" -> { require(section[0] == budgeColumns && rows == null) { HEADER_ERROR }; rows = section.drop(1) }
+                "Account" -> require(section[0] == budgeAccountColumns) { HEADER_ERROR }
+                else -> throw IllegalArgumentException(HEADER_ERROR)
+            }
+        }
+        // Budge dates have no time, so identical rows get distinct createdAt values to survive import dedupe.
+        val seen = mutableMapOf<List<String>, Int>()
+        return requireNotNull(rows) { HEADER_ERROR }.mapIndexedNotNull { index, f ->
+            val message = "Invalid Budge transaction #${index + 1}. Check its fields and try again."
+            require(f.size == budgeColumns.size) { message }
+            try {
+                // Unpaid rows are planned payments that have not happened yet.
+                if (!f[2].toBooleanStrict()) return@mapIndexedNotNull null
+                val (day, month, year) = f[0].split("-").also { require(it.size == 3) }.map { it.toInt() }
+                val amount = requireNotNull(budgeAmount.matchEntire(f[3])).groupValues
+                val minor = amount[2].toLong() * 100 + amount[3].padEnd(2, '0').toLong()
+                require(minor > 0 && f[4] == "PHP")
+                val occurred = LocalDate(year, month, day).atStartOfDayIn(zone)
+                val repeat = seen[f] ?: 0
+                seen[f] = repeat + 1
+                val category = f[6].trim().ifEmpty { "Other" }
+                Entry(Transaction(title = f[1].trim().ifEmpty { category }, amountMinor = minor,
+                    type = if (amount[1] == "-") TransactionType.EXPENSE else TransactionType.INCOME,
+                    status = TransactionStatus.NEEDS_REVIEW, category = category, occurredAt = occurred,
+                    createdAt = occurred + repeat.milliseconds, sourceApp = null, captureId = null,
+                    note = listOf(f[7], f[9]).map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" · "),
+                    accountId = 0), accountName = f[5].trim().ifEmpty { null })
             } catch (_: IllegalArgumentException) { throw IllegalArgumentException(message) }
         }
     }

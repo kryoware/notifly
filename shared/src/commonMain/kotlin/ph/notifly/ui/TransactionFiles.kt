@@ -37,14 +37,14 @@ internal fun TransactionDataControls(repository: TransactionRepository, demo: Bo
         val type = if (destination) entry.toAccountType else entry.accountType
         val pkg = if (destination) entry.transaction.toApp else entry.transaction.fromApp ?: entry.transaction.sourceApp
         val role = if (destination) "To" else if (entry.transaction.type == TransactionType.TRANSFER) "From" else "Account"
-        val identity = if (name != null) "$name · ${type?.name.orEmpty()}" else pkg ?: "Manual / unassigned"
+        val identity = if (name != null) listOfNotNull(name, type?.name).joinToString(" · ") else pkg ?: "Manual / unassigned"
         return "$role: $identity"
     }
     fun suggested(entry: TransactionCsv.Entry, destination: Boolean): Long? {
         val name = if (destination) entry.toAccountName else entry.accountName
         val type = if (destination) entry.toAccountType else entry.accountType
         val pkg = if (destination) entry.transaction.toApp else entry.transaction.fromApp ?: entry.transaction.sourceApp
-        return accounts.filter { !it.archived && if (name != null) it.name.equals(name, true) && it.type == type else pkg != null && pkg in it.linkedApps }.singleOrNull()?.id
+        return accounts.filter { !it.archived && if (name != null) it.name.equals(name, true) && (type == null || it.type == type) else pkg != null && pkg in it.linkedApps }.singleOrNull()?.id
     }
     var saving by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -65,7 +65,7 @@ internal fun TransactionDataControls(repository: TransactionRepository, demo: Bo
         files.busy || saving -> "Working…"
         else -> null
     }
-    SettingsRow("Import transactions", unavailable ?: "Choose a Notifly CSV. Imported rows wait for your review.",
+    SettingsRow("Import transactions", unavailable ?: "Choose a Notifly or Budge CSV. Imported rows wait for your review.",
         onClick = if (enabled) files.import else null)
     SettingsRow("Export transactions", unavailable ?: "Save all transactions as CSV, without notification text",
         onClick = if (enabled) files.export else null)
