@@ -62,6 +62,7 @@ private fun CaptureResult.label() = when (this) {
     CaptureResult.NEEDS_REVIEW -> "Needs review"
     CaptureResult.UNRECOGNIZED -> "Not recognised"
     CaptureResult.IGNORED -> "Ignored"
+    CaptureResult.BILL -> "Bill"
 }
 
 private fun CaptureResult?.icon() = when (this) {
@@ -70,10 +71,11 @@ private fun CaptureResult?.icon() = when (this) {
     CaptureResult.NEEDS_REVIEW -> Res.drawable.symbol_pending_actions
     CaptureResult.UNRECOGNIZED -> Res.drawable.symbol_help
     CaptureResult.IGNORED -> Res.drawable.symbol_clear
+    CaptureResult.BILL -> Res.drawable.symbol_event_upcoming
 }
 
 @Composable
-fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap()) {
+fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap(), isDebugBuild: Boolean = false) {
     val s by model.state.collectAsState()
     var expanded by remember { mutableStateOf<Long?>(null) }
     var clear by remember { mutableStateOf(false) }
@@ -94,7 +96,8 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap()) {
         }
         Column(Modifier.padding(horizontal = Space.lg)) {
             SettingsGroup { SettingsRow("Keep raw text on device", checked = s.keepRaw, onCheckedChange = model::retain) }
-            Text("Raw text is never uploaded and is removed after 24 hours.", style = MaterialTheme.typography.bodySmall)
+            Text(if (isDebugBuild) "Debug build: raw text stays on this device for 7 days; CSV exports contain metadata only."
+                else "Raw text is never uploaded and is removed after 24 hours.", style = MaterialTheme.typography.bodySmall)
         }
         Row(Modifier.padding(horizontal = Space.lg), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             IconTooltip("Export CSV") { IconButton(onClick = {
@@ -118,6 +121,7 @@ fun LogScreen(model: LogModel, appLabels: Map<String, String> = emptyMap()) {
                     CaptureResult.NEEDS_REVIEW -> MaterialTheme.colorScheme.tertiary
                     CaptureResult.UNRECOGNIZED -> MaterialTheme.colorScheme.error
                     CaptureResult.IGNORED -> MaterialTheme.colorScheme.onSurfaceVariant
+                    CaptureResult.BILL -> MaterialTheme.colorScheme.tertiary
                 }
                 val isExpanded = expanded == capture.id
                 val rotation by animateFloatAsState(if (isExpanded) 180f else 0f)
@@ -179,4 +183,5 @@ private fun CaptureResult.exportName() = when (this) {
     CaptureResult.NEEDS_REVIEW -> "needs_review"
     CaptureResult.UNRECOGNIZED -> "unrecognized"
     CaptureResult.IGNORED -> "ignored"
+    CaptureResult.BILL -> "bill"
 }

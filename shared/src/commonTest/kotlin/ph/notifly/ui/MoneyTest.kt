@@ -1,8 +1,10 @@
 package ph.notifly.ui
 
+import androidx.compose.ui.text.AnnotatedString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class MoneyTest {
     @Test fun signedMoneyHandlesTheFullLongRange() {
@@ -27,5 +29,24 @@ class MoneyTest {
         listOf(5L, 12345L, 123456789L, Long.MAX_VALUE).forEach {
             assertEquals(it, parseAmountMinor(amountText(it)))
         }
+    }
+
+    @Test fun moneyFieldGroupsOnScreenAndKeepsValuePlain() {
+        assertEquals("1234.5", amountInput("1,234.5", signed = false))
+        assertNull(amountInput("1.234", signed = false))
+        assertNull(amountInput("-5", signed = false))
+        assertEquals("-5", amountInput("-5", signed = true))
+        assertEquals("1234.50", padCents("1234.5"))
+        assertEquals("0.50", padCents(".5"))
+        assertEquals("7.00", padCents("007"))
+        listOf("", "-", ".").forEach { assertEquals(it, padCents(it)) }
+
+        val shown = GroupedAmount.filter(AnnotatedString("-1234567.8"))
+        assertEquals("-1,234,567.8", shown.text.text)
+        val map = shown.offsetMapping
+        assertEquals(3, map.originalToTransformed(2))
+        assertEquals(12, map.originalToTransformed(10))
+        assertEquals(2, map.transformedToOriginal(3))
+        (0..12).forEach { assertTrue(map.transformedToOriginal(it) in 0..10) }
     }
 }

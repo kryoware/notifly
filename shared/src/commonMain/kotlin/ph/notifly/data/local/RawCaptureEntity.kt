@@ -14,4 +14,5 @@ data class RawCaptureEntity(
     val matchedDirection: String?,
     val reason: String,
     val fingerprint: String? = null,
+    val extras: String? = null,
 )

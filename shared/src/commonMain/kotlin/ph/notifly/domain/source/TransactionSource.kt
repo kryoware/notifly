@@ -29,4 +29,5 @@ data class NotificationEvent(
     val readContent: () -> NotificationContent,
 )
 
-data class NotificationContent(val title: String, val text: String)
+/** [extras] is a dump of every text-like notification field, populated on debug builds only. */
+data class NotificationContent(val title: String, val text: String, val extras: Map<String, String> = emptyMap())

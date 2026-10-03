@@ -187,4 +187,41 @@ class NotificationParserTest {
         assertEquals(50000L, result.draft.amountMinor)
     }
 
+    @Test fun `foreign currency with k suffix is rejected`() {
+        // "Paid 50k USD to SHOP" — 50k matches the compact pattern but USD
+        // follows immediately, so this is a foreign-currency amount.
+        assertIs<ParseOutcome.Unrecognized>(parser.parse("Paid 50k USD to SHOP."))
+        // Same idea with EUR before the amount.
+        assertIs<ParseOutcome.Unrecognized>(parser.parse("Paid EUR 50k to SHOP."))
+    }
+
+    @Test fun `received amount stays income with a receipt while received documents stay expenses`() {
+        for (hint in listOf(null, TransactionType.INCOME)) {
+            val income = assertIs<ParseOutcome.Parsed>(parser.parse(
+                "You received PHP 500 from ACME. Receipt attached.", directionHint = hint,
+            ))
+            assertEquals(TransactionType.INCOME, income.draft.type)
+            assertEquals(true, income.draft.inbound)
+            assertEquals(50_000L, income.draft.amountMinor)
+            for (body in listOf(
+                "You received a receipt for PHP 500 from ACME.",
+                "Received PHP 500 invoice for your subscription.",
+            )) {
+                val receipt = assertIs<ParseOutcome.Parsed>(parser.parse(body, directionHint = hint))
+                assertEquals(TransactionType.EXPENSE, receipt.draft.type)
+                assertEquals(Confidence.LOW, receipt.draft.directionConfidence)
+            }
+        }
+    }
+
+    @Test fun `received your payment near invoice is income not expense`() {
+        // "We received your payment of PHP2500. Invoice attached."
+        // The word "received" should NOT be nulled out just because "invoice"
+        // appears nearby — "received your payment" is genuine inbound phrasing.
+        val r = parser.parse("We received your payment of PHP2,500. Invoice attached.")
+        val p = assertIs<ParseOutcome.Parsed>(r)
+        assertEquals(TransactionType.INCOME, p.draft.type)
+        assertEquals(250_000L, p.draft.amountMinor)
+    }
+
 }

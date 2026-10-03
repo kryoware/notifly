@@ -10,16 +10,17 @@ from urllib.request import urlopen
 
 NAMES = (
     "add", "arrow_back", "backspace", "calendar_today", "check", "check_circle", "clear", "delete",
-    "expand_more", "file_download", "help", "home", "keyboard_arrow_right", "list", "lock",
+    "drag_indicator", "expand_more", "file_download", "help", "home", "keyboard_arrow_right", "list", "lock",
     "north_east", "notifications", "open_in_new", "battery_android_full", "pending_actions", "pie_chart", "receipt_long",
     "schedule", "search", "settings", "south_west", "swap_horiz", "visibility", "visibility_off",
+    "event_upcoming", "chevron_left", "chevron_right",
 )
 target = Path("shared/src/commonMain/composeResources/drawable")
 target.mkdir(parents=True, exist_ok=True)
 for name in NAMES:
     url = f"https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/{name}/default/24px.svg"
     path = re.search(r'<path d="([^"]+)"', urlopen(url).read().decode()).group(1)
-    # Fill is only a mask; Icon() tints it from the theme.
+    # Compose cannot resolve Android color resources. Fill is only a mask; Icon() tints it from the theme.
     (target / f"symbol_{name}.xml").write_text(
         '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp"\n'
         '    android:viewportWidth="960" android:viewportHeight="960">\n'

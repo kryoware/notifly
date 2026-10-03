@@ -10,10 +10,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,7 +30,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 import kotlinx.datetime.DateTimeUnit
@@ -42,16 +42,17 @@ import ph.notifly.ui.theme.balance
 
 /**
  * Shows insights for the selected day window, followed by budgets for the current month.
- * Renders nothing until the selected window is available. Selection, navigation, and monthly
- * budget saves go through [model]; [appLabels] maps source package names to app display labels.
+ * Renders nothing until the selected window is available. Selection and navigation, including to
+ * budget setup, go through [model]; [appLabels] maps source package names to app display labels.
  */
 @Composable
 fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyMap()) {
     val s by model.state.collectAsState()
-    var editingBudget by remember { mutableStateOf(false) }
     val w = s.selected ?: return
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.md)) {
-        item {
+    val full = StaggeredGridItemSpan.FullLine
+    LazyVerticalStaggeredGrid(StaggeredGridCells.Adaptive(360.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.lg),
+        verticalItemSpacing = Space.md, horizontalArrangement = Arrangement.spacedBy(Space.md)) {
+        item(span = full) {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 INSIGHT_WINDOWS.forEachIndexed { index, days ->
                     SegmentedButton(
@@ -63,7 +64,7 @@ fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyM
                 }
             }
         }
-        if (s.pending > 0) item {
+        if (s.pending > 0) item(span = full) {
             ListItem(
                 onClick = { model.navigate("transactions") },
                 modifier = Modifier.clip(MaterialTheme.shapes.large),
@@ -78,22 +79,22 @@ fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyM
         item { PaceCard(s.windows, s.days, model::days) }
         item { CategoryCard(w) }
         if (w.largest.isNotEmpty()) {
-            item { SectionHeader("Largest expenses · last ${w.days} days") }
-            items(w.largest, key = { it.id }) { t -> TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") }) }
+            item(span = full) { SectionHeader("Largest expenses · last ${w.days} days") }
+            items(w.largest, key = { it.id }, span = { full }) { t -> TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") }) }
         }
         s.month?.let { month ->
-            item { SectionHeader("This month") }
-            item { BudgetCard(month, s.budget) { editingBudget = true } }
+            item(span = full) { SectionHeader("This month") }
+            item { BudgetCard(month, s.budget) { model.navigate("budgets") } }
             if (s.categoryBudgets.isNotEmpty()) item { CategoryBudgetCard(month, s.categoryBudgets) { model.navigate("budgets") } }
         }
     }
-    if (editingBudget) BudgetDialog(s.budget, dismiss = { editingBudget = false }) { model.budget(it); editingBudget = false }
 }
 
 internal fun shortDate(date: LocalDate) = "${date.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${date.day}"
 
 /** Display-only ratio for progress bars; money itself stays in Long. */
-private fun ratio(part: Long, whole: Long) = if (whole <= 0L) 0f else (part.coerceIn(0L, whole) * 1000 / whole).toInt() / 1000f
+internal fun ratio(part: Long, whole: Long) = if (whole <= 0L) 0f else
+    (part.coerceIn(0L, whole).toULong() * 1000UL / whole.toULong()).toInt() / 1000f
 
 /** The brand's flat 6dp bar: no gap or stop dot, so a full budget reads as one solid line. */
 @Composable
@@ -136,7 +137,7 @@ private fun CashFlowCard(w: WindowInsights) {
             }
             Text(AnnotatedString(if (net > 0) "+" else "") + splitMoney(net, color.copy(alpha = 0.55f)), color = color,
                 style = MaterialTheme.typography.balance)
-            Text("Previous ${w.days} days: ${signedMoney(w.previous.net)}", style = MaterialTheme.typography.bodySmall,
+            Text("Previous ${w.days} days: ${signedMoney(w.previous.net)}", style = MaterialTheme.typography.bodySmall.tabular(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             HorizontalDivider(Modifier.padding(vertical = Space.md))
             Row(horizontalArrangement = Arrangement.spacedBy(Space.lg)) {
@@ -171,7 +172,7 @@ private fun DailySpendingCard(w: WindowInsights) {
     Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
         Column(Modifier.padding(Space.xl), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             Text("Daily spending", style = MaterialTheme.typography.titleMedium)
-            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(detail, style = MaterialTheme.typography.bodySmall.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
             Canvas(Modifier.fillMaxWidth().height(128.dp)
                 .pointerInput(w.days, w.start) {
                     detectTapGestures { tap ->
@@ -235,13 +236,13 @@ private fun PaceCard(windows: List<WindowInsights>, selected: Int, select: (Int)
                     abs(change) < 5 -> "Your last ${recent.days} days match your ${baseline.days}-day daily average."
                     change > 0 -> "Your last ${recent.days} days cost $change% more per day than your ${baseline.days}-day average."
                     else -> "Your last ${recent.days} days cost ${-change}% less per day than your ${baseline.days}-day average."
-                }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }, style = MaterialTheme.typography.bodySmall.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             windows.forEach { w ->
                 Row(
                     Modifier.fillMaxWidth()
                         .selectable(selected = w.days == selected, onClick = { select(w.days) }, role = Role.Tab)
-                        .background(if (w.days == selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+                        .background(if (w.days == selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0f))
                         .padding(horizontal = Space.xl, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -276,9 +277,9 @@ private fun BudgetCard(m: MonthInsights, budget: Long?, edit: () -> Unit) {
                 TextButton(onClick = edit) { Text(if (budget == null) "Set budget" else "Edit") }
             }
             if (budget == null) {
-                Text("You've spent ${money(spent)} so far this month.")
+                Text("You've spent ${money(spent)} so far this month.", style = LocalTextStyle.current.tabular())
                 Text("At this pace: ${money(m.projected)} by month end. Set a budget to see what's left per day.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    style = MaterialTheme.typography.bodySmall.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 val over = spent > budget
                 val trendingOver = m.projected > budget
@@ -288,13 +289,14 @@ private fun BudgetCard(m: MonthInsights, budget: Long?, edit: () -> Unit) {
                     Text("of ${money(budget)}", style = LocalTextStyle.current.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Text(if (over) "Over budget by ${money(spent - budget)}."
-                    else "${money(budget - spent)} left · about ${money(m.perDayLeft(budget))}/day for ${m.daysLeft} day${if (m.daysLeft == 1) "" else "s"}")
+                    else "${money(budget - spent)} left · about ${money(m.perDayLeft(budget))}/day for ${m.daysLeft} day${if (m.daysLeft == 1) "" else "s"}",
+                    style = LocalTextStyle.current.tabular())
                 Text(if (trendingOver) "At this pace: ${money(m.projected)} by month end, ${money(m.projected - budget)} over."
                     else "At this pace: ${money(m.projected)} by month end, within budget.",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.tabular(),
                     color = if (trendingOver) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text("Money in this month: ${money(m.flow.income)}", style = MaterialTheme.typography.bodySmall,
+            Text("Money in this month: ${money(m.flow.income)}", style = MaterialTheme.typography.bodySmall.tabular(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -324,7 +326,7 @@ private fun CategoryCard(w: WindowInsights) {
                     }
                     Meter(ratio(c.spent, w.current.spent), MaterialTheme.colorScheme.primary)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${c.spent * 100 / w.current.spent}% of spending", style = MaterialTheme.typography.bodySmall,
+                        Text("${c.spent * 100 / w.current.spent}% of spending", style = MaterialTheme.typography.bodySmall.tabular(),
                             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
                         Change(c.spent, c.previous, null)
                     }
@@ -360,47 +362,10 @@ private fun CategoryBudgetCard(m: MonthInsights, budgets: Map<String, Long>, man
                     }
                     Meter(ratio(spent, budget), if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                     Text(if (over) "Over by ${money(spent - budget)}" else "${money(budget - spent)} left",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodySmall.tabular(),
                         color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
     }
-}
-
-/**
- * Edits a positive budget in minor units; removal passes null to [save].
- * Invalid amounts stay in the dialog with an error. The caller dismisses after saving or removing.
- */
-@Composable
-internal fun BudgetDialog(
-    current: Long?, dismiss: () -> Unit,
-    title: String = "Monthly budget",
-    message: String = "How much do you plan to spend each month? Transfers don't count toward it.",
-    save: (Long?) -> Unit,
-) {
-    var text by remember { mutableStateOf(current?.let(::amountText).orEmpty()) }
-    var invalid by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = dismiss,
-        title = { Text(title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Space.md)) {
-                Text(message)
-                OutlinedTextField(
-                    value = text, onValueChange = { text = it; invalid = false },
-                    label = { Text("Amount") }, prefix = { Text("₱") }, singleLine = true, isError = invalid,
-                    supportingText = if (invalid) { { Text("Enter an amount above zero, with at most two decimal places.") } } else null,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                )
-            }
-        },
-        confirmButton = { TextButton(onClick = { parseAmountMinor(text)?.let(save) ?: run { invalid = true } }) { Text("Save") } },
-        dismissButton = {
-            Row {
-                if (current != null) TextButton(onClick = { save(null) }) { Text("Remove") }
-                TextButton(onClick = dismiss) { Text("Cancel") }
-            }
-        },
-    )
 }
