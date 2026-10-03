@@ -23,6 +23,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -222,8 +224,9 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
         snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) },
         floatingActionButton = { AddTransactionFab(expanded = !gridState.canScrollBackward) { model.navigate("edit/0") } }
     ) { padding ->
+      Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding), contentAlignment = Alignment.TopCenter) {
         LazyVerticalGrid(columns = GridCells.Fixed(2),
-            modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).padding(horizontal = 16.dp)
+            modifier = Modifier.widthIn(max = WideWidth).fillMaxSize().padding(horizontal = 16.dp)
                 .onGloballyPositioned { drag.coordinates = it }
                 .accountDragGestures(drag, reordering && !saving, { currentAccounts }, model::reorderAccounts),
             state = gridState, horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -302,6 +305,7 @@ fun HomeScreen(model: HomeModel, appLabels: Map<String, String> = emptyMap(),
                 }
             }
         }
+      }
     }
 }
 
@@ -704,6 +708,7 @@ internal fun DateTimeFields(date: String, time: String, onDate: (String) -> Unit
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()) {
     val s by model.state.collectAsState()
@@ -825,10 +830,12 @@ fun EditorScreen(model: EditorModel, appLabels: Map<String, String> = emptyMap()
         }
     }
     // Pinned so saving never needs a scroll past the form.
+    // With the keyboard up the bar shrinks so landscape keeps more than one field in view.
+    val typing = WindowInsets.isImeVisible
     Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-        Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = if (typing) 4.dp else 12.dp)) {
             // Confirming is the one moment money starts to count, so it takes the confirmed tick's colour.
-            Button(onClick = model::save, enabled = s.ready && !s.saving, modifier = WideButton,
+            Button(onClick = model::save, enabled = s.ready && !s.saving, modifier = if (typing) Modifier.fillMaxWidth() else WideButton,
                 colors = if (reviewing) ButtonDefaults.buttonColors(containerColor = MaterialTheme.accents.confirmed,
                     contentColor = MaterialTheme.accents.onConfirmed) else ButtonDefaults.buttonColors()) {
                 if (reviewing) Icon(painterResource(Res.drawable.symbol_check), null, Modifier.padding(end = 8.dp).size(18.dp))
