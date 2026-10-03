@@ -119,10 +119,13 @@ fun NotiflyApp(
             Surface(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
             return@NotiflyTheme
         }
-        val navigationSuiteType = if (route in topLevel) {
-            NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo())
-        } else {
-            NavigationSuiteType.None
+        val adaptiveType = NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo())
+        val navigationSuiteType = when {
+            route in topLevel -> adaptiveType
+            route == "auth" || route?.startsWith("onboarding") == true || route == "choose-apps" -> NavigationSuiteType.None
+            // A rail stays put on secondary screens; only the bottom bar steps aside.
+            adaptiveType == NavigationSuiteType.NavigationBar -> NavigationSuiteType.None
+            else -> adaptiveType
         }
         val destinations: @Composable (Modifier) -> Unit = { navModifier ->
             NavHost(
