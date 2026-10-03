@@ -42,8 +42,14 @@ class NotificationParser {
         val document = context.nearest(AmountContexts.documents)
         var inEvidence = context.nearest(AmountContexts.inbound)
         // Receiving a receipt/document does not mean receiving money.
+        // Directly receiving the amount or a payment is income even with a receipt attached.
         if (document != null && inEvidence?.word == "received" &&
-            context.nearest(listOf("payment received", "received payment", "received your payment", "received money")) == null) inEvidence = null
+            (inEvidence.distance > 0 || document.distance == 0) &&
+            context.nearest(listOf(
+                "payment received", "received payment", "received money",
+                "received your payment", "we received your payment",
+                "we received payment", "received a payment",
+            )) == null) inEvidence = null
         val inWord = inEvidence?.word
         val outEvidence = context.nearest(AmountContexts.outbound.filter { it != "payment" || inWord == null })
         val outWord = outEvidence?.word

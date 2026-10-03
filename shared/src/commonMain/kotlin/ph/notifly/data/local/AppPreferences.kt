@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -36,12 +37,15 @@ private const val ACCOUNT_BALANCE_PREFIX = "account_balance:"
 /** A balance the user typed in for a finance app; transactions after [setAt] are applied on top of it. */
 data class ManualBalance(val minor: Long, val setAt: Instant)
 
+data class Appearance(val palette: NotiflyPalette = NotiflyPalette.Ube, val themeMode: ThemeMode = ThemeMode.SYSTEM)
+
 class AppPreferences(private val store: DataStore<Preferences>) {
     private val paletteKey = stringPreferencesKey("palette")
     private val themeModeKey = stringPreferencesKey("theme_mode")
     private val onboardingKey = booleanPreferencesKey("onboarding_complete")
     private val offlineKey = booleanPreferencesKey("offline")
     private val hideAmountsKey = booleanPreferencesKey("hide_amounts")
+    private val homeAccountOrderKey = stringPreferencesKey("home_account_order")
     private val retentionKey =booleanPreferencesKey("keep_raw_text")
     private val crashReportingKey = booleanPreferencesKey("crash_reporting")
     private val pinHashKey = stringPreferencesKey("pin_hash")
@@ -55,13 +59,19 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     private val data = store.data.catch { exception ->
         if (exception is IOException) emit(emptyPreferences()) else throw exception
     }
-    val palette = data.map { prefs ->
-        NotiflyPalette.entries.firstOrNull { it.name == prefs[paletteKey] } ?: NotiflyPalette.Ube
-    }
-    val themeMode = data.map { prefs -> ThemeMode.entries.firstOrNull { it.name == prefs[themeModeKey] } ?: ThemeMode.SYSTEM }
+    val appearance = data.map { prefs -> Appearance(
+        NotiflyPalette.entries.firstOrNull { it.name == prefs[paletteKey] } ?: NotiflyPalette.Ube,
+        ThemeMode.entries.firstOrNull { it.name == prefs[themeModeKey] } ?: ThemeMode.SYSTEM,
+    ) }.distinctUntilChanged()
+    val palette = appearance.map { it.palette }.distinctUntilChanged()
+    val themeMode = appearance.map { it.themeMode }.distinctUntilChanged()
     val onboardingComplete = data.map { it[onboardingKey] ?: false }
     val offline = data.map { it[offlineKey] ?: true }
     val hideAmounts = data.map { it[hideAmountsKey] ?: false }
+    /** Device-local Home order; an empty list preserves repository ordering. */
+    val homeAccountOrder = data.map { prefs ->
+        prefs[homeAccountOrderKey]?.split(',')?.mapNotNull(String::toLongOrNull)?.distinct().orEmpty()
+    }
     val keepRawText = data.map { it[retentionKey] ?: false }
     val crashReporting = data.map { it[crashReportingKey] ?: false }
     val pinSet = data.map { it[pinHashKey] != null }
@@ -97,6 +107,7 @@ class AppPreferences(private val store: DataStore<Preferences>) {
     suspend fun resetOnboarding() { store.edit { it[onboardingKey] = false } }
     suspend fun setOffline(value: Boolean) { store.edit { it[offlineKey] = value } }
     suspend fun setHideAmounts(value: Boolean) { store.edit { it[hideAmountsKey] = value } }
+    suspend fun setHomeAccountOrder(ids: List<Long>) { store.edit { it[homeAccountOrderKey] = ids.distinct().joinToString(",") } }
     suspend fun setKeepRawText(value: Boolean) { store.edit { it[retentionKey] = value } }
     suspend fun setCrashReporting(value: Boolean) { store.edit { it[crashReportingKey] = value } }
     /**

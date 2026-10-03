@@ -1,12 +1,10 @@
 package ph.notifly.domain.model
 
-/**
- * Returns metadata-only CSV. Notification bodies and extras never enter exported files.
- */
+/** Returns metadata-only CSV; notification content never leaves the device. */
 fun List<RawCapture>.toCsv(): String = buildString {
     appendLine("id,source_app,captured_at,result,matched_amount,matched_direction,reason")
     this@toCsv.forEach { capture ->
-        val fields = listOf(
+        appendLine(listOf(
             capture.id,
             capture.sourceApp,
             capture.capturedAt,
@@ -14,8 +12,7 @@ fun List<RawCapture>.toCsv(): String = buildString {
             capture.matchedAmount,
             capture.matchedDirection,
             capture.reason,
-        )
-        appendLine(fields.joinToString(",") { it.csvField() })
+        ).joinToString(",") { it.csvField() })
     }
 }
 

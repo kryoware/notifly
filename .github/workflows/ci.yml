@@ -4,9 +4,12 @@ on:
   pull_request:
     branches:
       - master
+      - canary
+      - canary
   push:
     branches:
       - master
+      - canary
 
 env:
   NOTIFLY_SOURCE_REF: ${{ github.head_ref || github.ref_name }}

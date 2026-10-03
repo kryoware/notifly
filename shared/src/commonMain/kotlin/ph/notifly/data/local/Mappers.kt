@@ -26,6 +26,7 @@ fun TransactionEntity.toDomain() = Transaction(
     categoryId = categoryId,
     fromApp = fromApp,
     toApp = toApp,
+    feeMinor = feeMinor,
 )
 
 fun Transaction.toEntity() = TransactionEntity(
@@ -46,6 +47,7 @@ fun Transaction.toEntity() = TransactionEntity(
     categoryId = categoryId,
     fromApp = fromApp,
     toApp = toApp,
+    feeMinor = feeMinor,
 )
 
 fun RawCaptureEntity.toDomain() = RawCapture(

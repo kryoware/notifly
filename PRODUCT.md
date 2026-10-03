@@ -38,7 +38,7 @@ Zero-effort capture: money events are read from notifications the user already r
 
 ## Brand Commitments
 
-Binding brand identity is "Ube" (`docs/brand/run-2026-09-30-ube/brandkit.png`):
+Binding brand identity is "Ube" (`docs/brand/brandkit.png`):
 - Name: notifly. Mark: lowercase "n" arch with a check flick.
 - Voice: "Nothing counts until you do." "The last stroke is yours." "Every ping, checked." "Read on-device · counted by you."
 - Pending is an open circle, confirmed is a check; that pair is the product's core semantic.
@@ -48,9 +48,8 @@ Binding brand identity is "Ube" (`docs/brand/run-2026-09-30-ube/brandkit.png`):
 
 ## Evidence on Hand
 
-- Brandkit board, marks, CSS and JS tokens: `docs/brand/run-2026-09-30-ube/`.
-- Onboarding concept screens and motion storyboard: `docs/design/onboarding-2026-10-01/`.
-- Behavioural prototype: `docs/prototype.html`. Build order: `PLAN.md`. Icon guide: `docs/MD_ICONS.md`. List pattern: `docs/MD3_LIST.md`.
+- Brandkit board, marks, CSS and JS tokens: `docs/brand/`.
+- Design system: `DESIGN.md`. Behavioural reference: the app's demo mode (the old `docs/prototype.html` was removed in `3cbed37`). Build order: `PLAN.md`. Icon guide: `docs/MD_ICONS.md`. List pattern: `docs/MD3_LIST.md`.
 - No user testimonials, usage data, or store listing exist; do not fabricate them.
 
 ## Product Principles

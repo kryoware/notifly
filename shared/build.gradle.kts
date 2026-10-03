@@ -30,6 +30,7 @@ kotlin {
             implementation(compose.foundation)
             implementation(libs.compose.material3)
             implementation(libs.compose.material3.navigation.suite)
+            implementation(libs.compose.navigationevent)
             implementation(compose.components.resources)
             implementation(libs.aboutlibraries.compose.m3)
 

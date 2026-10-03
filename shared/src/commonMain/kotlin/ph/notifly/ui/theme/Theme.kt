@@ -8,6 +8,7 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -15,6 +16,8 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Shape
 import notifly.shared.generated.resources.*
 import org.jetbrains.compose.resources.Font
 
@@ -32,11 +35,35 @@ val MaterialTheme.accents: NotiflyAccents
 fun TextStyle.tabular(): TextStyle = copy(fontFeatureSettings = "tnum")
 
 // Chips, cards and the FAB from ube.css; dialogs and fields keep Material defaults.
+// Not monotonic on purpose: Card reads medium (24) and the extended FAB reads large (20).
 private val NotiflyShapes = Shapes(
     small = RoundedCornerShape(10.dp),
     medium = RoundedCornerShape(24.dp),
     large = RoundedCornerShape(20.dp),
 )
+
+private val TrayShape = RoundedCornerShape(18.dp)
+
+/** The inset review tray inside the balance hero. */
+val Shapes.tray: Shape get() = TrayShape
+
+/** 4dp grid for padding and gaps. Component sizes (avatars, touch targets, icons) stay literal. */
+object Space {
+    val xs = 4.dp
+    val sm = 8.dp
+    val md = 12.dp
+    val lg = 16.dp
+    val xl = 20.dp
+    val xxl = 24.dp
+}
+
+/** The confirmed balance: Geist SemiBold, tight, tabular. */
+val Typography.balance: TextStyle
+    get() = headlineLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.035).em).tabular()
+
+/** Fraunces italic, the brand's spoken line. Taglines and empty states only; never data, labels, or headings. */
+val Typography.voice: TextStyle
+    get() = displaySmall.copy(fontSize = 26.sp, lineHeight = 32.sp, fontStyle = FontStyle.Italic)
 
 /** Geist for everything, Fraunces as the brand's voice on display lines, Geist Mono for stamps. */
 @Composable
@@ -75,6 +102,7 @@ private fun notiflyTypography(): Typography {
 fun NotiflyTheme(
     palette: NotiflyPalette = NotiflyPalette.Ube,
     themeMode: ThemeMode = ThemeMode.SYSTEM,
+    onDarkChanged: (Boolean) -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     val dark = when (themeMode) {
@@ -82,6 +110,7 @@ fun NotiflyTheme(
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
+    SideEffect { onDarkChanged(dark) }
     CompositionLocalProvider(LocalNotiflyAccents provides accentsFor(palette, dark)) {
         MaterialExpressiveTheme(
             colorScheme = schemeFor(palette, dark),

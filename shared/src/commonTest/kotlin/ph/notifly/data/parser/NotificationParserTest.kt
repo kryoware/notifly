@@ -195,6 +195,25 @@ class NotificationParserTest {
         assertIs<ParseOutcome.Unrecognized>(parser.parse("Paid EUR 50k to SHOP."))
     }
 
+    @Test fun `received amount stays income with a receipt while received documents stay expenses`() {
+        for (hint in listOf(null, TransactionType.INCOME)) {
+            val income = assertIs<ParseOutcome.Parsed>(parser.parse(
+                "You received PHP 500 from ACME. Receipt attached.", directionHint = hint,
+            ))
+            assertEquals(TransactionType.INCOME, income.draft.type)
+            assertEquals(true, income.draft.inbound)
+            assertEquals(50_000L, income.draft.amountMinor)
+            for (body in listOf(
+                "You received a receipt for PHP 500 from ACME.",
+                "Received PHP 500 invoice for your subscription.",
+            )) {
+                val receipt = assertIs<ParseOutcome.Parsed>(parser.parse(body, directionHint = hint))
+                assertEquals(TransactionType.EXPENSE, receipt.draft.type)
+                assertEquals(Confidence.LOW, receipt.draft.directionConfidence)
+            }
+        }
+    }
+
     @Test fun `received your payment near invoice is income not expense`() {
         // "We received your payment of PHP2500. Invoice attached."
         // The word "received" should NOT be nulled out just because "invoice"

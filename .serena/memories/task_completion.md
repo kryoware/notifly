@@ -24,6 +24,6 @@ start here, so `get_diagnostics_for_file` is not an option either.
   `NEEDS_REVIEW` row can reach a payload.
 - UI work cannot be verified by the agent without a device/emulator — say so
   explicitly instead of claiming a visual result, and check the intended
-  behaviour against `docs/prototype.html`.
+  behaviour against `DESIGN.md` and the app's demo mode.
 - Tick the corresponding checkbox in `PLAN.md` when a phase item is genuinely
   finished.

@@ -45,7 +45,7 @@ class RawCaptureCsvTest {
     }
 
     @Test
-    fun exportExcludesBodyAndExtrasSurvivingStorage() {
+    fun exportNeverIncludesStoredNotificationTextOrExtras() {
         val tricky = "line1\nline\t2 \\n literal"
         val captures = listOf(
             RawCapture(id = 1, sourceApp = "A", capturedAt = Instant.fromEpochMilliseconds(0), body = "b1",
@@ -55,10 +55,12 @@ class RawCaptureCsvTest {
         ).map { it.toEntity().toDomain() }
 
         assertEquals(tricky, captures[0].extras["android.text"])
-        val metadataCsv = captures.toCsv()
-        assertEquals(false, metadataCsv.contains("b1"))
-        assertEquals(false, metadataCsv.contains("android.text"))
-        assertEquals(false, metadataCsv.contains(tricky))
-        assertEquals(false, metadataCsv.contains("android.title"))
+        val csv = captures.toCsv()
+        assertEquals(
+            "id,source_app,captured_at,result,matched_amount,matched_direction,reason\n" +
+                "\"1\",\"A\",\"1970-01-01T00:00:00Z\",\"PARSED\",\"\",\"\",\"r\"\n" +
+                "\"2\",\"B\",\"1970-01-01T00:00:00Z\",\"UNRECOGNIZED\",\"\",\"\",\"r\"\n",
+            csv,
+        )
     }
 }

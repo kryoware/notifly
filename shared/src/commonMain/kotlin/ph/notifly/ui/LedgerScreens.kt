@@ -1,10 +1,21 @@
 package ph.notifly.ui
 
+import org.jetbrains.compose.resources.painterResource
+import notifly.shared.generated.resources.Res
+import notifly.shared.generated.resources.symbol_clear
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -15,6 +26,7 @@ import kotlinx.coroutines.flow.*
 import ph.notifly.domain.model.*
 import ph.notifly.domain.repository.*
 import kotlin.time.Clock
+import ph.notifly.ui.theme.Space
 
 class LedgerSettingsModel(private val ledger: LedgerRepository, apps: AllowListRepository) : ScreenModel() {
     data class State(val accounts: List<Account> = emptyList(), val categories: List<Category> = emptyList(),
@@ -41,29 +53,75 @@ class LedgerSettingsModel(private val ledger: LedgerRepository, apps: AllowListR
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun <T> ChoiceField(title: String, value: String, options: List<T>,
-    error: String? = null, label: (T) -> String, choose: (T) -> Unit) {
+    error: String? = null, searchable: Boolean = false, emptyLabel: String = "options",
+    label: (T) -> String, choose: (T) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded, { expanded = !expanded }) {
-        OutlinedTextField(value, {}, readOnly = true, label = { Text(title) }, isError = error != null,
+    var query by remember { mutableStateOf(TextFieldValue(value)) }
+    var searching by remember { mutableStateOf(false) }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(expanded, searchable) {
+        if (expanded && searchable) {
+            withFrameNanos { }
+            query = query.copy(selection = TextRange(0, query.text.length))
+        }
+    }
+    val search = query.text.trim()
+    val filtered = if (searchable && searching && search.isNotEmpty()) options.filter {
+        label(it).contains(search, ignoreCase = true)
+    } else options
+    fun close() { expanded = false; query = TextFieldValue(value); keyboard?.hide() }
+    ExposedDropdownMenuBox(expanded, { shouldExpand ->
+        if (shouldExpand) {
+            query = TextFieldValue(value, selection = TextRange(0, value.length))
+            searching = false
+            expanded = true
+        } else close()
+    }) {
+        OutlinedTextField(
+            value = if (searchable && expanded) query else TextFieldValue(value),
+            onValueChange = { if (searchable) {
+                if (it.text != query.text) searching = true
+                query = it
+            } },
+            readOnly = !searchable,
+            singleLine = true,
+            label = { Text(title) }, isError = error != null,
             supportingText = error?.let { { Text(it) } },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth())
-        ExposedDropdownMenu(expanded, { expanded = false }) {
-            options.forEach { item -> DropdownMenuItem(text = { Text(label(item)) }, onClick = { choose(item); expanded = false }) }
+            trailingIcon = {
+                if (searchable && expanded && query.text.isNotEmpty()) IconButton(
+                    onClick = { query = TextFieldValue(""); searching = true; expanded = true },
+                    modifier = Modifier.semantics { contentDescription = "Clear search" }) {
+                    Icon(painterResource(Res.drawable.symbol_clear), contentDescription = null)
+                } else ExposedDropdownMenuDefaults.TrailingIcon(expanded)
+            },
+            keyboardOptions = KeyboardOptions(imeAction = if (searchable) ImeAction.Done else ImeAction.Default),
+            keyboardActions = KeyboardActions(onDone = { close() }),
+            modifier = Modifier.onFocusChanged { if (searchable && expanded && !it.isFocused) close() }
+                .menuAnchor(if (searchable) ExposedDropdownMenuAnchorType.PrimaryEditable
+                else ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+        ExposedDropdownMenu(expanded, { close() }) {
+            if (filtered.isEmpty()) DropdownMenuItem(
+                text = { Text(if (options.isEmpty()) "No $emptyLabel available" else "No matching $emptyLabel") },
+                enabled = false, onClick = {})
+            filtered.forEach { item -> DropdownMenuItem(
+                text = { Text(label(item)) }, modifier = Modifier.heightIn(min = 48.dp),
+                onClick = { choose(item); close() }) }
         }
     }
 }
 
 @Composable
-internal fun AccountPicker(title: String, selected: Long?, accounts: List<Account>, error: String? = null, choose: (Long) -> Unit) {
+internal fun AccountPicker(title: String, selected: Long?, accounts: List<Account>, error: String? = null,
+    searchable: Boolean = false, choose: (Long) -> Unit) {
     ChoiceField(title, accounts.find { it.id == selected }?.name ?: "Choose an account", accounts, error,
+        searchable = searchable, emptyLabel = "accounts",
         label = { it.name + if (it.type == AccountType.CARD) " · Card" else "" }) { choose(it.id) }
 }
 
 @Composable
 fun AccountsScreen(model: LedgerSettingsModel) {
     val s by model.state.collectAsState()
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         item { Button(onClick = { model.navigate("account/0") }, Modifier.fillMaxWidth()) { Text("Add account") } }
         if (s.loaded && s.accounts.isEmpty()) item { Text("Add a bank, card or wallet account before creating transactions.") }
         items(s.accounts, key = { it.id }) { account ->
@@ -167,8 +225,8 @@ fun AccountEditorScreen(model: LedgerSettingsModel, id: Long) {
 fun CategoriesScreen(model: LedgerSettingsModel) {
     val s by model.state.collectAsState()
     var type by remember { mutableStateOf(TransactionType.EXPENSE) }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.md)) {
+        item { Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             listOf(TransactionType.INCOME, TransactionType.EXPENSE).forEach { item ->
                 FilterChip(type == item, { type = item }, label = { Text(item.name.lowercase().replaceFirstChar { it.uppercase() }) })
             }
@@ -224,7 +282,7 @@ fun CategoryEditorScreen(model: LedgerSettingsModel, id: Long, type: Transaction
 fun AccountReviewScreen(model: LedgerSettingsModel) {
     val s by model.state.collectAsState()
     var discard by remember { mutableStateOf<CapturedDraft?>(null) }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         item { Text("Select an account and check the details before confirming. These drafts are not counted in your balance.") }
         if (s.loaded && s.drafts.isEmpty()) item { Text("No drafts need account assignment.") }
         items(s.drafts, key = { it.id }) { draft ->

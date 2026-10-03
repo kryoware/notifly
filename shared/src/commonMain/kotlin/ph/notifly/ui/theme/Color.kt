@@ -10,13 +10,12 @@ import androidx.compose.ui.graphics.Color
  * Material Color Utilities tonal spot, standard contrast, harmonized semantic colors;
  * Ube pins its roles to the brand swatches.
  */
-enum class NotiflyPalette { Ube, Evergreen, Indigo, Slate, Clay }
+enum class NotiflyPalette { Ube, Evergreen, Slate, Clay }
 
 val NotiflyPalette.hint: String
     get() = when (this) {
         NotiflyPalette.Ube -> "Violet"
         NotiflyPalette.Evergreen -> "Green"
-        NotiflyPalette.Indigo -> "Purple"
         NotiflyPalette.Slate -> "Blue"
         NotiflyPalette.Clay -> "Terracotta"
     }
@@ -50,10 +49,10 @@ private val UbeLight = lightColorScheme(
     onTertiary = Color(0xFFF4F0F8),
     tertiaryContainer = Color(0xFFE8DEFF),
     onTertiaryContainer = Color(0xFF3A1F66),
-    tertiaryFixed = Color(0xFFFFD9E3),
-    tertiaryFixedDim = Color(0xFFEFB8C8),
-    onTertiaryFixed = Color(0xFF31101D),
-    onTertiaryFixedVariant = Color(0xFF633B48),
+    tertiaryFixed = Color(0xFFE9DDFF),
+    tertiaryFixedDim = Color(0xFFCFBDFE),
+    onTertiaryFixed = Color(0xFF201047),
+    onTertiaryFixedVariant = Color(0xFF4C3D75),
     error = Color(0xFFBA1A1A),
     onError = Color(0xFFFFFFFF),
     errorContainer = Color(0xFFFFDAD6),
@@ -112,10 +111,10 @@ private val UbeDark = darkColorScheme(
     onTertiary = Color(0xFF26134A),
     tertiaryContainer = Color(0xFF3A1F66),
     onTertiaryContainer = Color(0xFFF4F0F8),
-    tertiaryFixed = Color(0xFFFFD9E3),
-    tertiaryFixedDim = Color(0xFFEFB8C8),
-    onTertiaryFixed = Color(0xFF31101D),
-    onTertiaryFixedVariant = Color(0xFF633B48),
+    tertiaryFixed = Color(0xFFE9DDFF),
+    tertiaryFixedDim = Color(0xFFCFBDFE),
+    onTertiaryFixed = Color(0xFF201047),
+    onTertiaryFixedVariant = Color(0xFF4C3D75),
     error = Color(0xFFFFB4AB),
     onError = Color(0xFF690005),
     errorContainer = Color(0xFF93000A),
@@ -273,130 +272,6 @@ private val EvergreenDarkAccents = NotiflyAccents(
     Color(0xFF005237),
     Color(0xFFABF2CC),
     Color(0xFF226A4D),
-    Color(0xFFFFFFFF),
-)
-
-private val IndigoLight = lightColorScheme(
-    primary = Color(0xFF65558F),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFE9DDFF),
-    onPrimaryContainer = Color(0xFF4D3D75),
-    inversePrimary = Color(0xFFCFBDFE),
-    primaryFixed = Color(0xFFE9DDFF),
-    primaryFixedDim = Color(0xFFCFBDFE),
-    onPrimaryFixed = Color(0xFF201047),
-    onPrimaryFixedVariant = Color(0xFF4D3D75),
-    secondary = Color(0xFF625B71),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFE8DEF8),
-    onSecondaryContainer = Color(0xFF4A4458),
-    secondaryFixed = Color(0xFFE8DEF8),
-    secondaryFixedDim = Color(0xFFCBC2DB),
-    onSecondaryFixed = Color(0xFF1E192B),
-    onSecondaryFixedVariant = Color(0xFF4A4458),
-    tertiary = Color(0xFF7E5260),
-    onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFFFD9E3),
-    onTertiaryContainer = Color(0xFF633B48),
-    tertiaryFixed = Color(0xFFFFD9E3),
-    tertiaryFixedDim = Color(0xFFEFB8C8),
-    onTertiaryFixed = Color(0xFF31101D),
-    onTertiaryFixedVariant = Color(0xFF633B48),
-    error = Color(0xFFBA1A1A),
-    onError = Color(0xFFFFFFFF),
-    errorContainer = Color(0xFFFFDAD6),
-    onErrorContainer = Color(0xFF93000A),
-    background = Color(0xFFFDF7FF),
-    onBackground = Color(0xFF1D1B20),
-    surface = Color(0xFFFDF7FF),
-    onSurface = Color(0xFF1D1B20),
-    surfaceVariant = Color(0xFFE7E0EB),
-    onSurfaceVariant = Color(0xFF49454E),
-    surfaceDim = Color(0xFFDED8E0),
-    surfaceBright = Color(0xFFFDF7FF),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF8F2FA),
-    surfaceContainer = Color(0xFFF2ECF4),
-    surfaceContainerHigh = Color(0xFFECE6EE),
-    surfaceContainerHighest = Color(0xFFE6E0E9),
-    inverseSurface = Color(0xFF322F35),
-    inverseOnSurface = Color(0xFFF5EFF7),
-    outline = Color(0xFF7A757F),
-    outlineVariant = Color(0xFFCAC4CF),
-    surfaceTint = Color(0xFF65558F),
-    scrim = Color(0xFF000000),
-)
-
-private val IndigoLightAccents = NotiflyAccents(
-    Color(0xFF6750A4),
-    Color(0xFFE9DDFF),
-    Color(0xFF22005D),
-    Color(0xFF6750A4),
-    Color(0xFFE9DDFF),
-    Color(0xFF22005D),
-    Color(0xFF65558F),
-    Color(0xFFFFFFFF),
-)
-
-private val IndigoDark = darkColorScheme(
-    primary = Color(0xFFCFBDFE),
-    onPrimary = Color(0xFF36275D),
-    primaryContainer = Color(0xFF4D3D75),
-    onPrimaryContainer = Color(0xFFE9DDFF),
-    inversePrimary = Color(0xFF65558F),
-    primaryFixed = Color(0xFFE9DDFF),
-    primaryFixedDim = Color(0xFFCFBDFE),
-    onPrimaryFixed = Color(0xFF201047),
-    onPrimaryFixedVariant = Color(0xFF4D3D75),
-    secondary = Color(0xFFCBC2DB),
-    onSecondary = Color(0xFF332D41),
-    secondaryContainer = Color(0xFF4A4458),
-    onSecondaryContainer = Color(0xFFE8DEF8),
-    secondaryFixed = Color(0xFFE8DEF8),
-    secondaryFixedDim = Color(0xFFCBC2DB),
-    onSecondaryFixed = Color(0xFF1E192B),
-    onSecondaryFixedVariant = Color(0xFF4A4458),
-    tertiary = Color(0xFFEFB8C8),
-    onTertiary = Color(0xFF4A2532),
-    tertiaryContainer = Color(0xFF633B48),
-    onTertiaryContainer = Color(0xFFFFD9E3),
-    tertiaryFixed = Color(0xFFFFD9E3),
-    tertiaryFixedDim = Color(0xFFEFB8C8),
-    onTertiaryFixed = Color(0xFF31101D),
-    onTertiaryFixedVariant = Color(0xFF633B48),
-    error = Color(0xFFFFB4AB),
-    onError = Color(0xFF690005),
-    errorContainer = Color(0xFF93000A),
-    onErrorContainer = Color(0xFFFFDAD6),
-    background = Color(0xFF141218),
-    onBackground = Color(0xFFE6E0E9),
-    surface = Color(0xFF141218),
-    onSurface = Color(0xFFE6E0E9),
-    surfaceVariant = Color(0xFF49454E),
-    onSurfaceVariant = Color(0xFFCAC4CF),
-    surfaceDim = Color(0xFF141218),
-    surfaceBright = Color(0xFF3B383E),
-    surfaceContainerLowest = Color(0xFF0F0D13),
-    surfaceContainerLow = Color(0xFF1D1B20),
-    surfaceContainer = Color(0xFF211F24),
-    surfaceContainerHigh = Color(0xFF2B292F),
-    surfaceContainerHighest = Color(0xFF36343A),
-    inverseSurface = Color(0xFFE6E0E9),
-    inverseOnSurface = Color(0xFF322F35),
-    outline = Color(0xFF948F99),
-    outlineVariant = Color(0xFF49454E),
-    surfaceTint = Color(0xFFCFBDFE),
-    scrim = Color(0xFF000000),
-)
-
-private val IndigoDarkAccents = NotiflyAccents(
-    Color(0xFFCFBCFF),
-    Color(0xFF4F378A),
-    Color(0xFFE9DDFF),
-    Color(0xFFCFBCFF),
-    Color(0xFF4F378A),
-    Color(0xFFE9DDFF),
-    Color(0xFF65558F),
     Color(0xFFFFFFFF),
 )
 
@@ -652,7 +527,6 @@ internal fun schemeFor(palette: NotiflyPalette, dark: Boolean = false): ColorSch
     when (palette) {
         NotiflyPalette.Ube -> if (dark) UbeDark else UbeLight
         NotiflyPalette.Evergreen -> if (dark) EvergreenDark else EvergreenLight
-        NotiflyPalette.Indigo -> if (dark) IndigoDark else IndigoLight
         NotiflyPalette.Slate -> if (dark) SlateDark else SlateLight
         NotiflyPalette.Clay -> if (dark) ClayDark else ClayLight
     }
@@ -661,7 +535,6 @@ internal fun accentsFor(palette: NotiflyPalette, dark: Boolean = false): Notifly
     when (palette) {
         NotiflyPalette.Ube -> if (dark) UbeDarkAccents else UbeLightAccents
         NotiflyPalette.Evergreen -> if (dark) EvergreenDarkAccents else EvergreenLightAccents
-        NotiflyPalette.Indigo -> if (dark) IndigoDarkAccents else IndigoLightAccents
         NotiflyPalette.Slate -> if (dark) SlateDarkAccents else SlateLightAccents
         NotiflyPalette.Clay -> if (dark) ClayDarkAccents else ClayLightAccents
     }
