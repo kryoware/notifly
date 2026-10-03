@@ -11,20 +11,20 @@ Score: **11/20 (Acceptable)**. Accessibility 3, Performance 3, Theming 2, Platfo
 5. **No list-detail on wide screens.** Transactions -> editor, Bills -> bill, Log -> capture, Settings -> sub-screens. Needs `material3-adaptive` layout/navigation deps (only `navigation-suite` today). **Partly fixed: Transactions -> editor pane at >=840dp (see 61-transactions-listdetail-landscape). Bills, Log and Settings panes still open**
 
 ## P2
-6. Landscape + IME leaves one field above the pinned Save bar (`20-editor-add-landscape`, `12-*`).
-7. Home ignores width; FAB covers account tiles (`10-home-landscape`). Two panes.
-8. Bills tabs stretch; calendar day detail below the fold (`14`, `15`). Side-by-side on wide screens.
-9. FAB covers the last row's confirm ring and stays during selection (`11`, `13`).
-10. Secondary screens drop the rail (`NotiflyApp.kt:110-114`, `30`-`42`).
-11. Insights is a single column of cards (`16`).
-12. Onboarding step 4: duplicate header, 21px vs 32px margins (`04`).
-13. Demo data reshuffles on recreation (`NotiflyApp.kt:63,65`).
+6. Landscape + IME leaves one field above the pinned Save bar (`20-editor-add-landscape`, `12-*`). **Partly fixed: save bar shrinks while the keyboard is up (66-*); keyboard still covers ~60% of landscape height**
+7. Home ignores width; FAB covers account tiles (`10-home-landscape`). Two panes. **Partly fixed: width capped at 840dp (65-*); no two-pane, the drag-reorder grid made splitting risky**
+8. Bills tabs stretch; calendar day detail below the fold (`14`, `15`). Side-by-side on wide screens. **Fixed: upcoming and calendar side by side at >=840dp (62-*)**
+9. FAB covers the last row's confirm ring and stays during selection (`11`, `13`). **Fixed: e1c03bd hides it while selecting; last-row clearance unchanged**
+10. Secondary screens drop the rail (`NotiflyApp.kt:110-114`, `30`-`42`). **Fixed: rail stays on secondary screens, bottom bar still hidden (64-*)**
+11. Insights is a single column of cards (`16`). **Fixed: staggered two-column grid (63-*)**
+12. Onboarding step 4: duplicate header, 21px vs 32px margins (`04`). **Fixed: f8becf5**
+13. Demo data reshuffles on recreation (`NotiflyApp.kt:63,65`). **Fixed: bdc3771**
 
 ## P3
 14. Font scale 1.3: subtitles wrap, amount column ragged (`56-*-fs130`).
-15. Search cursor jumps to start after rotation (`12-portrait`).
-16. Bill editor inline Save vs pinned Save; segmented widths differ (`23` vs `20`).
-17. Demo inconsistencies: empty Accounts vs Home wallets (`33`); "Lazada refund" avatar/source mismatch.
+15. Search cursor jumps to start after rotation (`12-portrait`). **Fixed: cursor kept across rotation, verified on device**
+16. Bill editor inline Save vs pinned Save; segmented widths differ (`23` vs `20`). **Partly fixed: Save pinned (67-*); segmented widths untouched**
+17. Demo inconsistencies: empty Accounts vs Home wallets (`33`); "Lazada refund" avatar/source mismatch. **Partly fixed: refund now lands on the Maya account; empty Accounts in 33 not reproduced in code (same ledger as Home)**
 
 ## Working
 Rail switches correctly; sheets are width-capped (`24`); lock screen is constrained (`44`); editor text and nav history survive rotation; colours come from theme roles.

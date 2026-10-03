@@ -49,7 +49,7 @@ fun demoRows(random: Random = Random.Default): List<Transaction> {
     val freelance = Transaction(title = "Freelance payment", amountMinor = pesos(3500, 9000), type = TransactionType.INCOME,
         status = TransactionStatus.CONFIRMED, category = "Income", occurredAt = ago(6), sourceApp = GCASH, captureId = null, accountId = 1)
     val refund = Transaction(title = "Lazada refund", amountMinor = pesos(200, 900), type = TransactionType.INCOME,
-        status = TransactionStatus.NEEDS_REVIEW, category = "Income", occurredAt = ago(1), sourceApp = MAYA, captureId = null, accountId = 1)
+        status = TransactionStatus.NEEDS_REVIEW, category = "Income", occurredAt = ago(1), sourceApp = MAYA, captureId = null, accountId = 2)
     val transfer = Transaction(title = "GCash to Maya", amountMinor = pesos(2000, 5000), type = TransactionType.TRANSFER,
         status = TransactionStatus.CONFIRMED, category = "Transfer", occurredAt = ago(20), sourceApp = GCASH, captureId = null,
         fromApp = GCASH, toApp = MAYA, toAccountId = 2, accountId = 1)
