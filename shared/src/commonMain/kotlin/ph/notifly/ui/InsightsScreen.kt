@@ -391,14 +391,15 @@ private fun ShareDonut(shares: List<Pair<String, Long>>, caption: String, chart:
     var picked by remember(slices) { mutableStateOf<Int?>(null) }
     val colors = slices.indices.map { sliceColor(it) }
     val (label, amount) = picked?.let { slices[it] } ?: (caption to total)
+    val values = slices.map { ratio(it.second, total) }
     PieChart(
-        // Floored so every row keeps a visible arc: each slice loses its 1° gap on both sides.
-        values = slices.map { maxOf(ratio(it.second, total), 0.01f) },
+        values = values,
         modifier = Modifier.fillMaxWidth().semantics {
             contentDescription = "$chart chart. " + slices.joinToString { (name, value) -> "$name ${value * 100 / total}%" }
         },
         slice = { i ->
-            DefaultSlice(if (picked == null || picked == i) colors[i] else colors[i].copy(alpha = 0.35f), gap = 1f,
+            // The gap comes off both ends, so thin slices get at most a quarter of their sweep (×360°/4) each side.
+            DefaultSlice(if (picked == null || picked == i) colors[i] else colors[i].copy(alpha = 0.35f), gap = minOf(1f, values[i] * 90f),
                 clickable = true, onClick = { picked = if (picked == i) null else i })
         },
         labelConnector = {},
