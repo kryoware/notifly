@@ -44,6 +44,7 @@ object TransactionCsv {
         val headers = records.firstOrNull()
         if (headers == budgeMeta) return decodeBudge(records, zone)
         require(headers == columns || headers == columns + accountColumns) { HEADER_ERROR }
+        require(records.size <= MAX_ROWS + 1) { TOO_MANY_ROWS }
         return records.drop(1).mapIndexed { index, fields ->
             val message = "Invalid transaction at CSV row ${index + 2}. Check its fields and try again."
             require(fields.size == headers?.size) { message }
@@ -76,6 +77,8 @@ object TransactionCsv {
         }
     }
 
+    private const val TOO_MANY_ROWS = "Import up to 10,000 transactions at a time."
+    private const val SECTION_ROWS = 1_000
     private const val HEADER_ERROR = "Choose a Notifly or Budge transaction CSV with the original column headers."
     private val budgeMeta = listOf("Format version", "Period", "User ID")
     private val budgeColumns = listOf("Date", "Payment", "Is paid", "Amount", "Currency", "Account", "Category",
@@ -90,17 +93,20 @@ object TransactionCsv {
         records.forEach { if (it == listOf("###")) sections.add(mutableListOf()) else sections.last().add(it) }
         require(sections[0].getOrNull(1)?.firstOrNull() == "1" && sections[0].size == 2) { "Unsupported Budge export version." }
         var rows: List<List<String>>? = null
+        var hasAccounts = false
         sections.drop(1).forEach { section ->
             when (section.firstOrNull()?.firstOrNull()) {
                 null, "Goal" -> Unit
                 "Date" -> { require(section[0] == budgeColumns && rows == null) { HEADER_ERROR }; rows = section.drop(1) }
-                "Account" -> require(section[0] == budgeAccountColumns) { HEADER_ERROR }
+                "Account" -> { require(section[0] == budgeAccountColumns && !hasAccounts) { HEADER_ERROR }; hasAccounts = true }
                 else -> throw IllegalArgumentException(HEADER_ERROR)
             }
         }
-        // Budge dates have no time, so identical rows get distinct createdAt values to survive import dedupe.
-        val seen = mutableMapOf<List<String>, Int>()
-        return requireNotNull(rows) { HEADER_ERROR }.mapIndexedNotNull { index, f ->
+        // A missing accounts section means the export was truncated.
+        require(hasAccounts) { HEADER_ERROR }
+        val transactionRows = requireNotNull(rows) { HEADER_ERROR }
+        require(transactionRows.size <= MAX_ROWS) { TOO_MANY_ROWS }
+        val entries = transactionRows.mapIndexedNotNull { index, f ->
             val message = "Invalid Budge transaction #${index + 1}. Check its fields and try again."
             require(f.size == budgeColumns.size) { message }
             try {
@@ -111,16 +117,22 @@ object TransactionCsv {
                 val minor = amount[2].toLong() * 100 + amount[3].padEnd(2, '0').toLong()
                 require(minor > 0 && f[4] == "PHP")
                 val occurred = LocalDate(year, month, day).atStartOfDayIn(zone)
-                val repeat = seen[f] ?: 0
-                seen[f] = repeat + 1
                 val category = f[6].trim().ifEmpty { "Other" }
                 Entry(Transaction(title = f[1].trim().ifEmpty { category }, amountMinor = minor,
                     type = if (amount[1] == "-") TransactionType.EXPENSE else TransactionType.INCOME,
                     status = TransactionStatus.NEEDS_REVIEW, category = category, occurredAt = occurred,
-                    createdAt = occurred + repeat.milliseconds, sourceApp = null, captureId = null,
+                    sourceApp = null, captureId = null,
                     note = listOf(f[7], f[9]).map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" · "),
                     accountId = 0), accountName = f[5].trim().ifEmpty { null })
             } catch (_: IllegalArgumentException) { throw IllegalArgumentException(message) }
+        }
+        // Budge dates have no time, so rows identical after import get distinct createdAt values to survive import dedupe.
+        val seen = mutableMapOf<Entry, Int>()
+        return entries.map { entry ->
+            val repeat = seen[entry] ?: 0
+            seen[entry] = repeat + 1
+            val t = entry.transaction
+            entry.copy(transaction = t.copy(createdAt = t.occurredAt + repeat.milliseconds))
         }
     }
 
@@ -140,7 +152,8 @@ object TransactionCsv {
             endField()
             if (fields != listOf("")) rows.add(fields.toList())
             fields.clear()
-            require(rows.size <= MAX_ROWS + 1) { "Import up to 10,000 transactions at a time." }
+            // Budge adds section rows around its transactions; each path enforces MAX_ROWS on transactions only.
+            require(rows.size <= MAX_ROWS + 1 + SECTION_ROWS) { TOO_MANY_ROWS }
         }
         while (i < csv.length) {
             val c = csv[i++]

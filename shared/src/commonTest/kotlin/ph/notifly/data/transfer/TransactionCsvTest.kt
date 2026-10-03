@@ -92,9 +92,25 @@ class TransactionCsvTest {
             budge.replace("Credit Limit", "Limit"), budge.replace("Goal,whatever", "Other,whatever"),
             budge.replace("-590.80", "-590.801"), budge.replace("-590.80", "0"), budge.replace("-590.80", "abc"),
             budge.replace("05-01-2026", "31-02-2026"), budge.replace("PHP,Card A", "USD,Card A"),
-            budge.replace(",true,", ",yes,"), budge.substringBefore("Date,Payment"))) {
+            budge.replace(",true,", ",yes,"), budge.substringBefore("Date,Payment"),
+            budge.substringBefore("Account,Account Balance"))) {
             val error = assertFailsWith<IllegalArgumentException> { TransactionCsv.decodeEntries(bad) }
             assertFalse(error.message.orEmpty().contains("Coffee"))
         }
+    }
+
+    @Test fun budgeRowsThatDifferOnlyInIgnoredOrTrimmedFieldsAreAllKept() {
+        val csv = budge.replace("06-01-2026,,true,1500.5,PHP,Bank B,,,,",
+            "05-01-2026,Coffee Shop,true,-590.80,PHP,Card A ,Dining,Delivery,Goal X,late")
+        val times = TransactionCsv.decodeEntries(csv).map { it.transaction.createdAt }
+        assertEquals(3, times.toSet().size)
+    }
+
+    @Test fun budgeLimitCountsOnlyTransactionRows() {
+        fun file(count: Int) = budge.substringBefore("05-01-2026") +
+            List(count) { "05-01-2026,Shop,true,-1,PHP,Card A,Dining,,,\n" }.joinToString("") +
+            "\n###\n\n" + budge.substringAfter("###\n\n").substringAfter("###\n\n")
+        assertEquals(TransactionCsv.MAX_ROWS, TransactionCsv.decodeEntries(file(TransactionCsv.MAX_ROWS)).size)
+        assertFailsWith<IllegalArgumentException> { TransactionCsv.decodeEntries(file(TransactionCsv.MAX_ROWS + 1)) }
     }
 }
