@@ -17,6 +17,9 @@ data class CashFlow(val income: Long = 0L, val spent: Long = 0L) {
     val net get() = income - spent
 }
 
+/** Transfer fees count as spending but have no category; they get their own share so categories sum to [CashFlow.spent]. */
+const val TRANSFER_FEES = "Transfer fees"
+
 data class CategorySpend(val category: String, val spent: Long, val previous: Long)
 
 /** The last [days] calendar days including today, set against the [days] days before them. */
@@ -45,6 +48,14 @@ data class MonthInsights(val flow: CashFlow, val day: Int, val length: Int, val 
 fun percentChange(current: Long, previous: Long): Long? =
     if (previous == 0L) null else (current - previous) * 100 / previous
 
+/**
+ * Donut slices for [sorted] shares, largest first: the first [limit] keep their names and the rest
+ * fold into one trailing "N more" slice. Not named "Other": that is also a real category.
+ */
+fun chartSlices(sorted: List<Pair<String, Long>>, limit: Int): List<Pair<String, Long>> =
+    if (sorted.size <= limit) sorted
+    else sorted.take(limit) + ("${sorted.size - limit} more" to sorted.drop(limit).sumOf { it.second })
+
 private fun cashFlow(rows: List<Transaction>) = CashFlow(
     rows.filter { it.type == TransactionType.INCOME }.sumOf { it.amountMinor },
     rows.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountMinor },
@@ -61,7 +72,7 @@ private fun List<Transaction>.confirmedByDate(zone: TimeZone) = filter { it.stat
  * Summarizes confirmed cash flow over [days] calendar days ending on [today], compared with the
  * preceding equally sized window. [zone] assigns occurrence dates; later dates and transfer principal are excluded.
  * Amounts stay in minor units. Daily spending includes zero-spend days, oldest first; categories
- * include only current-window expenses in descending total order. [WindowInsights.largest] holds
+ * hold current-window expenses plus a [TRANSFER_FEES] share, in descending total order. [WindowInsights.largest] holds
  * up to three expenses, largest first. Use a positive [days] for a meaningful window and daily average.
  */
 fun windowInsights(rows: List<Transaction>, today: LocalDate, days: Int, zone: TimeZone): WindowInsights {
@@ -80,8 +91,12 @@ fun windowInsights(rows: List<Transaction>, today: LocalDate, days: Int, zone: T
         current = cashFlow(current.map { it.second }),
         previous = cashFlow(previous),
         daily = (0 until days).map { byDay[start.plus(it, DateTimeUnit.DAY)] ?: 0L },
-        categories = expenses.groupBy { it.second.category }
-            .map { (category, rows) -> CategorySpend(category, rows.sumOf { it.second.amountMinor }, previousByCategory[category] ?: 0L) }
+        categories = (expenses.groupBy { it.second.category }
+            .map { (category, rows) -> CategorySpend(category, rows.sumOf { it.second.amountMinor }, previousByCategory[category] ?: 0L) } +
+            CategorySpend(TRANSFER_FEES, current.sumOf { it.second.feeMinor }, previous.sumOf { it.feeMinor }))
+            // A user category may share the fee share's name; merge rather than list it twice.
+            .groupBy { it.category }.map { (category, shares) -> CategorySpend(category, shares.sumOf { it.spent }, shares.sumOf { it.previous }) }
+            .filter { it.spent > 0 }
             .sortedByDescending { it.spent },
         largest = expenses.map { it.second }.sortedByDescending { it.amountMinor }.take(3),
     )

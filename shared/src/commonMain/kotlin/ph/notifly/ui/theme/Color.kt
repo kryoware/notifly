@@ -25,6 +25,8 @@ data class NotiflyAccents(
     val income: Color, val incomeContainer: Color, val onIncomeContainer: Color,
     val expense: Color, val expenseContainer: Color, val onExpenseContainer: Color,
     val confirmed: Color, val onConfirmed: Color,
+    /** Ordinal one-hue ramp for chart slices, largest share first. */
+    val chart: List<Color>,
 )
 
 private val UbeLight = lightColorScheme(
@@ -87,6 +89,7 @@ private val UbeLightAccents = NotiflyAccents(
     Color(0xFF110D17),
     Color(0xFF7443E6),
     Color(0xFFF4F0F8),
+    listOf(Color(0xFF3A0093), Color(0xFF5310C5), Color(0xFF6B38DD), Color(0xFF8556F8), Color(0xFF9D79FF)),
 )
 
 private val UbeDark = darkColorScheme(
@@ -149,6 +152,7 @@ private val UbeDarkAccents = NotiflyAccents(
     Color(0xFFF4F0F8),
     Color(0xFF7443E6),
     Color(0xFFF4F0F8),
+    listOf(Color(0xFFD0BCFF), Color(0xFFB4A0E7), Color(0xFF9986CB), Color(0xFF7F6CAF), Color(0xFF665495)),
 )
 
 private val EvergreenLight = lightColorScheme(
@@ -211,6 +215,7 @@ private val EvergreenLightAccents = NotiflyAccents(
     Color(0xFF002114),
     Color(0xFF226A4D),
     Color(0xFFFFFFFF),
+    listOf(Color(0xFF003825), Color(0xFF005137), Color(0xFF226A4D), Color(0xFF3E8465), Color(0xFF599E7E)),
 )
 
 private val EvergreenDark = darkColorScheme(
@@ -273,6 +278,7 @@ private val EvergreenDarkAccents = NotiflyAccents(
     Color(0xFFABF2CC),
     Color(0xFF226A4D),
     Color(0xFFFFFFFF),
+    listOf(Color(0xFF8ED5B1), Color(0xFF73B997), Color(0xFF599E7D), Color(0xFF3E8465), Color(0xFF226A4D)),
 )
 
 private val SlateLight = lightColorScheme(
@@ -335,6 +341,7 @@ private val SlateLightAccents = NotiflyAccents(
     Color(0xFF001E2F),
     Color(0xFF276389),
     Color(0xFFFFFFFF),
+    listOf(Color(0xFF00344E), Color(0xFF004B70), Color(0xFF276389), Color(0xFF447CA4), Color(0xFF5F96BF)),
 )
 
 private val SlateDark = darkColorScheme(
@@ -397,6 +404,7 @@ private val SlateDarkAccents = NotiflyAccents(
     Color(0xFFCAE6FF),
     Color(0xFF276389),
     Color(0xFFFFFFFF),
+    listOf(Color(0xFF95CDF8), Color(0xFF79B1DB), Color(0xFF5E97BF), Color(0xFF437DA4), Color(0xFF266489)),
 )
 
 private val ClayLight = lightColorScheme(
@@ -459,6 +467,7 @@ private val ClayLightAccents = NotiflyAccents(
     Color(0xFF3A0B01),
     Color(0xFF8F4C37),
     Color(0xFFFFFFFF),
+    listOf(Color(0xFF55200E), Color(0xFF723522), Color(0xFF8F4C37), Color(0xFFAC644D), Color(0xFFCB7D64)),
 )
 
 private val ClayDark = darkColorScheme(
@@ -521,6 +530,7 @@ private val ClayDarkAccents = NotiflyAccents(
     Color(0xFFFFDBD1),
     Color(0xFF8F4C37),
     Color(0xFFFFFFFF),
+    listOf(Color(0xFFFFB59F), Color(0xFFE09A85), Color(0xFFC2806D), Color(0xFFA56755), Color(0xFF88503E)),
 )
 
 internal fun schemeFor(palette: NotiflyPalette, dark: Boolean = false): ColorScheme =

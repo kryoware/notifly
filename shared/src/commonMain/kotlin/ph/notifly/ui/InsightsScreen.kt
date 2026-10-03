@@ -30,7 +30,13 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.koalaplot.core.pie.DefaultSlice
+import io.github.koalaplot.core.pie.PieChart
+import io.github.koalaplot.core.style.KoalaPlotTheme
+import io.github.koalaplot.core.util.ExperimentalKoalaPlotApi
 import kotlin.math.abs
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
@@ -78,6 +84,7 @@ fun InsightsScreen(model: InsightsModel, appLabels: Map<String, String> = emptyM
         item { DailySpendingCard(w) }
         item { PaceCard(s.windows, s.days, model::days) }
         item { CategoryCard(w) }
+        if (s.accounts.isNotEmpty()) item { AccountsCard(s.accounts) }
         if (w.largest.isNotEmpty()) {
             item(span = full) { SectionHeader("Largest expenses · last ${w.days} days") }
             items(w.largest, key = { it.id }, span = { full }) { t -> TransactionRow(t, appLabels, { model.navigate("edit/${t.id}") }) }
@@ -302,12 +309,6 @@ private fun BudgetCard(m: MonthInsights, budget: Long?, edit: () -> Unit) {
     }
 }
 
-/**
- * Shows each supplied category's spending, share of the window total, and change from the prior window.
- * An empty category list shows a no-spending message.
- *
- * @throws ArithmeticException if categories are present but the current spending total is zero.
- */
 @Composable
 private fun CategoryCard(w: WindowInsights) {
     Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
@@ -318,13 +319,14 @@ private fun CategoryCard(w: WindowInsights) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (w.categories.isEmpty()) Text("No spending in the last ${w.days} days.")
-            w.categories.forEach { c ->
+            if (w.categories.size > 1) ShareDonut(w.categories.map { it.category to it.spent }, "spent", "Spending by category")
+            w.categories.forEachIndexed { i, c ->
                 Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(c.category, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                         Text(money(c.spent), style = MaterialTheme.typography.titleSmall.tabular())
                     }
-                    Meter(ratio(c.spent, w.current.spent), MaterialTheme.colorScheme.primary)
+                    Meter(ratio(c.spent, w.current.spent), sliceColor(i))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${c.spent * 100 / w.current.spent}% of spending", style = MaterialTheme.typography.bodySmall.tabular(),
                             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
@@ -334,6 +336,86 @@ private fun CategoryCard(w: WindowInsights) {
             }
         }
     }
+}
+
+/**
+ * Splits positive balances, largest first, into shares of their total. Card debt and overdrafts
+ * can't be a slice, so their sum is noted under the rows instead.
+ */
+@Composable
+private fun AccountsCard(balances: List<AccountBalance>) {
+    val funded = balances.filter { it.netValue > 0 }.sortedByDescending { it.netValue }
+    val total = funded.sumOf { it.netValue }
+    val owing = balances.filter { it.netValue < 0 }
+    Card(Modifier.fillMaxWidth(), colors = brandCardColors()) {
+        Column(Modifier.padding(Space.xl), verticalArrangement = Arrangement.spacedBy(Space.md)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                Text("Balance by account", style = MaterialTheme.typography.titleMedium)
+                Text("Where your confirmed money sits today", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (funded.isEmpty()) Text("No account has a positive balance.")
+            if (funded.size > 1) ShareDonut(funded.map { it.account.name to it.netValue }, "in accounts", "Balance by account")
+            funded.forEachIndexed { i, a ->
+                Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(a.account.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        Text(money(a.netValue), style = MaterialTheme.typography.titleSmall.tabular())
+                    }
+                    Meter(ratio(a.netValue, total), sliceColor(i))
+                    Text("${a.netValue * 100 / total}% of balances${if (a.account.archived) " · Archived" else ""}", style = MaterialTheme.typography.bodySmall.tabular(),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if (owing.isNotEmpty()) Text("Not shown: ${money(owing.sumOf { -it.netValue })} owed on " +
+                if (owing.size == 1) owing.single().account.name else "${owing.size} accounts",
+                style = MaterialTheme.typography.bodySmall.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** Ramp step for the [index]th largest share; shares past the ramp fold into one neutral slice. */
+@Composable
+private fun sliceColor(index: Int) = MaterialTheme.accents.chart.getOrElse(index) { MaterialTheme.colorScheme.outline }
+
+/**
+ * Part-to-whole donut for [shares], largest first, totalled in the hole above [caption]. Tapping a
+ * slice shows that slice in the hole instead. The rows after it are its legend and table view, so
+ * the ring carries no labels of its own.
+ */
+@OptIn(ExperimentalKoalaPlotApi::class)
+@Composable
+private fun ShareDonut(shares: List<Pair<String, Long>>, caption: String, chart: String) {
+    val slices = chartSlices(shares, MaterialTheme.accents.chart.size)
+    val total = slices.sumOf { it.second }
+    var picked by remember(slices) { mutableStateOf<Int?>(null) }
+    val colors = slices.indices.map { sliceColor(it) }
+    val (label, amount) = picked?.let { slices[it] } ?: (caption to total)
+    val values = slices.map { ratio(it.second, total) }
+    PieChart(
+        values = values,
+        modifier = Modifier.fillMaxWidth().semantics {
+            contentDescription = "$chart chart. " + slices.joinToString { (name, value) -> "$name ${value * 100 / total}%" }
+        },
+        slice = { i ->
+            // The gap comes off both ends, so thin slices get at most a quarter of their sweep (×360°/4) each side.
+            DefaultSlice(if (picked == null || picked == i) colors[i] else colors[i].copy(alpha = 0.35f), gap = minOf(1f, values[i] * 90f),
+                clickable = true, onClick = { picked = if (picked == i) null else i })
+        },
+        labelConnector = {},
+        holeSize = 0.7f,
+        holeContent = { padding ->
+            Column(Modifier.fillMaxSize().padding(padding), verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(money(amount), style = MaterialTheme.typography.titleSmall.tabular(), maxLines = 1)
+                Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        },
+        maxPieDiameter = 176.dp,
+        forceCenteredPie = true,
+        pieAnimationSpec = KoalaPlotTheme.animationSpec,
+    )
 }
 
 /**

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from material_color_utilities import CustomColor, Variant, theme_from_color
+from material_color_utilities import CustomColor, Hct, TonalPalette, Variant, theme_from_color
 
 
 SEEDS = {
@@ -31,6 +31,10 @@ ACCENTS = (
     "expense", "expense_container", "on_expense_container",
     "confirmed", "on_confirmed",
 )
+# Chart slices: one hue (the brand allows no second accent), largest share first, so the ramp runs
+# away from the card surface. Dark tops out at primary's tone so no slice outshines the One Light.
+# Each mode's steps pass the dataviz ordinal check against surface_container_high.
+CHART_TONES = {"light": (20, 30, 40, 50, 60), "dark": (80, 70, 60, 50, 40)}
 # Ube is the brand palette (docs/brand/ube.css): its roles are pinned to the
 # identity's swatches rather than derived. Tertiary marks pending review, which the brand draws in
 # lilac. Tonal spot fills whatever is not listed.
@@ -114,6 +118,8 @@ out = [
     "    val income: Color, val incomeContainer: Color, val onIncomeContainer: Color,",
     "    val expense: Color, val expenseContainer: Color, val onExpenseContainer: Color,",
     "    val confirmed: Color, val onConfirmed: Color,",
+    "    /** Ordinal one-hue ramp for chart slices, largest share first. */",
+    "    val chart: List<Color>,",
     ")",
     "",
 ]
@@ -150,6 +156,8 @@ for name, seed in SEEDS.items():
         out.append(f"private val {name}{mode.title()}Accents = NotiflyAccents(")
         for role in ACCENTS:
             out.append(f"    {color(brand.get(role, accents[role]))},")
+        ramp = TonalPalette(Hct(brand.get("primary", scheme.primary)))
+        out.append(f"    listOf({', '.join(color(ramp.get(t)) for t in CHART_TONES[mode])}),")
         out.append(")")
         out.append("")
 

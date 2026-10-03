@@ -21,6 +21,7 @@ targetSdk = "36"
 sentry = "8.57.0"
 sentryPlugin = "6.23.0"
 aboutLibraries = "15.2.0"
+koalaplot = "0.12.1"
 
 [libraries]
 compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "composeMultiplatform" }
@@ -49,6 +50,7 @@ robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectr
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
 sentry-android = { module = "io.sentry:sentry-android", version.ref = "sentry" }
 aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutLibraries" }
+koalaplot-core = { module = "io.github.koalaplot:koalaplot-core", version.ref = "koalaplot" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
